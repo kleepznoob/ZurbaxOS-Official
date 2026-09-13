@@ -1287,7 +1287,9 @@
     toast("Progress reset — the cards themselves are untouched.");
   });
 
-  function saveFile(text, name, type){
+  // Plain link saves work on the real site. Inside the claude.ai viewer the
+  // frame can't download on its own, so ask the host to hand over the file.
+  function linkSave(text, name, type){
     var blob = new Blob([text], { type: type });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -1295,9 +1297,24 @@
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
   }
+  function saveFile(text, name, type){
+    if(window.claude && typeof window.claude.use === "function"){
+      window.claude.use("downloads").then(function(dl){
+        if(!dl){ linkSave(text, name, type); return; }
+        return dl.save({ filename: name, data: text }).then(function(){
+          toast("Backup saved.");
+        }, function(err){
+          if(err && err.code === "declined") return;      // they said no; that's an answer
+          linkSave(text, name, type);
+        });
+      }, function(){ linkSave(text, name, type); });
+      return;
+    }
+    linkSave(text, name, type);
+    toast("Backup saved to your downloads.");
+  }
   $("export").addEventListener("click", function(){
     saveFile(JSON.stringify(db, null, 2), "studylark-backup-" + today() + ".json", "application/json");
-    toast("Backup saved to your downloads.");
   });
   $("import").addEventListener("click", function(){ $("import-file").click(); });
   $("import-file").addEventListener("change", function(e){
@@ -1462,7 +1479,7 @@
   renderForecast();
   checkSharedDeck();
 
-  if(window.self !== window.top){
+  if(window.self !== window.top && !(window.claude && typeof window.claude.use === "function")){
     var n = document.createElement("p");
     n.className = "note";
     n.textContent = "Heads up: saving files is blocked inside this embedded preview. Everything else works — open the full site to use backups.";
