@@ -1,0 +1,32 @@
+name: Deploy to GitHub Pages
+
+# Turn this on once: Settings -> Pages -> Source -> GitHub Actions.
+on:
+  push:
+    branches: [claude/monetization-project-2pk6te, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # Nothing to build — Studylark is a static site.
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4

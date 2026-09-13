@@ -1,0 +1,1477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Paste your notes and Studylark turns them into flashcards, then drills you with spaced repetition so you actually remember them. Free, no account, works offline, your notes never leave your device.">
+<meta name="theme-color" content="#1B2430">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Studylark — turn your notes into flashcards">
+<meta property="og:description" content="Paste notes, get flashcards, remember them. Free, no account, works offline.">
+<meta name="twitter:card" content="summary">
+<title>Studylark — turn your notes into flashcards, free</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root{
+    --paper:#F1F2EE;
+    --surface:#FFFFFF;
+    --sunk:#E6E8E2;
+    --ink:#1B2430;
+    --ink-2:#3D4959;
+    --muted:#6A7889;
+    --rule:#D9DBD3;
+    --rule-soft:#E7E9E2;
+    --accent:#D8276A;
+    --accent-ink:#FFFFFF;
+    --accent-soft:#FBE4EC;
+    --good:#2C8A5B;  --good-soft:#DDEFE4;
+    --warn:#B57A0E;  --warn-soft:#F6EBD3;
+    --hard:#C0563E;  --hard-soft:#F7E3DC;
+    --easy:#2F6FA8;  --easy-soft:#DEEAF5;
+    --chart:#D8276A;
+    --chart-soft:#E68CB0;
+    --shadow:0 1px 2px rgba(27,36,48,.05), 0 12px 30px -18px rgba(27,36,48,.35);
+    --display:"Fraunces",Georgia,"Times New Roman",serif;
+    --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --r:12px;
+    --read-space:0em;
+    --read-line:1.45;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#11151B; --surface:#1A2029; --sunk:#222A35;
+      --ink:#E9EDF2; --ink-2:#C3CCD6; --muted:#8C9AAA;
+      --rule:#2E3845; --rule-soft:#262F3A;
+      --accent:#FF5C8D; --accent-ink:#25060F; --accent-soft:#3A1723;
+      --good:#5CC28C; --good-soft:#17321F;
+      --warn:#E0AE4B; --warn-soft:#33280F;
+      --hard:#E8846A; --hard-soft:#331B14;
+      --easy:#6FAEE0; --easy-soft:#13273A;
+      --chart:#FF5C8D; --chart-soft:#7C3C54;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#11151B; --surface:#1A2029; --sunk:#222A35;
+    --ink:#E9EDF2; --ink-2:#C3CCD6; --muted:#8C9AAA;
+    --rule:#2E3845; --rule-soft:#262F3A;
+    --accent:#FF5C8D; --accent-ink:#25060F; --accent-soft:#3A1723;
+    --good:#5CC28C; --good-soft:#17321F;
+    --warn:#E0AE4B; --warn-soft:#33280F;
+    --hard:#E8846A; --hard-soft:#331B14;
+    --easy:#6FAEE0; --easy-soft:#13273A;
+    --chart:#FF5C8D; --chart-soft:#7C3C54;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
+  }
+  :root[data-read="easy"]{ --read-space:.045em; --read-line:1.85; }
+
+  *{box-sizing:border-box}
+  /* `hidden` must beat any display we set on .banner, .grades and friends. */
+  [hidden]{display:none!important}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--body); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1140px; margin:0 auto; padding-inline:16px; padding-block:0 56px}
+  h1,h2,h3{text-wrap:balance}
+  button{font:inherit}
+  :focus-visible{outline:2.5px solid var(--accent); outline-offset:2px; border-radius:6px}
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+
+  /* ---------------- header ---------------- */
+  header.bar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding-block:20px 16px; border-bottom:2px solid var(--ink); margin-bottom:20px;
+  }
+  .mark{display:flex; align-items:center; gap:10px; margin-right:auto}
+  .mark .glyph{
+    width:34px; height:34px; flex:none; border-radius:9px;
+    background:var(--ink); color:var(--paper);
+    display:grid; place-items:center;
+  }
+  .mark h1{
+    font-family:var(--display); font-weight:700; font-size:25px;
+    margin:0; letter-spacing:-.015em; line-height:1;
+  }
+  .mark p{margin:4px 0 0; font-size:12.5px; color:var(--muted); line-height:1}
+  .deck-pick{
+    display:flex; align-items:center; gap:0; border:1.5px solid var(--rule);
+    border-radius:9px; background:var(--surface); overflow:hidden;
+  }
+  .deck-pick select{
+    font:inherit; font-size:13.5px; font-weight:600; color:var(--ink);
+    background:transparent; border:0; padding:8px 8px 8px 11px; max-width:200px;
+  }
+  .deck-pick button{
+    background:transparent; border:0; border-left:1.5px solid var(--rule);
+    color:var(--muted); cursor:pointer; padding:8px 10px; font-size:15px; line-height:1;
+  }
+  .deck-pick button:hover{color:var(--accent)}
+  .icon-btn{
+    background:var(--surface); border:1.5px solid var(--rule); border-radius:9px;
+    color:var(--muted); cursor:pointer; padding:8px 11px; font-size:12.5px; font-weight:600;
+  }
+  .icon-btn:hover{color:var(--ink); border-color:var(--muted)}
+  .icon-btn[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+
+  /* ---------------- today strip ---------------- */
+  .today{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:var(--r);
+    overflow:hidden; margin-bottom:20px;
+  }
+  .stat{background:var(--surface); padding:13px 15px 14px}
+  .stat dt{
+    font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 5px;
+  }
+  .stat dd{
+    margin:0; font-family:var(--mono); font-size:24px; font-weight:600;
+    letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1.1;
+  }
+  .stat dd small{font-family:var(--body); font-size:12px; font-weight:600; color:var(--muted); margin-left:3px}
+  .stat.is-due dd{color:var(--accent)}
+  @media (max-width:720px){ .today{grid-template-columns:1fr 1fr} }
+
+  /* ---------------- tabs ---------------- */
+  nav.tabs{display:flex; gap:2px; margin-bottom:-1px; flex-wrap:wrap}
+  nav.tabs button{
+    background:transparent; border:1px solid transparent; border-bottom:0; cursor:pointer;
+    padding:9px 15px; border-radius:9px 9px 0 0; color:var(--muted);
+    font-size:13.5px; font-weight:600;
+  }
+  nav.tabs button:hover{color:var(--ink)}
+  nav.tabs button[aria-selected="true"]{
+    background:var(--surface); border-color:var(--rule); color:var(--ink);
+  }
+  nav.tabs .pip{
+    font-family:var(--mono); font-size:10.5px; font-weight:600; margin-left:6px;
+    background:var(--accent); color:var(--accent-ink); border-radius:20px; padding:1px 6px;
+  }
+  .panel{
+    background:var(--surface); border:1px solid var(--rule); border-radius:0 var(--r) var(--r) var(--r);
+    box-shadow:var(--shadow); padding:22px;
+  }
+  @media (max-width:560px){ .panel{padding:16px} }
+
+  /* ---------------- study ---------------- */
+  .study{display:flex; flex-direction:column; align-items:center; gap:0}
+  .progress-line{
+    width:100%; height:4px; border-radius:3px; background:var(--sunk);
+    overflow:hidden; margin-bottom:22px;
+  }
+  .progress-line i{display:block; height:100%; background:var(--accent); transition:width .35s ease}
+  .card-face{
+    width:100%; max-width:640px; min-height:186px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:16px; padding:28px 24px;
+    border:1px solid var(--rule); border-radius:14px; background:var(--paper);
+  }
+  .prompt{
+    font-family:var(--display); font-weight:600; font-size:clamp(20px,3.4vw,27px);
+    margin:0;
+    letter-spacing:var(--read-space); line-height:var(--read-line);
+  }
+  .blank{
+    color:var(--accent); border-bottom:2.5px solid var(--accent); padding:0 .18em;
+  }
+  .answer{
+    font-size:17px; font-weight:600; color:var(--ink-2); margin:0; max-width:52ch;
+    letter-spacing:var(--read-space); line-height:var(--read-line);
+  }
+  .divider{width:44px; height:2px; background:var(--rule); border-radius:2px}
+  .card-meta{
+    font-family:var(--mono); font-size:11px; color:var(--muted);
+    letter-spacing:.02em; margin:14px 0 0; font-variant-numeric:tabular-nums;
+  }
+  .reveal{
+    margin-top:22px; background:var(--ink); color:var(--paper); border:0;
+    border-radius:10px; padding:13px 30px; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .reveal:hover{background:var(--accent); color:var(--accent-ink)}
+  .grades{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; width:100%; max-width:640px; margin-top:22px}
+  .grade{
+    cursor:pointer; border-radius:10px; padding:11px 6px 10px; text-align:center;
+    border:1.5px solid; background:var(--surface); line-height:1.2;
+  }
+  .grade b{display:block; font-size:13.5px; font-weight:700}
+  .grade em{
+    display:block; font-style:normal; font-family:var(--mono); font-size:11px;
+    margin-top:3px; opacity:.85; font-variant-numeric:tabular-nums;
+  }
+  .grade kbd{
+    display:block; font-family:var(--mono); font-size:9.5px; margin-top:5px;
+    opacity:.55; font-weight:600;
+  }
+  .grade.g-again{color:var(--hard); border-color:var(--hard)}
+  .grade.g-again:hover{background:var(--hard-soft)}
+  .grade.g-hard{color:var(--warn); border-color:var(--warn)}
+  .grade.g-hard:hover{background:var(--warn-soft)}
+  .grade.g-good{color:var(--good); border-color:var(--good)}
+  .grade.g-good:hover{background:var(--good-soft)}
+  .grade.g-easy{color:var(--easy); border-color:var(--easy)}
+  .grade.g-easy:hover{background:var(--easy-soft)}
+  @media (max-width:560px){ .grades{grid-template-columns:1fr 1fr} }
+
+  .done{text-align:center; padding:34px 16px; max-width:460px; margin:0 auto}
+  .done h2{font-family:var(--display); font-weight:700; font-size:24px; margin:0 0 8px}
+  .done p{color:var(--muted); margin:0 0 18px}
+
+  /* ---------------- make ---------------- */
+  .make-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start}
+  @media (max-width:820px){ .make-grid{grid-template-columns:1fr} }
+  .field-label{
+    display:block; font-size:11px; font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+  }
+  textarea#notes{
+    width:100%; min-height:270px; resize:vertical;
+    font-family:var(--mono); font-size:13px; line-height:1.6;
+    color:var(--ink); background:var(--paper);
+    border:1px solid var(--rule); border-radius:10px; padding:13px 14px;
+  }
+  .make-actions{display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:11px}
+  .btn{
+    background:var(--accent); color:var(--accent-ink); border:0; border-radius:10px;
+    padding:11px 18px; font-size:14px; font-weight:700; cursor:pointer;
+  }
+  .btn:hover{filter:brightness(1.07)}
+  .btn:disabled{opacity:.4; cursor:not-allowed; filter:none}
+  .btn.quiet{background:var(--sunk); color:var(--ink)}
+  .recipe{
+    background:var(--paper); border:1px dashed var(--rule); border-radius:10px;
+    padding:13px 15px; margin-top:14px; font-size:12.5px; color:var(--muted); line-height:1.6;
+  }
+  .recipe b{color:var(--ink-2); font-weight:600}
+  .recipe code{font-family:var(--mono); font-size:11.5px; color:var(--accent)}
+
+  .draft-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:10px}
+  .draft-head strong{font-size:13.5px}
+  .draft-head span{font-family:var(--mono); font-size:12px; color:var(--muted)}
+  .drafts{
+    max-height:400px; overflow-y:auto; border:1px solid var(--rule);
+    border-radius:10px; background:var(--paper);
+  }
+  .draft{display:grid; grid-template-columns:1fr auto; gap:10px; padding:11px 13px; border-bottom:1px solid var(--rule-soft)}
+  .draft:last-child{border-bottom:0}
+  .draft.off{opacity:.4}
+  .draft .q{font-size:13.5px; font-weight:600; margin:0 0 3px; line-height:1.35}
+  .draft .a{font-size:12.5px; color:var(--muted); margin:0; line-height:1.35}
+  .draft .kind{
+    font-family:var(--mono); font-size:9px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--muted); border:1px solid var(--rule);
+    border-radius:4px; padding:1px 4px; margin-left:6px; vertical-align:1.5px; white-space:nowrap;
+  }
+  .draft .drop{
+    background:transparent; border:0; color:var(--muted); cursor:pointer;
+    font-size:12px; font-weight:600; align-self:start; padding:2px 4px;
+  }
+  .draft .drop:hover{color:var(--accent)}
+  .empty{padding:34px 18px; text-align:center; color:var(--muted); font-size:13.5px}
+
+  /* ---------------- browse ---------------- */
+  .browse-head{display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap}
+  .search{
+    flex:1; min-width:180px; font:inherit; font-size:13.5px;
+    background:var(--paper); color:var(--ink);
+    border:1px solid var(--rule); border-radius:9px; padding:9px 12px;
+  }
+  .rows{border:1px solid var(--rule); border-radius:10px; overflow:hidden}
+  .row{
+    display:grid; grid-template-columns:1fr 1fr 92px 74px; gap:12px; align-items:center;
+    padding:10px 13px; border-bottom:1px solid var(--rule-soft); font-size:13px;
+  }
+  .row:last-child{border-bottom:0}
+  .row.head{
+    background:var(--sunk); font-size:10.5px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  .row .cell{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .row .cell.q{font-weight:600}
+  .row .when{font-family:var(--mono); font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .pill{
+    display:inline-block; font-family:var(--mono); font-size:9.5px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.05em; border-radius:4px; padding:2px 5px;
+  }
+  .pill.new{background:var(--accent-soft); color:var(--accent)}
+  .pill.learn{background:var(--warn-soft); color:var(--warn)}
+  .pill.review{background:var(--good-soft); color:var(--good)}
+  .row .acts{display:flex; gap:4px; justify-content:flex-end}
+  .row .acts button{
+    background:transparent; border:0; color:var(--muted); cursor:pointer;
+    font-size:11.5px; font-weight:600; padding:3px 5px;
+  }
+  .row .acts button:hover{color:var(--accent)}
+  @media (max-width:680px){
+    .row{grid-template-columns:1fr 74px}
+    .row .cell.a, .row .when{display:none}
+  }
+
+  /* ---------------- progress ---------------- */
+  .prog-grid{display:grid; grid-template-columns:1.35fr 1fr; gap:22px; align-items:start}
+  @media (max-width:820px){ .prog-grid{grid-template-columns:1fr} }
+  .chart-card h3, .side h3{
+    font-family:var(--body); font-size:13.5px; font-weight:700; margin:0 0 3px;
+  }
+  .chart-card p.sub, .side p.sub{font-size:12.5px; color:var(--muted); margin:0 0 16px}
+  .chart{width:100%; height:auto; display:block; overflow:visible}
+  .chart .grid-line{stroke:var(--rule-soft); stroke-width:1}
+  .chart .axis-label{fill:var(--muted); font-family:var(--mono); font-size:10px}
+  .chart .val-label{fill:var(--ink-2); font-family:var(--mono); font-size:10.5px; font-weight:600}
+  .chart .val-label.inset{fill:var(--accent-ink)}
+  .chart .bar{fill:var(--chart-soft); transition:fill .15s}
+  .chart .bar.today{fill:var(--chart)}
+  .chart g.col:hover .bar{fill:var(--chart)}
+  .chart .hit{fill:transparent; cursor:pointer}
+  .tip{
+    position:fixed; z-index:30; pointer-events:none; opacity:0; transform:translate(-50%,-118%);
+    background:var(--ink); color:var(--paper); border-radius:7px; padding:6px 9px;
+    font-size:11.5px; font-weight:600; white-space:nowrap; transition:opacity .12s;
+  }
+  .tip.on{opacity:1}
+  .tip .n{font-family:var(--mono)}
+  .side{display:flex; flex-direction:column; gap:10px}
+  .side .btn, .side .icon-btn{width:100%; text-align:center}
+  .note{font-size:12px; color:var(--muted); line-height:1.55; margin:2px 0 0}
+  .banner{
+    display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    background:var(--accent-soft); border:1px solid var(--accent);
+    border-radius:10px; padding:12px 15px; margin-bottom:18px; font-size:13.5px;
+  }
+  .banner strong{font-weight:700}
+  .banner .btn{padding:8px 14px; font-size:13px}
+  .toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(14px);
+    background:var(--ink); color:var(--paper); border-radius:9px; padding:11px 18px;
+    font-size:13.5px; font-weight:600; opacity:0; transition:opacity .2s, transform .2s;
+    z-index:40; pointer-events:none; max-width:calc(100vw - 32px); text-align:center;
+  }
+  .toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+  footer.site{
+    margin-top:26px; padding-top:16px; border-top:1px solid var(--rule);
+    display:flex; flex-wrap:wrap; gap:8px 20px; align-items:center;
+    font-size:12.5px; color:var(--muted);
+  }
+  footer.site a{color:var(--accent); font-weight:600}
+  footer.site .spacer{margin-left:auto}
+
+  .reveal kbd, nav.tabs kbd{
+    font-family:var(--mono); font-size:10px; opacity:.55; margin-left:7px; font-weight:600;
+  }
+  .composer{
+    display:none; gap:8px; flex-direction:column; background:var(--paper);
+    border:1px solid var(--rule); border-radius:10px; padding:14px; margin-bottom:14px;
+  }
+  .composer.on{display:flex}
+  .composer textarea{
+    width:100%; font:inherit; font-size:13.5px; line-height:1.45; resize:vertical;
+    background:var(--surface); color:var(--ink);
+    border:1px solid var(--rule); border-radius:8px; padding:9px 11px; min-height:52px;
+  }
+  .composer .row-btns{display:flex; gap:8px}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <div class="mark">
+      <span class="glyph" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2 2 0 0 1 2 2v13a1.6 1.6 0 0 0-1.6-1.6H5.5A1.5 1.5 0 0 1 4 15.9z"/>
+          <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H14a2 2 0 0 0-2 2v13a1.6 1.6 0 0 1 1.6-1.6h4.9A1.5 1.5 0 0 0 20 15.9z"/>
+        </svg>
+      </span>
+      <div>
+        <h1>Studylark</h1>
+        <p>Paste your notes. Get flashcards. Actually remember them.</p>
+      </div>
+    </div>
+    <div class="deck-pick">
+      <select id="deck-select" aria-label="Choose a deck"></select>
+      <button type="button" id="deck-new" title="New deck" aria-label="New deck">+</button>
+    </div>
+    <button class="icon-btn" type="button" id="read-toggle" aria-pressed="false" title="Bigger spacing, easier on the eyes">Easy read</button>
+    <button class="icon-btn" type="button" id="theme-toggle">Dark</button>
+  </header>
+
+  <div id="import-banner" class="banner" hidden>
+    <span>Someone shared a deck with you: <strong id="import-name">deck</strong> <span id="import-count"></span></span>
+    <button class="btn" type="button" id="import-accept">Add it to my decks</button>
+    <button class="icon-btn" type="button" id="import-reject">No thanks</button>
+  </div>
+
+  <dl class="today">
+    <div class="stat is-due"><dt>Due now</dt><dd id="s-due">0<small>cards</small></dd></div>
+    <div class="stat"><dt>In this deck</dt><dd id="s-total">0<small>cards</small></dd></div>
+    <div class="stat"><dt>Day streak</dt><dd id="s-streak">0<small>days</small></dd></div>
+    <div class="stat"><dt>Recall rate</dt><dd id="s-recall">—</dd></div>
+  </dl>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-study" aria-selected="true" aria-controls="p-study">Study<span class="pip" id="pip-due" hidden>0</span></button>
+    <button role="tab" id="tab-make" aria-selected="false" aria-controls="p-make">Make cards</button>
+    <button role="tab" id="tab-browse" aria-selected="false" aria-controls="p-browse">All cards</button>
+    <button role="tab" id="tab-progress" aria-selected="false" aria-controls="p-progress">Progress</button>
+  </nav>
+
+  <!-- ============ STUDY ============ -->
+  <section class="panel" id="p-study" role="tabpanel" aria-labelledby="tab-study">
+    <div class="study" id="study-live">
+      <div class="progress-line"><i id="session-bar" style="width:0%"></i></div>
+      <div class="card-face">
+        <p class="prompt" id="card-prompt">Loading…</p>
+        <div class="divider" id="card-divider" hidden></div>
+        <p class="answer" id="card-answer" hidden></p>
+      </div>
+      <p class="card-meta" id="card-meta"></p>
+      <button class="reveal" type="button" id="reveal-btn">Show answer <kbd>space</kbd></button>
+      <div class="grades" id="grade-row" hidden>
+        <button class="grade g-again" type="button" data-g="0"><b>Forgot</b><em id="i-0">1m</em><kbd>1</kbd></button>
+        <button class="grade g-hard"  type="button" data-g="1"><b>Hard</b><em id="i-1">6m</em><kbd>2</kbd></button>
+        <button class="grade g-good"  type="button" data-g="2"><b>Got it</b><em id="i-2">1d</em><kbd>3</kbd></button>
+        <button class="grade g-easy"  type="button" data-g="3"><b>Easy</b><em id="i-3">4d</em><kbd>4</kbd></button>
+      </div>
+    </div>
+    <div class="done" id="study-done" hidden>
+      <h2 id="done-title">Nothing due right now</h2>
+      <p id="done-body">Spaced repetition works by waiting. Come back when cards are due and you will remember far more than by cramming.</p>
+      <button class="btn" type="button" id="done-action">Make some cards</button>
+    </div>
+  </section>
+
+  <!-- ============ MAKE ============ -->
+  <section class="panel" id="p-make" role="tabpanel" aria-labelledby="tab-make" hidden>
+    <div class="make-grid">
+      <div>
+        <label class="field-label" for="notes">Paste your notes</label>
+        <textarea id="notes" spellcheck="false" placeholder="Paste a page of notes, a revision list, a wiki paragraph…"></textarea>
+        <div class="make-actions">
+          <button class="btn" type="button" id="generate">Turn into cards</button>
+          <button class="btn quiet" type="button" id="clear-notes">Clear</button>
+        </div>
+        <div class="recipe">
+          <b>What it looks for, in order:</b><br>
+          <code>Term - definition</code> or <code>Term: definition</code> &middot;
+          a question ending in <code>?</code> with the answer on the next line &middot;
+          <code>X is/means/was Y</code> sentences &middot;
+          <code>**bold**</code> words inside a sentence.<br>
+          Anything left over becomes a fill-in-the-blank. Check them before you add &mdash; you know your subject better than a parser does.
+        </div>
+      </div>
+      <div>
+        <div class="draft-head">
+          <strong>Suggested cards</strong>
+          <span id="draft-count">nothing yet</span>
+        </div>
+        <div class="drafts" id="drafts">
+          <p class="empty">Paste notes on the left and press <strong>Turn into cards</strong>.</p>
+        </div>
+        <div class="make-actions">
+          <button class="btn" type="button" id="add-drafts" disabled>Add to deck</button>
+          <button class="btn quiet" type="button" id="add-manual">Write one myself</button>
+        </div>
+        <p class="note" id="draft-dest"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BROWSE ============ -->
+  <section class="panel" id="p-browse" role="tabpanel" aria-labelledby="tab-browse" hidden>
+    <div class="browse-head">
+      <input class="search" type="search" id="search" placeholder="Search this deck…" aria-label="Search cards">
+      <button class="icon-btn" type="button" id="add-manual-2">+ New card</button>
+    </div>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <!-- ============ PROGRESS ============ -->
+  <section class="panel" id="p-progress" role="tabpanel" aria-labelledby="tab-progress" hidden>
+    <div class="prog-grid">
+      <div class="chart-card">
+        <h3>What&rsquo;s coming up</h3>
+        <p class="sub">Cards this deck will ask you for over the next seven days.</p>
+        <svg class="chart" id="forecast" viewBox="0 0 560 210" role="img" aria-labelledby="forecast-title">
+          <title id="forecast-title">Cards due per day for the next seven days</title>
+        </svg>
+        <p class="note" id="forecast-note"></p>
+      </div>
+      <div class="side">
+        <h3>Your cards, your file</h3>
+        <p class="sub">Everything lives in this browser. No account, no server, nothing sent anywhere. Keep a backup.</p>
+        <button class="btn quiet" type="button" id="export">Save a backup file</button>
+        <button class="btn quiet" type="button" id="import">Load a backup file</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+        <button class="btn" type="button" id="share">Copy share link for this deck</button>
+        <p class="note">The share link carries the whole deck inside the address itself &mdash; send it to a friend and it opens straight into their Studylark.</p>
+        <button class="icon-btn" type="button" id="reset-deck">Reset this deck&rsquo;s progress</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site">
+    <span>Studylark &middot; free, no account, works offline.</span>
+    <span class="spacer"></span>
+    <span><a href="#" id="support-link">Support this project</a></span>
+  </footer>
+</div>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+
+<script src="vendor/lz-string.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var MIN = 60000, HOUR = 3600000, DAY = 86400000;
+  var STEPS = [1, 10];                 // learning steps, in minutes
+  var NEW_PER_SESSION = 20;
+  var KEY = "studylark.v1";
+
+  // Put a Ko-fi / Buy Me a Coffee / GitHub Sponsors URL here to show the
+  // support link in the footer. Left empty, the link stays hidden —
+  // better no link than a dead one.
+  var SUPPORT_URL = "";
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ==================================================================
+     1. Storage
+     ================================================================== */
+  var db = null;
+
+  function blankDeck(name){
+    return { id: "d" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+             name: name, created: Date.now(), cards: [] };
+  }
+  function newCard(front, back){
+    return { id: "c" + Math.random().toString(36).slice(2,10),
+             front: front, back: back, state: "new", step: 0,
+             interval: 0, ease: 2.5, reps: 0, lapses: 0, due: Date.now(), added: Date.now() };
+  }
+  function save(){
+    try{ localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){ /* private mode — app still works for this session */ }
+  }
+  function load(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw){
+        var parsed = JSON.parse(raw);
+        if(parsed && parsed.decks && parsed.decks.length) return parsed;
+      }
+    }catch(e){}
+    return null;
+  }
+  function deck(){
+    var d = db.decks.filter(function(x){ return x.id === db.active; })[0];
+    if(!d){ d = db.decks[0]; db.active = d.id; }
+    return d;
+  }
+  function today(){ return new Date().toISOString().slice(0,10); }
+
+  /* ==================================================================
+     2. The scheduler — SM-2 with learning steps
+     ================================================================== */
+  function applyGrade(card, g, commit){
+    var c = commit ? card : JSON.parse(JSON.stringify(card));
+    var now = Date.now();
+
+    if(c.state === "review"){
+      if(g === 0){
+        c.lapses++;
+        c.ease = Math.max(1.3, c.ease - 0.2);
+        c.interval = Math.max(1, Math.round(c.interval * 0.4));
+        c.state = "learning"; c.step = 0;
+        c.due = now + STEPS[0] * MIN;
+      } else if(g === 1){
+        c.ease = Math.max(1.3, c.ease - 0.15);
+        c.interval = Math.max(1, Math.round(c.interval * 1.2));
+        c.due = now + c.interval * DAY;
+      } else if(g === 2){
+        c.interval = Math.max(1, Math.round(c.interval * c.ease));
+        c.due = now + c.interval * DAY;
+      } else {
+        c.ease = Math.min(3.2, c.ease + 0.15);
+        c.interval = Math.max(1, Math.round(c.interval * c.ease * 1.25));
+        c.due = now + c.interval * DAY;
+      }
+    } else {
+      if(g === 0){
+        c.state = "learning"; c.step = 0;
+        c.due = now + STEPS[0] * MIN;
+      } else if(g === 1){
+        c.state = "learning";
+        c.due = now + Math.round(STEPS[Math.min(c.step || 0, STEPS.length - 1)] * 1.6) * MIN;
+      } else if(g === 2){
+        c.step = (c.step || 0) + 1;
+        if(c.step >= STEPS.length){
+          c.state = "review"; c.interval = 1; c.due = now + DAY;
+        } else {
+          c.state = "learning"; c.due = now + STEPS[c.step] * MIN;
+        }
+      } else {
+        c.state = "review"; c.interval = 4; c.due = now + 4 * DAY;
+      }
+    }
+    c.interval = Math.min(c.interval, 365 * 5);
+    c.reps = (c.reps || 0) + 1;
+    c.lastGrade = g;
+    return c;
+  }
+
+  function humanGap(ms){
+    if(ms < HOUR)      return Math.max(1, Math.round(ms / MIN)) + "m";
+    if(ms < DAY)       return Math.round(ms / HOUR) + "h";
+    if(ms < 30 * DAY)  return Math.round(ms / DAY) + "d";
+    if(ms < 365 * DAY) return Math.round(ms / (30 * DAY)) + "mo";
+    return (ms / (365 * DAY)).toFixed(1).replace(/\.0$/, "") + "y";
+  }
+  function dueLabel(card){
+    var gap = card.due - Date.now();
+    if(gap <= 0) return "due now";
+    return "in " + humanGap(gap);
+  }
+
+  /* ==================================================================
+     3. Notes -> cards
+     ================================================================== */
+  var STOP = ("the a an and or but of in on at to for from with without by as is are was were be been being "
+    + "this that these those it its they them their there here which who whom whose what when where why how "
+    + "can could will would shall should may might must have has had do does did not no nor so than then " 
+    + "also very more most much many some any each both into over under about between during through").split(" ");
+  var STOPSET = {};
+  STOP.forEach(function(w){ STOPSET[w] = 1; });
+
+  function clean(s){
+    return s.replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+  }
+  function stripBullet(s){
+    return s.replace(/^\s*(?:[-*•–—]|\(?\d+[.)])\s+/, "").trim();
+  }
+
+  function makeCloze(sentence){
+    var parts = sentence.split(/(\s+)/);
+    var best = -1, bestScore = 0;
+    for(var i = 0; i < parts.length; i++){
+      if(/^\s+$/.test(parts[i])) continue;
+      var word = parts[i].replace(/^[^\w]+|[^\w]+$/g, "");
+      if(word.length < 4) continue;
+      var lower = word.toLowerCase();
+      if(STOPSET[lower]) continue;
+      var score = 0;
+      if(/\d/.test(word)) score += 6;
+      if(/^[A-Z]/.test(word) && i > 0) score += 4;
+      if(word.length > 8) score += 2;
+      else if(word.length > 6) score += 1;
+      if(score > bestScore){ bestScore = score; best = i; }
+    }
+    if(best < 0 || bestScore < 3){
+      // Nothing stands out — blank the last meaningful word, which is usually the point.
+      best = -1;
+      for(var k = parts.length - 1; k >= 0; k--){
+        if(/^\s+$/.test(parts[k])) continue;
+        var tail_w = parts[k].replace(/^[^\w]+|[^\w]+$/g, "");
+        if(tail_w.length < 4 || STOPSET[tail_w.toLowerCase()]) continue;
+        best = k; break;
+      }
+      if(best < 0) return null;
+    }
+    var token = parts[best];
+    var answer = token.replace(/^[^\w]+|[^\w]+$/g, "");
+    var lead = token.slice(0, token.indexOf(answer));
+    var tail = token.slice(token.indexOf(answer) + answer.length);
+    parts[best] = lead + "_____" + tail;
+    return { front: parts.join(""), back: answer };
+  }
+
+  function generateCards(text){
+    var out = [], seen = {}, heading = "";
+    var lines = text.replace(/\r/g, "").split("\n");
+
+    function push(kind, front, back){
+      front = clean(front); back = clean(back);
+      if(!front || !back) return;
+      if(front.length < 3 || back.length < 1) return;
+      if(front.length > 220 || back.length > 400) return;
+      var key = front.toLowerCase();
+      if(seen[key]) return;
+      seen[key] = 1;
+      out.push({ kind: kind, front: front, back: back, keep: true });
+    }
+
+    for(var i = 0; i < lines.length && out.length < 150; i++){
+      var raw = lines[i].trim();
+      if(!raw) continue;
+
+      var hm = raw.match(/^#{1,6}\s+(.*)$/);
+      if(hm){ heading = clean(hm[1]); continue; }
+      if(raw.length < 60 && /:$/.test(raw) && !/[.!?]/.test(raw.slice(0, -1))){
+        heading = clean(raw.slice(0, -1)); continue;
+      }
+
+      var line = stripBullet(raw);
+      if(!line || line.length < 4) continue;
+
+      // (a) a question, answered on the next non-empty line
+      if(/\?$/.test(line)){
+        var ans = "";
+        for(var j = i + 1; j < lines.length; j++){
+          var nxt = lines[j].trim();
+          if(nxt){ ans = stripBullet(nxt); i = j; break; }
+        }
+        if(ans && !/\?$/.test(ans)){ push("Q&A", line, ans); continue; }
+      }
+
+      // (b) term / definition pairs
+      var m = line.match(/^(.{2,70}?)\s*:\s+(.{2,})$/)
+           || line.match(/^(.{2,70}?)\s+[–—-]\s+(.{2,})$/)
+           || line.match(/^(.{2,70}?)\s+=\s+(.{2,})$/);
+      if(m && !/^https?:/i.test(line)){
+        var term = m[1].trim(), def = m[2].trim();
+        if(term && def && !/[.!?]$/.test(term)){
+          push("term", term, def);
+          continue;
+        }
+      }
+
+      // (c) "X is / means / was Y"
+      var v = line.match(/^(.{3,70}?)\s+(is|are|was|were|means|refers to)\s+(.{4,})$/i);
+      if(v){
+        push("term", "What " + v[2].toLowerCase() + " " + v[1].trim() + "?", v[3].trim());
+        continue;
+      }
+
+      // (d) bolded term inside a sentence -> blank it out
+      var b = line.match(/\*\*(.+?)\*\*/);
+      if(b && b[1].length < 60){
+        push("blank", clean(line.replace(b[0], "_____")), b[1]);
+        continue;
+      }
+
+      // (e) anything else that is a real sentence -> fill in the blank
+      if(line.split(/\s+/).length >= 6){
+        var cz = makeCloze(clean(line));
+        if(cz) push("blank", cz.front, cz.back);
+      }
+    }
+    return out;
+  }
+
+  /* ==================================================================
+     4. Session
+     ================================================================== */
+  var session = { queue: [], total: 0, current: null, revealed: false };
+  var drafts = [];
+  var editing = null;
+
+  function dueCards(){
+    var now = Date.now();
+    return deck().cards.filter(function(c){ return c.due <= now; });
+  }
+
+  function buildSession(){
+    var now = Date.now();
+    var cards = deck().cards;
+    var learning = [], review = [], fresh = [];
+    cards.forEach(function(c){
+      if(c.due > now) return;
+      if(c.state === "learning") learning.push(c);
+      else if(c.state === "review") review.push(c);
+      else fresh.push(c);
+    });
+    var byDue = function(a, b){ return a.due - b.due; };
+    learning.sort(byDue); review.sort(byDue);
+    fresh.sort(function(a, b){ return a.added - b.added; });
+    session.queue = learning.concat(review, fresh.slice(0, NEW_PER_SESSION));
+    session.total = session.queue.length;
+    session.current = null;
+    session.revealed = false;
+    nextCard();
+  }
+
+  function nextCard(){
+    session.current = session.queue.shift() || null;
+    session.revealed = false;
+    renderStudy();
+  }
+
+  function gradeCurrent(g){
+    var card = session.current;
+    if(!card || !session.revealed) return;
+    var now = Date.now();
+    applyGrade(card, g, true);
+
+    var day = today();
+    var entry = db.log[db.log.length - 1];
+    if(!entry || entry.d !== day){
+      entry = { d: day, n: 0, ok: 0 };
+      db.log.push(entry);
+      if(db.log.length > 90) db.log.shift();
+      // streak
+      var y = new Date(Date.now() - DAY).toISOString().slice(0, 10);
+      db.streak = (db.streakDay === y) ? (db.streak || 0) + 1 : 1;
+      db.streakDay = day;
+    }
+    entry.n++;
+    if(g >= 2) entry.ok++;
+
+    if(card.state === "learning" && card.due - now < 20 * MIN){
+      session.queue.push(card);
+    }
+    save();
+    nextCard();
+    renderStats();
+  }
+
+  /* ==================================================================
+     5. Rendering
+     ================================================================== */
+  function setText(el, str){
+    el.textContent = "";
+    String(str).split("_____").forEach(function(chunk, i){
+      if(i > 0){
+        var b = document.createElement("span");
+        b.className = "blank";
+        b.textContent = "\u00A0\u00A0\u00A0\u00A0\u00A0";
+        el.appendChild(b);
+      }
+      if(chunk) el.appendChild(document.createTextNode(chunk));
+    });
+  }
+
+  function renderStudy(){
+    var live = $("study-live"), done = $("study-done");
+    var c = session.current;
+    if(!c){
+      live.hidden = true; done.hidden = false;
+      var total = deck().cards.length;
+      var soon = deck().cards.slice().sort(function(a, b){ return a.due - b.due; })[0];
+      if(!total){
+        $("done-title").textContent = "This deck is empty";
+        $("done-body").textContent = "Paste some notes into Make cards and Studylark will write the flashcards for you.";
+        $("done-action").textContent = "Make some cards";
+      } else {
+        $("done-title").textContent = "All caught up";
+        $("done-body").textContent = soon
+          ? "Next card is due " + dueLabel(soon) + ". Spaced repetition works by waiting — coming back later is what makes it stick."
+          : "Nothing left to review.";
+        $("done-action").textContent = "Add more cards";
+      }
+      renderStats();
+      return;
+    }
+    live.hidden = false; done.hidden = true;
+
+    setText($("card-prompt"), c.front);
+    $("card-answer").textContent = c.back;
+    $("card-answer").hidden = !session.revealed;
+    $("card-divider").hidden = !session.revealed;
+    $("reveal-btn").hidden = session.revealed;
+    $("grade-row").hidden = !session.revealed;
+
+    var stateName = c.state === "new" ? "new card"
+                  : c.state === "learning" ? "learning" : "review #" + c.reps;
+    $("card-meta").textContent = stateName
+      + (c.state === "review" ? "  ·  last gap " + c.interval + "d  ·  ease " + c.ease.toFixed(2) : "")
+      + (c.lapses ? "  ·  forgotten " + c.lapses + "×" : "");
+
+    if(session.revealed){
+      for(var g = 0; g < 4; g++){
+        var pv = applyGrade(c, g, false);
+        $("i-" + g).textContent = humanGap(Math.max(MIN, pv.due - Date.now()));
+      }
+    }
+    var remaining = session.queue.length + 1;
+    var pct = session.total ? Math.round(((session.total - remaining) / session.total) * 100) : 0;
+    $("session-bar").style.width = Math.max(0, Math.min(100, pct)) + "%";
+  }
+
+  function renderStats(){
+    var d = deck(), due = dueCards().length;
+    $("s-due").textContent = due;
+    $("s-due").appendChild(smallUnit("cards"));
+    $("s-total").textContent = d.cards.length;
+    $("s-total").appendChild(smallUnit("cards"));
+    $("s-streak").textContent = db.streak || 0;
+    $("s-streak").appendChild(smallUnit("days"));
+
+    var n = 0, ok = 0, cutoff = new Date(Date.now() - 30 * DAY).toISOString().slice(0, 10);
+    db.log.forEach(function(e){ if(e.d >= cutoff){ n += e.n; ok += e.ok; } });
+    $("s-recall").textContent = n ? Math.round((ok / n) * 100) : "—";
+    if(n) $("s-recall").appendChild(smallUnit("%  of " + n));
+
+    var pip = $("pip-due");
+    pip.hidden = !due;
+    pip.textContent = due;
+  }
+  function smallUnit(t){
+    var s = document.createElement("small");
+    s.textContent = t;
+    return s;
+  }
+
+  function renderDeckPicker(){
+    var sel = $("deck-select");
+    sel.textContent = "";
+    db.decks.forEach(function(d){
+      var o = document.createElement("option");
+      o.value = d.id;
+      o.textContent = d.name + "  (" + d.cards.length + ")";
+      if(d.id === db.active) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+
+  function renderDrafts(){
+    var box = $("drafts");
+    box.textContent = "";
+    var kept = drafts.filter(function(d){ return d.keep; }).length;
+    $("draft-count").textContent = drafts.length ? kept + " of " + drafts.length + " selected" : "nothing yet";
+    $("add-drafts").disabled = !kept;
+    $("draft-dest").textContent = "New cards go into the deck “" + deck().name + "”. Use + next to the deck name to start a fresh one.";
+    $("add-drafts").textContent = kept ? "Add " + kept + " card" + (kept === 1 ? "" : "s") + " to deck" : "Add to deck";
+
+    if(!drafts.length){
+      var p = document.createElement("p");
+      p.className = "empty";
+      p.textContent = "Paste notes on the left and press Turn into cards.";
+      box.appendChild(p);
+      return;
+    }
+    drafts.forEach(function(d, idx){
+      var row = document.createElement("div");
+      row.className = "draft" + (d.keep ? "" : " off");
+      var meta = document.createElement("div");
+      var q = document.createElement("p");
+      q.className = "q";
+      setText(q, d.front);
+      var kind = document.createElement("span");
+      kind.className = "kind";
+      kind.textContent = d.kind;
+      q.appendChild(kind);
+      var a = document.createElement("p");
+      a.className = "a";
+      a.textContent = d.back;
+      meta.appendChild(q); meta.appendChild(a);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "drop";
+      btn.textContent = d.keep ? "drop" : "keep";
+      btn.addEventListener("click", function(){ drafts[idx].keep = !drafts[idx].keep; renderDrafts(); });
+      row.appendChild(meta); row.appendChild(btn);
+      box.appendChild(row);
+    });
+  }
+
+  function renderBrowse(){
+    var box = $("rows"), q = $("search").value.trim().toLowerCase();
+    box.textContent = "";
+    var head = document.createElement("div");
+    head.className = "row head";
+    ["Front", "Back", "Next", ""].forEach(function(t){
+      var c = document.createElement("div");
+      c.className = "cell";
+      c.textContent = t;
+      head.appendChild(c);
+    });
+    box.appendChild(head);
+
+    var list = deck().cards.filter(function(c){
+      return !q || (c.front + " " + c.back).toLowerCase().indexOf(q) >= 0;
+    });
+    if(!list.length){
+      var p = document.createElement("p");
+      p.className = "empty";
+      p.textContent = deck().cards.length ? "No cards match “" + $("search").value + "”." : "No cards in this deck yet.";
+      box.appendChild(p);
+      return;
+    }
+    list.slice(0, 400).forEach(function(c){
+      var row = document.createElement("div");
+      row.className = "row";
+      var f = document.createElement("div");
+      f.className = "cell q";
+      f.textContent = c.front;
+      var b = document.createElement("div");
+      b.className = "cell a";
+      b.textContent = c.back;
+      var w = document.createElement("div");
+      w.className = "when";
+      var pill = document.createElement("span");
+      pill.className = "pill " + (c.state === "new" ? "new" : c.state === "learning" ? "learn" : "review");
+      pill.textContent = c.state === "new" ? "new" : c.state === "learning" ? "learning" : c.interval + "d";
+      w.appendChild(pill);
+      var acts = document.createElement("div");
+      acts.className = "acts";
+      var ed = document.createElement("button");
+      ed.type = "button"; ed.textContent = "edit";
+      ed.addEventListener("click", function(){ openComposer(c); });
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.textContent = "delete";
+      rm.addEventListener("click", function(){
+        deck().cards = deck().cards.filter(function(x){ return x.id !== c.id; });
+        save(); renderBrowse(); renderStats(); renderDeckPicker(); buildSession();
+      });
+      acts.appendChild(ed); acts.appendChild(rm);
+      row.appendChild(f); row.appendChild(b); row.appendChild(w); row.appendChild(acts);
+      box.appendChild(row);
+    });
+    if(list.length > 400){
+      var more = document.createElement("p");
+      more.className = "empty";
+      more.textContent = "Showing the first 400 of " + list.length + " cards — use search to narrow it down.";
+      box.appendChild(more);
+    }
+  }
+
+  /* ---------- forecast chart ---------- */
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function el(name, attrs){
+    var n = document.createElementNS(SVGNS, name);
+    for(var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function barPath(x, y, w, h, r){
+    r = Math.min(r, h, w / 2);
+    return "M" + x + "," + (y + h) + " L" + x + "," + (y + r) +
+           " Q" + x + "," + y + " " + (x + r) + "," + y +
+           " L" + (x + w - r) + "," + y + " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
+           " L" + (x + w) + "," + (y + h) + " Z";
+  }
+
+  function renderForecast(){
+    var svg = $("forecast");
+    while(svg.childNodes.length > 1) svg.removeChild(svg.lastChild);
+
+    var start = new Date(); start.setHours(0, 0, 0, 0);
+    var days = [], cards = deck().cards, totalAhead = 0;
+    for(var i = 0; i < 7; i++){
+      var from = start.getTime() + i * DAY, to = from + DAY;
+      var n = cards.filter(function(c){
+        return i === 0 ? c.due < to : (c.due >= from && c.due < to);
+      }).length;
+      totalAhead += n;
+      days.push({ i: i, n: n, date: new Date(from) });
+    }
+
+    var X0 = 42, X1 = 548, YT = 18, YB = 168, colW = (X1 - X0) / 7, barW = Math.min(46, colW - 16);
+    var peak = Math.max.apply(null, days.map(function(d){ return d.n; }));
+    var max = Math.max(1, peak);
+    var yOf = function(v){ return YB - (v / max) * (YB - YT); };
+
+    [0, max / 2, max].forEach(function(v){
+      var y = yOf(v);
+      svg.appendChild(el("line", { class: "grid-line", x1: X0, y1: y, x2: X1, y2: y }));
+      if(v !== Math.round(v)) return;   // a gridline can be unlabelled; a label must name a real value
+      var t = el("text", { class: "axis-label", x: X0 - 10, y: y + 3.5, "text-anchor": "end" });
+      t.textContent = v;
+      svg.appendChild(t);
+    });
+
+    var maxIdx = days.reduce(function(best, d, i){ return d.n > days[best].n ? i : best; }, 0);
+    var names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    days.forEach(function(d, i){
+      var cx = X0 + colW * i + colW / 2;
+      var x = cx - barW / 2;
+      var g = el("g", { class: "col" });
+
+      if(d.n > 0){
+        var h = Math.max(3, YB - yOf(d.n));
+        g.appendChild(el("path", {
+          class: "bar" + (i === 0 ? " today" : ""),
+          d: barPath(x, YB - h, barW, h, 4)
+        }));
+      }
+      // label the day that matters most, plus today — not every bar
+      if(d.n > 0 && (i === 0 || i === maxIdx)){
+        var barTop = yOf(d.n), inside = (YB - barTop) > 30;
+        var vl = el("text", {
+          class: "val-label" + (inside ? " inset" : ""),
+          x: cx, y: inside ? barTop + 15 : barTop - 7, "text-anchor": "middle"
+        });
+        vl.textContent = d.n;
+        g.appendChild(vl);
+      }
+      var lbl = el("text", { class: "axis-label", x: cx, y: 188, "text-anchor": "middle" });
+      lbl.textContent = i === 0 ? "Today" : names[(d.date.getDay() + 6) % 7];
+      g.appendChild(lbl);
+
+      var hit = el("rect", { class: "hit", x: X0 + colW * i, y: YT - 8, width: colW, height: YB - YT + 16 });
+      hit.addEventListener("mousemove", function(ev){ showTip(ev, d); });
+      hit.addEventListener("mouseleave", hideTip);
+      g.appendChild(hit);
+      svg.appendChild(g);
+    });
+
+    svg.appendChild(el("line", { class: "grid-line", x1: X0, y1: YB, x2: X1, y2: YB }));
+
+    $("forecast-note").textContent = totalAhead
+      ? totalAhead + " reviews scheduled this week in “" + deck().name + "”."
+      : "No reviews scheduled yet — study some cards and they will start appearing here.";
+  }
+
+  var tip = $("tip");
+  function showTip(ev, d){
+    tip.textContent = "";
+    var n = document.createElement("span");
+    n.className = "n";
+    n.textContent = d.n;
+    tip.appendChild(n);
+    tip.appendChild(document.createTextNode(" card" + (d.n === 1 ? "" : "s") + " · " +
+      (d.i === 0 ? "today" : d.date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }))));
+    tip.style.left = ev.clientX + "px";
+    tip.style.top = ev.clientY + "px";
+    tip.classList.add("on");
+  }
+  function hideTip(){ tip.classList.remove("on"); }
+
+  /* ==================================================================
+     6. Composer (write / edit a card by hand)
+     ================================================================== */
+  var composer;
+  function buildComposer(){
+    composer = document.createElement("div");
+    composer.className = "composer";
+    var f = document.createElement("textarea");
+    f.id = "comp-front"; f.placeholder = "Front — the question or prompt";
+    var b = document.createElement("textarea");
+    b.id = "comp-back"; b.placeholder = "Back — the answer";
+    var lf = document.createElement("label");
+    lf.className = "field-label"; lf.setAttribute("for", "comp-front"); lf.textContent = "Front";
+    var lb = document.createElement("label");
+    lb.className = "field-label"; lb.setAttribute("for", "comp-back"); lb.textContent = "Back";
+    var btns = document.createElement("div");
+    btns.className = "row-btns";
+    var ok = document.createElement("button");
+    ok.type = "button"; ok.className = "btn"; ok.textContent = "Save card";
+    var no = document.createElement("button");
+    no.type = "button"; no.className = "btn quiet"; no.textContent = "Cancel";
+    ok.addEventListener("click", saveComposer);
+    no.addEventListener("click", closeComposer);
+    btns.appendChild(ok); btns.appendChild(no);
+    composer.appendChild(lf); composer.appendChild(f);
+    composer.appendChild(lb); composer.appendChild(b);
+    composer.appendChild(btns);
+    var panel = $("p-browse");
+    panel.insertBefore(composer, $("rows"));
+  }
+  function openComposer(card){
+    showTab("browse");
+    editing = card || null;
+    $("comp-front").value = card ? card.front : "";
+    $("comp-back").value = card ? card.back : "";
+    composer.classList.add("on");
+    $("comp-front").focus();
+  }
+  function closeComposer(){
+    composer.classList.remove("on");
+    editing = null;
+  }
+  function saveComposer(){
+    var front = $("comp-front").value.trim(), back = $("comp-back").value.trim();
+    if(!front || !back){ toast("A card needs both a front and a back."); return; }
+    if(editing){ editing.front = front; editing.back = back; }
+    else deck().cards.push(newCard(front, back));
+    save(); closeComposer();
+    renderBrowse(); renderStats(); renderDeckPicker(); renderForecast();
+    if(!session.current) buildSession();
+    toast(editing ? "Card updated." : "Card added.");
+  }
+
+  /* ==================================================================
+     7. Tabs, keys, toast
+     ================================================================== */
+  var TABS = ["study", "make", "browse", "progress"];
+  var activeTab = "study";
+  function showTab(name){
+    activeTab = name;
+    TABS.forEach(function(t){
+      $("tab-" + t).setAttribute("aria-selected", String(t === name));
+      $("p-" + t).hidden = (t !== name);
+    });
+    if(name === "browse") renderBrowse();
+    if(name === "progress") renderForecast();
+    if(name === "study" && !session.current) buildSession();
+  }
+  TABS.forEach(function(t){
+    $("tab-" + t).addEventListener("click", function(){ showTab(t); });
+  });
+
+  var toastTimer;
+  function toast(msg){
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("on"); }, 2600);
+  }
+
+  document.addEventListener("keydown", function(e){
+    var tag = (e.target.tagName || "").toLowerCase();
+    if(tag === "input" || tag === "textarea" || tag === "select") return;
+    if(activeTab !== "study" || !session.current) return;
+    if(e.key === " " || e.key === "Enter"){
+      e.preventDefault();
+      if(!session.revealed){ session.revealed = true; renderStudy(); }
+      return;
+    }
+    if(session.revealed && e.key >= "1" && e.key <= "4"){
+      e.preventDefault();
+      gradeCurrent(Number(e.key) - 1);
+    }
+  });
+
+  $("reveal-btn").addEventListener("click", function(){
+    session.revealed = true; renderStudy();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".grade"), function(b){
+    b.addEventListener("click", function(){ gradeCurrent(Number(b.dataset.g)); });
+  });
+  $("done-action").addEventListener("click", function(){ showTab("make"); $("notes").focus(); });
+
+  /* ==================================================================
+     8. Make-cards wiring
+     ================================================================== */
+  $("generate").addEventListener("click", function(){
+    var text = $("notes").value;
+    if(!text.trim()){ toast("Paste some notes first."); return; }
+    drafts = generateCards(text);
+    renderDrafts();
+    toast(drafts.length ? "Found " + drafts.length + " possible cards — check them over." : "Couldn’t find anything card-shaped in that. Try one fact per line.");
+  });
+  $("clear-notes").addEventListener("click", function(){
+    $("notes").value = ""; drafts = []; renderDrafts();
+  });
+  $("add-drafts").addEventListener("click", function(){
+    var keep = drafts.filter(function(d){ return d.keep; });
+    if(!keep.length) return;
+    keep.forEach(function(d){ deck().cards.push(newCard(d.front, d.back)); });
+    save();
+    var n = keep.length;
+    drafts = []; $("notes").value = "";
+    renderDrafts(); renderDeckPicker(); renderStats(); buildSession();
+    toast("Added " + n + " card" + (n === 1 ? "" : "s") + " to " + deck().name + ".");
+    showTab("study");
+  });
+  $("add-manual").addEventListener("click", function(){ openComposer(null); });
+  $("add-manual-2").addEventListener("click", function(){ openComposer(null); });
+  $("search").addEventListener("input", renderBrowse);
+
+  /* ==================================================================
+     9. Decks, backup, sharing
+     ================================================================== */
+  $("deck-select").addEventListener("change", function(e){
+    db.active = e.target.value;
+    save(); renderStats(); buildSession(); renderBrowse(); renderForecast();
+  });
+  $("deck-new").addEventListener("click", function(){
+    var name = "";
+    try{ name = window.prompt("Name for the new deck", "My deck"); }catch(err){}
+    if(name === null) return;
+    var d = blankDeck((name || "").trim() || "Deck " + (db.decks.length + 1));
+    db.decks.push(d); db.active = d.id;
+    save(); renderDeckPicker(); renderStats(); buildSession(); renderBrowse(); renderForecast();
+    showTab("make");
+  });
+  $("reset-deck").addEventListener("click", function(){
+    deck().cards.forEach(function(c){
+      c.state = "new"; c.step = 0; c.interval = 0; c.ease = 2.5;
+      c.reps = 0; c.lapses = 0; c.due = Date.now();
+    });
+    save(); renderStats(); buildSession(); renderForecast(); renderBrowse();
+    toast("Progress reset — the cards themselves are untouched.");
+  });
+
+  function saveFile(text, name, type){
+    var blob = new Blob([text], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }
+  $("export").addEventListener("click", function(){
+    saveFile(JSON.stringify(db, null, 2), "studylark-backup-" + today() + ".json", "application/json");
+    toast("Backup saved to your downloads.");
+  });
+  $("import").addEventListener("click", function(){ $("import-file").click(); });
+  $("import-file").addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    if(!file) return;
+    var fr = new FileReader();
+    fr.onload = function(){
+      try{
+        var incoming = JSON.parse(fr.result);
+        if(!incoming || !incoming.decks) throw new Error("no decks");
+        incoming.decks.forEach(function(d){
+          d.id = "d" + Math.random().toString(36).slice(2, 10);
+          db.decks.push(d);
+        });
+        db.active = db.decks[db.decks.length - 1].id;
+        save(); renderDeckPicker(); renderStats(); buildSession(); renderBrowse(); renderForecast();
+        toast("Loaded " + incoming.decks.length + " deck" + (incoming.decks.length === 1 ? "" : "s") + ".");
+      }catch(err){
+        toast("That file isn’t a Studylark backup.");
+      }
+    };
+    fr.readAsText(file);
+    e.target.value = "";
+  });
+
+  function shareLink(){
+    var d = deck();
+    var payload = { n: d.name, c: d.cards.map(function(c){ return [c.front, c.back]; }) };
+    var packed = (typeof LZString !== "undefined")
+      ? LZString.compressToEncodedURIComponent(JSON.stringify(payload))
+      : encodeURIComponent(JSON.stringify(payload));
+    return location.origin + location.pathname + "#deck=" + packed;
+  }
+  $("share").addEventListener("click", function(){
+    var d = deck();
+    if(!d.cards.length){ toast("This deck is empty — nothing to share yet."); return; }
+    var url = shareLink();
+    var done = function(){ toast("Link copied — paste it to a friend."); };
+    var fallback = function(){
+      location.hash = "deck=" + url.split("#deck=")[1];
+      toast("Copy the link from your address bar.");
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done).catch(fallback);
+    } else fallback();
+    if(url.length > 8000) toast("Link copied, but it’s long — big decks share better as a backup file.");
+  });
+
+  function checkSharedDeck(){
+    var m = location.hash.match(/#deck=(.+)$/);
+    if(!m) return;
+    var payload = null;
+    try{
+      var json = (typeof LZString !== "undefined")
+        ? LZString.decompressFromEncodedURIComponent(m[1])
+        : decodeURIComponent(m[1]);
+      payload = JSON.parse(json);
+    }catch(e){}
+    if(!payload || !payload.c || !payload.c.length) return;
+    $("import-name").textContent = payload.n || "Shared deck";
+    $("import-count").textContent = "(" + payload.c.length + " cards)";
+    $("import-banner").hidden = false;
+    $("import-accept").onclick = function(){
+      var d = blankDeck(payload.n || "Shared deck");
+      payload.c.forEach(function(pair){
+        if(pair[0] && pair[1]) d.cards.push(newCard(String(pair[0]), String(pair[1])));
+      });
+      db.decks.push(d); db.active = d.id;
+      save();
+      history.replaceState(null, "", location.pathname);
+      $("import-banner").hidden = true;
+      renderDeckPicker(); renderStats(); buildSession(); renderBrowse(); renderForecast();
+      toast("Added “" + d.name + "” with " + d.cards.length + " cards.");
+    };
+    $("import-reject").onclick = function(){
+      $("import-banner").hidden = true;
+      history.replaceState(null, "", location.pathname);
+    };
+  }
+
+  /* ==================================================================
+     10. Theme + reading comfort
+     ================================================================== */
+  function applyTheme(mode){
+    if(mode) document.documentElement.setAttribute("data-theme", mode);
+    else document.documentElement.removeAttribute("data-theme");
+    var dark = mode === "dark" || (!mode && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    $("theme-toggle").textContent = dark ? "Light" : "Dark";
+    try{ if(mode) localStorage.setItem("studylark.theme", mode); }catch(e){}
+  }
+  $("theme-toggle").addEventListener("click", function(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark" ||
+      (!document.documentElement.hasAttribute("data-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    applyTheme(isDark ? "light" : "dark");
+  });
+  $("read-toggle").addEventListener("click", function(){
+    var on = document.documentElement.getAttribute("data-read") === "easy";
+    if(on) document.documentElement.removeAttribute("data-read");
+    else document.documentElement.setAttribute("data-read", "easy");
+    $("read-toggle").setAttribute("aria-pressed", String(!on));
+    try{ localStorage.setItem("studylark.read", on ? "" : "easy"); }catch(e){}
+  });
+
+  /* ==================================================================
+     11. Seed + boot
+     ================================================================== */
+  function seed(){
+    var d = blankDeck("Photosynthesis · example deck");
+    var pairs = [
+      ["What is photosynthesis?", "The process plants use to turn light energy, water and carbon dioxide into glucose and oxygen."],
+      ["Where in a plant cell does photosynthesis happen?", "In the chloroplasts — mostly in the palisade cells near the top of the leaf."],
+      ["Word equation for photosynthesis", "carbon dioxide + water → (light energy) → glucose + oxygen"],
+      ["Balanced symbol equation for photosynthesis", "6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂"],
+      ["Chlorophyll is the green pigment that _____ light energy.", "absorbs"],
+      ["Which colours of light does chlorophyll absorb best?", "Red and blue. Green is mostly reflected, which is why leaves look green."],
+      ["Name the three limiting factors of photosynthesis.", "Light intensity, carbon dioxide concentration, and temperature."],
+      ["What happens to the glucose a plant makes?", "Used in respiration, stored as starch, or built into cellulose, proteins and oils."],
+      ["Why do stomata matter for photosynthesis?", "They let carbon dioxide diffuse in and oxygen and water vapour out. Guard cells open and close them."],
+      ["Above about 40°C the rate of photosynthesis falls sharply because the enzymes _____.", "denature"]
+    ];
+    pairs.forEach(function(p){ d.cards.push(newCard(p[0], p[1])); });
+    // A few already in the review cycle, so the forecast has something to show.
+    var sched = [[0, 1, 1], [1, 2, 2], [3, 4, 3], [5, 6, 5], [7, 3, 3]];
+    sched.forEach(function(s){
+      var c = d.cards[s[0]];
+      c.state = "review"; c.interval = s[2]; c.reps = 2; c.ease = 2.5;
+      c.due = Date.now() + s[1] * DAY;
+    });
+    return d;
+  }
+
+  db = load();
+  if(!db){
+    var first = seed();
+    db = { version: 1, decks: [first], active: first.id, log: [], streak: 0, streakDay: "" };
+    save();
+  }
+  if(!db.log) db.log = [];
+  if(!db.decks.length) db.decks.push(blankDeck("My deck"));
+
+  try{
+    var savedTheme = localStorage.getItem("studylark.theme");
+    applyTheme(savedTheme || null);
+    if(localStorage.getItem("studylark.read") === "easy"){
+      document.documentElement.setAttribute("data-read", "easy");
+      $("read-toggle").setAttribute("aria-pressed", "true");
+    }
+  }catch(e){ applyTheme(null); }
+
+  if(SUPPORT_URL){
+    $("support-link").href = SUPPORT_URL;
+    $("support-link").rel = "noopener";
+  } else {
+    $("support-link").parentNode.hidden = true;
+  }
+
+  buildComposer();
+  renderDeckPicker();
+  renderStats();
+  renderDrafts();
+  buildSession();
+  renderForecast();
+  checkSharedDeck();
+
+  if(window.self !== window.top){
+    var n = document.createElement("p");
+    n.className = "note";
+    n.textContent = "Heads up: saving files is blocked inside this embedded preview. Everything else works — open the full site to use backups.";
+    $("p-progress").querySelector(".side").appendChild(n);
+  }
+  if("serviceWorker" in navigator && location.protocol === "https:"){
+    navigator.serviceWorker.register("sw.js").catch(function(){ /* offline mode simply unavailable */ });
+  }
+})();
+</script>
+</body>
+</html>
