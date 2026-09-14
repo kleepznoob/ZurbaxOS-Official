@@ -1,0 +1,15 @@
+{
+  "name": "Toolsmith — six creative tools, one tab",
+  "short_name": "Toolsmith",
+  "description": "Photo editing, background cutout, design artboards, batch resizing, colour palettes and PDF surgery. Runs entirely in your browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14161A",
+  "theme_color": "#14161A",
+  "categories": ["graphics", "productivity", "photo"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

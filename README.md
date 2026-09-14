@@ -1,3 +1,15 @@
+# Two products
+
+| | What it is | Money model |
+|---|---|---|
+| **[Studylark](#studylark)** (this folder, served at `/`) | Paste notes → flashcards → spaced repetition | Free; tips and paid deck packs — see [MONETIZATION.md](MONETIZATION.md) |
+| **[Toolsmith](toolsmith/)** (served at `/toolsmith/`) | Six creative tools replacing the Adobe apps people use daily | Paid: £9 once — see [toolsmith/SELLING-IT.md](toolsmith/SELLING-IT.md) |
+
+Both run entirely in the browser, with no server, no account and no third-party
+requests. Both work offline.
+
+---
+
 # Studylark
 
 **Paste your notes. Get flashcards. Actually remember them.**
