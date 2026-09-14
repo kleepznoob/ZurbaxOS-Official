@@ -32,9 +32,7 @@
         slim: true, multiple: false, title: "Open an image to cut out",
         onFiles: function(f){ openFile(f[0]); }
       });
-      var hint = h("p", { class: "note", style: "text-align:center;margin:0" },
-        "Click any background area to delete it. Click again on what's left over.");
-      stage.appendChild(h("div", { class: "stage-pad" }, [dz, wrap, hint]));
+      stage.appendChild(h("div", { class: "stage-pad" }, [dz, wrap]));
 
       var tolSlider = TS.slider({
         id:"cut-tol", label:"Tolerance", min:2, max:90, value:settings.tolerance, plus:false,
@@ -101,6 +99,9 @@
           return c;
         })();
         baseData = work.getContext("2d").getImageData(0, 0, work.width, work.height);
+        TS.docName(fileName + ".png");
+        TS.status({ doc: src.width + " x " + src.height + " px",
+                    hint: "Click the background to delete it. Raise Tolerance if it leaves crumbs." });
         replay();
       }
 
@@ -240,6 +241,26 @@
         out.getContext("2d").drawImage(canvas, minX, minY, nw, nh, 0, 0, nw, nh);
         return out;
       }
+
+      TS.provide({
+        open:   function(){ dz.openPicker(); },
+        export: doExport,
+        undo:   function(){ if(ops.length){ ops.pop(); replay(); } },
+        clear:  function(){ ops = []; replay(); }
+      });
+      TS.options([
+        TS.optLabel("Mode"),
+        TS.seg({
+          label:"Mode", value:"touching",
+          options:[{ value:"touching", label:"Touching" }, { value:"similar", label:"All similar" }],
+          onChange:function(v){ settings.contiguous = (v === "touching"); modeSeg.set(v); if(ops.length) replay(); }
+        }),
+        TS.optDivider(),
+        TS.btn("Undo click", { kind:"ghost", onClick:function(){ if(ops.length){ ops.pop(); replay(); } }}),
+        TS.btn("Start over", { kind:"ghost", onClick:function(){ ops = []; replay(); }}),
+        TS.optDivider(),
+        TS.btn("Export PNG", { onClick: doExport })
+      ]);
 
       TS.sampleImage().then(function(s){
         if(!alive || src) return;

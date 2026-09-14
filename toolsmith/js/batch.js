@@ -215,6 +215,9 @@
         statSaved.style.color = saved < 0 ? "var(--accent)" : "var(--good)";
         zipBtn.disabled = !done;
         dz.classList.toggle("slim", items.length > 0);
+        TS.status({ doc: items.length + " queued",
+                    hint: done ? TS.fmtBytes(before - after) + " saved across " + done + " file" + (done === 1 ? "" : "s") + "."
+                               : "Drop a folder of images, pick one size, download them all as a zip." });
 
         TS.clear(limitNote);
         var cap = L.limit("batchFiles");
@@ -247,6 +250,36 @@
         items.push({ id:++seq, name:s.name, bytes:s.size, bitmap:s.bitmap, w:s.bitmap.width, h:s.bitmap.height });
         reprocess();
       });
+
+      TS.provide({
+        open:   function(){ dz.openPicker(); },
+        export: downloadZip,
+        clear:  function(){ items = []; paint(); }
+      });
+      TS.options([
+        TS.optLabel("Size"),
+        TS.seg({
+          label:"Size preset", value:cfg.preset,
+          options: PRESETS.slice(0,5).map(function(p){ return { value:p.id, label:p.label.replace("Long edge ","≤"), title:p.label }; }),
+          onChange:function(v){
+            cfg.preset = v;
+            presetRows.forEach(function(x){ x.set(v); });
+            customRow.hidden = (v !== "custom");
+            fitRow.hidden = !needsFit();
+            reprocess();
+          }
+        }),
+        TS.optDivider(),
+        TS.optLabel("Format"),
+        TS.seg({
+          label:"Format", value:cfg.type,
+          options:[{ value:"image/jpeg", label:"JPG" }, { value:"image/webp", label:"WebP" }, { value:"image/png", label:"PNG" }],
+          onChange:function(v){ cfg.type = v; fmtSeg.set(v); qWrap.hidden = (v === "image/png"); reprocess(); }
+        }),
+        TS.optDivider(),
+        TS.btn("Download .zip", { onClick: downloadZip })
+      ]);
+      TS.docName("batch queue");
 
       paint();
       return function(){

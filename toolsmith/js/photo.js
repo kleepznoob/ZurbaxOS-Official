@@ -36,7 +36,7 @@
       var src = null, base = null, preview = null, previewData = null;
       var adj = Object.assign({}, DEFAULTS);
       var orient = { rot:0, flipH:false, flipV:false };
-      var crop = null, cropping = false, drag = null;
+      var crop = null, cropping = false, drag = null, showOriginal = false;
       var fileName = "photo";
       var alive = true;
 
@@ -72,15 +72,16 @@
         options: Object.keys(LOOKS).slice(3).map(function(k){ return { value:k, label:k }; }),
         onChange: applyLook
       });
+      var lookSegs = [lookSeg, lookSeg2];
       function applyLook(name){
         adj = Object.assign({}, DEFAULTS, LOOKS[name] || {});
         Object.keys(sliders).forEach(function(k){ sliders[k].set(adj[k]); });
-        lookSeg.set(name); lookSeg2.set(name);
+        lookSegs.forEach(function(sg){ sg.set(name); });
         render();
       }
 
-      var histo = h("svg", { class: "hist", viewBox: "0 0 240 56", preserveAspectRatio: "none",
-                             role: "img", "aria-label": "Brightness histogram" });
+      var histo = TS.fromHTML('<svg class="hist" viewBox="0 0 240 56" preserveAspectRatio="none" ' +
+                              'role="img" aria-label="Brightness histogram"></svg>');
 
       var cropSeg = TS.seg({
         label: "Crop ratio", value: "free",
@@ -171,6 +172,8 @@
         preview = scale < 1 ? TS.drawScaled(base, 0, 0, bw, bh, Math.round(bw*scale), Math.round(bh*scale)) : base;
         previewData = preview.getContext("2d").getImageData(0, 0, preview.width, preview.height);
         TS.$("ph-dims").textContent = bw + " x " + bh + " px original";
+        TS.docName(fileName + ".jpg");
+        TS.status({ doc: bw + " x " + bh + " px", hint: "Drag a slider, or pick a look. Hold the Compare button to see the original." });
         render();
       }
 
@@ -260,7 +263,7 @@
       /* ---------- render ---------- */
       var render = TS.rafThrottle(function(){
         if(!preview || !alive) return;
-        var result = process(previewData, adj);
+        var result = showOriginal ? previewData : process(previewData, adj);
         display.width = preview.width;
         display.height = preview.height;
         var ctx = display.getContext("2d");
@@ -289,8 +292,7 @@
           pts.push("L" + (j*240/63).toFixed(1) + "," + (56 - Math.sqrt(bins[j]/peak)*52).toFixed(1));
         }
         pts.push("L240,56 Z");
-        TS.clear(histo);
-        histo.appendChild(h("path", { class:"fill", d: pts.join(" ") }));
+        histo.innerHTML = '<path class="fill" d="' + pts.join(" ") + '"/>';
       }
 
       /* ---------- crop ---------- */
@@ -431,6 +433,46 @@
                         exportState.type === "image/png" ? undefined : exportState.quality/100);
         }, 30);
       }
+
+      /* ---------- menus + options bar ---------- */
+      TS.provide({
+        open:   function(){ dz.openPicker(); },
+        export: doExport,
+        reset:  function(){ applyLook("As shot"); TS.toast("Adjustments reset."); },
+        rotate: function(){ orient.rot = (orient.rot + 90) % 360; rebuild(); },
+        flip:   function(){ orient.flipH = !orient.flipH; rebuild(); },
+        crop:   function(){ if(!cropping) toggleCrop(); }
+      });
+
+      var compareBtn = TS.btn("Compare", { kind:"ghost" });
+      compareBtn.title = "Hold to see the original";
+      ["pointerdown","pointerenter"].forEach(function(ev){
+        compareBtn.addEventListener(ev, function(e){
+          if(ev === "pointerenter" && e.buttons !== 1) return;
+          showOriginal = true; render();
+        });
+      });
+      ["pointerup","pointerleave","pointercancel"].forEach(function(ev){
+        compareBtn.addEventListener(ev, function(){ showOriginal = false; render(); });
+      });
+
+      var lookSegBar = TS.seg({
+        label:"Look", value:"As shot",
+        options: Object.keys(LOOKS).map(function(k){ return { value:k, label:k }; }),
+        onChange: applyLook
+      });
+      lookSegs.push(lookSegBar);
+
+      TS.options([
+        TS.optLabel("Look"),
+        lookSegBar,
+        TS.optDivider(),
+        compareBtn,
+        TS.btn("Rotate", { kind:"ghost", onClick:function(){ orient.rot = (orient.rot + 90) % 360; rebuild(); }}),
+        TS.btn("Crop", { kind:"ghost", onClick:function(){ if(!cropping) toggleCrop(); else applyCrop(); }}),
+        TS.optDivider(),
+        TS.btn("Export", { onClick: doExport })
+      ]);
 
       /* ---------- go ---------- */
       TS.sampleImage().then(function(s){

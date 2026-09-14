@@ -11,7 +11,7 @@
 | **Colour** | Adobe Color | Pull a palette out of any photo, build harmonies, check contrast passes WCAG |
 | **PDF** | Acrobat | Merge, reorder, rotate, delete pages; bind images into one PDF |
 
-![Toolsmith's Photo tool](../screenshots/ts-1-photo.png)
+![Toolsmith's Photo tool](../screenshots/ui-1-photo.png)
 
 ---
 
@@ -50,7 +50,7 @@ the offline cache need a real origin.
 
 | Path | What it is |
 |---|---|
-| `index.html` | The shell — a topbar, a tool rail, a stage and an inspector |
+| `index.html` | The shell — menu bar, options bar, tool rail, document tab, panel dock, status bar |
 | `css/app.css` | All the styling, including the light theme |
 | `js/core.js` | Shared UI kit (sliders, segments, dropzones), file saving, the sample image |
 | `js/license.js` | Pro gating and Gumroad key checking — see [SELLING-IT.md](SELLING-IT.md) |
@@ -62,11 +62,32 @@ Every tool registers itself with `TS.register({id, name, swaps, blurb, icon, mou
 `mount(stage, inspector)` builds its own DOM and returns a teardown function.
 Adding a seventh tool means one new file and one `<script>` tag.
 
-**Design decisions worth knowing:**
+### The interface
+
+It follows the conventions of professional creative software, because those
+conventions are load-bearing rather than decorative: a menu bar for everything
+the app can do, an options bar for the active tool's most-used controls, a
+narrow icon rail, a stack of collapsible panels on the right, and a status bar
+carrying the hint text.
+
+**The menu bar is real.** Every item either runs something or shows greyed out
+because the current tool does not publish that command — `Image ▸ Rotate` is
+live in Photo and dead in Colour. Tools register what they can do with
+`TS.provide({open, export, undo, reset, rotate, flip, crop, clear})`, and the
+menus read from that. A decorative menu bar would be worse than none.
+
+Not affiliated with Adobe. The UI follows industry conventions and the tool
+names say what each one is for; no Adobe artwork, icons or branding is used.
+
+**Other decisions worth knowing:**
 
 - **Dark by default, on purpose.** Colour work needs a neutral ground or the
-  interface skews what you think you are seeing. The light theme is a full
-  re-spec, not an inversion.
+  interface skews what you think you are seeing. That is also why the greys are
+  untinted. The light theme is a full re-spec, not an inversion.
+- **Typeface is Source Sans 3**, Adobe's own open-source UI face — the right
+  look without touching anything proprietary.
+- **Slider values are editable inputs**, because in a real editor you type an
+  exact number as often as you drag for one.
 - **Photo previews are capped at 1400px** so dragging a slider stays instant.
   Export re-runs the identical pipeline at full resolution.
 - **Cutout records clicks, not pixels.** Each removal is stored as a normalised

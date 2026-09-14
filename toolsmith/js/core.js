@@ -30,6 +30,13 @@ window.TS = (function(){
   }
   TS.h = h;
   TS.$ = function(id){ return document.getElementById(id); };
+  // document.createElement("path") builds an HTML element that an <svg> will
+  // not render. Parsing markup lets the browser assign the SVG namespace.
+  TS.fromHTML = function(markup){
+    var box = document.createElement("div");
+    box.innerHTML = markup;
+    return box.firstElementChild;
+  };
   TS.clear = function(el){ while(el.firstChild) el.removeChild(el.firstChild); return el; };
 
   /* ---------------- numbers & strings ---------------- */
@@ -161,21 +168,44 @@ window.TS = (function(){
 
   /* ---------------- UI kit ---------------- */
   TS.sec = function(title, kids, onReset){
-    var head = h("h2", null, title);
-    if(onReset) head.appendChild(h("button", { class: "reset", type: "button", onClick: onReset }, "reset"));
-    return h("div", { class: "sec" }, [head, kids]);
+    var head = h("h2", null, [
+      h("span", { class: "chev", "aria-hidden": "true" }, "\u25BC"),
+      h("span", { class: "sect" }, title)
+    ]);
+    if(onReset){
+      head.appendChild(h("button", {
+        class: "reset", type: "button", title: "Reset this panel",
+        onClick: function(ev){ ev.stopPropagation(); onReset(); }
+      }, "Reset"));
+    }
+    var sec = h("div", { class: "sec" }, [head, h("div", { class: "sec-body" }, kids)]);
+    head.addEventListener("click", function(){ sec.classList.toggle("shut"); });
+    return sec;
   };
   TS.stack = function(kids){ return h("div", { class: "stack" }, kids); };
   TS.row2  = function(kids){ return h("div", { class: "row2" }, kids); };
 
   TS.slider = function(o){
-    var out = h("output", { text: fmtVal(o.value, o) });
+    // The number is an input, not a readout: in a real editor you type an exact
+    // value as often as you drag for one.
+    var out = h("input", {
+      class: "sl-val", value: fmtVal(o.value, o), "aria-label": o.label + " value",
+      onChange: function(){
+        var v = parseFloat(String(out.value).replace(/[^-\d.]/g, ""));
+        if(isNaN(v)) v = Number(input.value);
+        v = TS.clamp(v, Number(o.min), Number(o.max));
+        input.value = v;
+        out.value = fmtVal(v, o);
+        if(o.onInput) o.onInput(v);
+        if(o.onChange) o.onChange(v);
+      }
+    });
     var input = h("input", {
       type: "range", min: o.min, max: o.max, step: o.step || 1, value: o.value,
       id: o.id, "aria-label": o.label,
       onInput: function(){
         var v = Number(input.value);
-        out.textContent = fmtVal(v, o);
+        out.value = fmtVal(v, o);
         if(o.onInput) o.onInput(v);
       },
       onChange: function(){ if(o.onChange) o.onChange(Number(input.value)); }
@@ -184,7 +214,7 @@ window.TS = (function(){
       h("div", { class: "sl-top" }, [h("label", { for: o.id }, o.label), out]),
       input
     ]);
-    wrap.set = function(v){ input.value = v; out.textContent = fmtVal(Number(v), o); };
+    wrap.set = function(v){ input.value = v; out.value = fmtVal(Number(v), o); };
     wrap.input = input;
     return wrap;
   };
@@ -257,7 +287,37 @@ window.TS = (function(){
     zone.addEventListener("drop", function(e){
       if(e.dataTransfer && e.dataTransfer.files.length) o.onFiles(e.dataTransfer.files);
     });
+    zone.openPicker = function(){ input.click(); };   // so File > Open… can reach it
     return zone;
+  };
+
+  /* ---------------- options bar / status bar / doc tab ---------------- */
+  TS.options = function(nodes){
+    var bar = TS.clear(TS.$("options"));
+    (Array.isArray(nodes) ? nodes : [nodes]).forEach(function(n){ if(n) bar.appendChild(n); });
+  };
+  TS.optLabel = function(text){ return h("label", { class: "olabel" }, text); };
+  TS.optDivider = function(){ return h("span", { class: "divider" }); };
+
+  TS.status = function(o){
+    if(o.zoom != null) TS.$("status-zoom").textContent = o.zoom;
+    if(o.doc != null) TS.$("status-doc").textContent = o.doc;
+    if(o.hint != null) TS.$("status-hint").textContent = o.hint;
+  };
+  TS.docName = function(name){ TS.$("doctab").textContent = name; };
+
+  // Tools publish the actions the menu bar can call. Anything a tool does not
+  // publish shows greyed out rather than missing — the same way a real editor
+  // greys Save when there is nothing to save.
+  TS.cmds = {};
+  TS.onCommands = null;
+  TS.provide = function(cmds){
+    TS.cmds = cmds || {};
+    if(TS.onCommands) TS.onCommands();
+  };
+  TS.run = function(name){
+    var fn = TS.cmds[name];
+    if(typeof fn === "function") fn();
   };
 
   /* ---------------- the sample image ---------------- */
@@ -328,9 +388,15 @@ window.TS = (function(){
     TS.active = def.id;
 
     Array.prototype.forEach.call(TS.$("rail").children, function(b){
-      b.setAttribute("aria-current", String(b.dataset.tool === def.id));
+      if(b.dataset.tool) b.setAttribute("aria-current", String(b.dataset.tool === def.id));
     });
-    TS.$("tool-caption").textContent = def.name + " · replaces " + def.swaps;
+    var badge = TS.clear(TS.$("tool-badge"));
+    badge.appendChild(h("b", null, def.name));
+    badge.appendChild(h("i", null, "replaces " + def.swaps));
+    TS.options([]);
+    TS.provide({});
+    TS.docName("untitled");
+    TS.status({ zoom: "Fit", doc: "", hint: def.blurb });
 
     var stage = TS.clear(TS.$("stage"));
     var insp = TS.clear(TS.$("inspector"));

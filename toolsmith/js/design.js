@@ -37,11 +37,7 @@
 
       var canvas = h("canvas", { id:"design-canvas", tabindex:"0", style:"cursor:default" });
       var wrap = h("div", { class:"canvas-wrap plain" }, canvas);
-      stage.appendChild(h("div", { class:"stage-pad" }, [
-        wrap,
-        h("p", { class:"note", style:"text-align:center;margin:0" },
-          "Click to select · drag to move · drag a corner to resize · Delete removes · Ctrl+D duplicates")
-      ]));
+      stage.appendChild(h("div", { class:"stage-pad" }, wrap));
 
       /* ---------- object factory ---------- */
       function add(type, extra){
@@ -241,6 +237,8 @@
         if(!b) return;
         board.w = b.w; board.h = b.h;
         boardSeg.set(id); boardSeg2.set(id);
+        TS.status({ doc: board.w + " x " + board.h + " px",
+                    hint: "Click to select · drag to move · drag a corner to resize · Delete removes · Ctrl+D duplicates" });
         draw();
       }
       var bgInput = h("input", { type:"color", value:board.bg, class:"inp", style:"height:36px;padding:3px",
@@ -429,6 +427,27 @@
         objects.push({ id:++seq, type:"line", x:80, y:970, w:260, h:10, fill:"#EFA940", strokeW:10, opacity:100 });
         draw(); paintLayers(); syncProps();
       });
+
+      TS.provide({
+        export: function(){ exportPng(1); },
+        clear:  function(){ objects = []; select(null); draw(); paintLayers(); },
+        open:   function(){ imgInput.click(); }
+      });
+      TS.options([
+        TS.optLabel("Artboard"),
+        TS.seg({
+          label:"Artboard", value:"square",
+          options: BOARDS.map(function(b){ return { value:b.id, label:b.label.split(" ")[0], title:b.label + " · " + b.w + "x" + b.h }; }),
+          onChange: function(v){ setBoard(v); }
+        }),
+        TS.optDivider(),
+        TS.btn("Text", { kind:"ghost", onClick:function(){ add("text", { fill:"" }); }}),
+        TS.btn("Rect", { kind:"ghost", onClick:function(){ add("rect"); }}),
+        TS.btn("Image", { kind:"ghost", onClick:function(){ imgInput.click(); }}),
+        TS.optDivider(),
+        TS.btn("Export PNG", { onClick:function(){ exportPng(1); }})
+      ]);
+      TS.docName("design.png");
 
       syncProps(); paintLayers(); draw();
       return function(){ alive = false; };

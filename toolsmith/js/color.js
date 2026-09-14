@@ -228,6 +228,8 @@
       function recompute(){
         if(!bitmap) return;
         palette = extract(bitmap, count);
+        TS.status({ doc: bitmap.width + " x " + bitmap.height + " px",
+                    hint: "Click any swatch to copy its hex. The contrast panel tells you if a pair is readable." });
         TS.clear(strip);
         palette.forEach(function(c){
           strip.appendChild(swatch(hex(c[0],c[1],c[2])));
@@ -304,6 +306,22 @@
                   '" viewBox="0 0 ' + (palette.length*w) + ' ' + hh + '">' + parts + '</svg>';
         TS.saveText(svg, "swatches.svg", "image/svg+xml");
       }
+
+      TS.provide({
+        open:   function(){ dz.openPicker(); },
+        export: function(){ TS.saveText(cssText(), "palette.css", "text/css"); }
+      });
+      TS.options([
+        TS.optLabel("Colours"),
+        TS.seg({
+          label:"Colour count", value:"6",
+          options:[4,5,6,8,10].map(function(n){ return { value:String(n), label:String(n) }; }),
+          onChange:function(v){ count = Number(v); countSlider.set(count); recompute(); }
+        }),
+        TS.optDivider(),
+        TS.btn("Copy CSS", { kind:"ghost", onClick: copyCss }),
+        TS.btn("Save palette.css", { onClick:function(){ TS.saveText(cssText(), "palette.css", "text/css"); }})
+      ]);
 
       TS.sampleImage().then(function(s){
         if(!alive || bitmap) return;

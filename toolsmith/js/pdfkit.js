@@ -204,6 +204,8 @@
         var n = selected().length;
         selNote.textContent = n ? n + " page" + (n === 1 ? "" : "s") + " selected." : "Click page thumbnails to select them.";
         countNote.textContent = pages.length + " page" + (pages.length === 1 ? "" : "s") + " in the output.";
+        TS.status({ doc: pages.length + " page" + (pages.length === 1 ? "" : "s"),
+                    hint: "Click thumbnails to select, then use the options bar. Drop images to bind them into one PDF." });
         dz.classList.toggle("slim", pages.length > 0);
 
         TS.clear(limitNote);
@@ -256,6 +258,23 @@
           TS.toast("Couldn't build that PDF: " + (err && err.message ? err.message : "unknown error"));
         });
       }
+
+      TS.provide({
+        open:   function(){ dz.openPicker(); },
+        export: function(){ save(false); },
+        clear:  function(){ pages = []; docs = []; paint(); }
+      });
+      TS.options([
+        TS.btn("Select all", { kind:"ghost", onClick:function(){ pages.forEach(function(p){ p.sel = true; }); paint(); }}),
+        TS.btn("None", { kind:"ghost", onClick:function(){ pages.forEach(function(p){ p.sel = false; }); paint(); }}),
+        TS.optDivider(),
+        TS.btn("Rotate left", { kind:"ghost", onClick:function(){ rotate(-90); }}),
+        TS.btn("Rotate right", { kind:"ghost", onClick:function(){ rotate(90); }}),
+        TS.btn("Delete", { kind:"ghost", onClick:deleteSel }),
+        TS.optDivider(),
+        TS.btn("Save PDF", { onClick:function(){ save(false); }})
+      ]);
+      TS.docName("merged.pdf");
 
       paint();
       return function(){ alive = false; };
