@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A free AI chat that runs models on your own computer, plus a live, checkable list of which AI models are genuinely free to use right now. No account with us, no server, no tracking.">
+<meta name="theme-color" content="#0F7A54">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Hearth — free AI, honestly">
+<meta property="og:description" content="Run AI models on your own machine, or use the ones that are genuinely free. Live list, no fake promises.">
+<meta name="twitter:card" content="summary">
+<title>Hearth — free AI, honestly</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <aside class="side" id="side">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3 4 9.5V20h16V9.5z"/><path d="M12 20v-5.5"/>
+          <path d="M9.6 14.5a2.4 2.4 0 0 1 4.8 0"/>
+        </svg>
+      </span>
+      <b>Hearth</b>
+    </div>
+
+    <button class="new-chat" type="button" id="new-chat">New chat</button>
+
+    <nav class="side-nav" id="side-nav" aria-label="Sections">
+      <button type="button" data-view="chat" aria-current="true">Chat</button>
+      <button type="button" data-view="models">What&rsquo;s free</button>
+      <button type="button" data-view="setup">Set up</button>
+      <button type="button" data-view="about">How this works</button>
+    </nav>
+
+    <div class="convo-head">Conversations</div>
+    <div class="convos" id="convos"></div>
+
+    <div class="side-foot">
+      <button class="engine-chip" type="button" id="engine-chip">
+        <span class="dot" id="engine-dot"></span>
+        <span class="grow" id="engine-name">No model yet</span>
+        <span class="chev">&rsaquo;</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn only-narrow" type="button" id="menu-btn" aria-label="Menu">☰</button>
+      <div class="topbar-title" id="topbar-title">New chat</div>
+      <div class="topbar-right">
+        <span class="badge" id="privacy-badge" hidden></span>
+        <button class="icon-btn" type="button" id="theme-btn">Dark</button>
+      </div>
+    </header>
+
+    <section class="view" id="view-chat">
+      <div class="messages" id="messages"></div>
+      <form class="composer" id="composer">
+        <div class="composer-box">
+          <textarea id="prompt" rows="1" placeholder="Ask anything…" aria-label="Your message"></textarea>
+          <button class="send" type="submit" id="send" aria-label="Send">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+          </button>
+          <button class="send stop" type="button" id="stop" hidden aria-label="Stop">■</button>
+        </div>
+        <p class="composer-note" id="composer-note"></p>
+      </form>
+    </section>
+
+    <section class="view" id="view-models" hidden></section>
+    <section class="view" id="view-setup" hidden></section>
+    <section class="view" id="view-about" hidden></section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/marked.min.js"></script>
+<script src="vendor/purify.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/engines.js"></script>
+<script src="js/models.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>

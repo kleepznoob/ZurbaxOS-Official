@@ -1,12 +1,14 @@
-# Two products
+# Three products
 
 | | What it is | Money model |
 |---|---|---|
 | **[Studylark](#studylark)** (this folder, served at `/`) | Paste notes → flashcards → spaced repetition | Free; tips and paid deck packs — see [MONETIZATION.md](MONETIZATION.md) |
 | **[Toolsmith](toolsmith/)** (served at `/toolsmith/`) | Six creative tools replacing the Adobe apps people use daily | Paid: £9 once — see [toolsmith/SELLING-IT.md](toolsmith/SELLING-IT.md) |
+| **[Hearth](hearth/)** (served at `/hearth/`) | AI chat that runs models on your own machine, plus a live list of which models are genuinely free | Free; costs nothing to run |
 
-Both run entirely in the browser, with no server, no account and no third-party
-requests. Both work offline.
+All three run in the browser with no server and no account. Studylark and
+Toolsmith make no third-party requests at all and work offline; Hearth needs the
+network for hosted models, but a local model runs with the wifi off.
 
 ---
 
