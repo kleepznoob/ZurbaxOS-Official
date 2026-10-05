@@ -48,6 +48,15 @@ int memcmp(const void *a, const void *b, usize n)
 	return 0;
 }
 
+void *memchr(const void *s, int c, usize n)
+{
+	const u8 *p = s;
+	for (usize i = 0; i < n; i++)
+		if (p[i] == (u8)c)
+			return (void *)(p + i);
+	return NULL;
+}
+
 usize strlen(const char *s)
 {
 	const char *p = s;

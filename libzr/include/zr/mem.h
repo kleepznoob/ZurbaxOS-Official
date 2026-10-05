@@ -9,6 +9,7 @@ void *memcpy(void *restrict dst, const void *restrict src, usize n);
 void *memmove(void *dst, const void *src, usize n);
 void *memset(void *dst, int c, usize n);
 int memcmp(const void *a, const void *b, usize n);
+void *memchr(const void *s, int c, usize n);
 usize strlen(const char *s);
 
 /* ---- Heap -------------------------------------------------------------------- */

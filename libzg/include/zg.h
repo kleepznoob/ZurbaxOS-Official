@@ -7,3 +7,4 @@
 #include "zg/draw.h"
 #include "zg/image.h"
 #include "zg/text.h"
+#include "zg/svg.h"
