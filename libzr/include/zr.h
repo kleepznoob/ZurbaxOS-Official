@@ -7,3 +7,4 @@
 #include "zr/io.h"
 #include "zr/os.h"
 #include "zr/math.h"
+#include "zr/crypto.h"

@@ -337,8 +337,39 @@ static void test_tz(void)
 	 * possible without root links, so test the rule engine via a copied file path. */
 }
 
+static void test_crypto(void)
+{
+	u8 h[32];
+	char hex[65];
+	sha256("abc", 3, h);
+	hex_encode(h, 32, hex);
+	CHECK(str_eq(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"));
+	sha256("", 0, h);
+	hex_encode(h, 32, hex);
+	CHECK(str_eq(hex, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
+	const char *m = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
+	sha256(m, strlen(m), h);
+	hex_encode(h, 32, hex);
+	CHECK(str_eq(hex, "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"));
+	hmac_sha256("key", 3, "The quick brown fox jumps over the lazy dog", 43, h);
+	hex_encode(h, 32, hex);
+	CHECK(str_eq(hex, "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"));
+	u8 dk[32];
+	pbkdf2_sha256("password", 8, "salt", 4, 1, dk, 32);
+	hex_encode(dk, 32, hex);
+	CHECK(str_eq(hex, "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b"));
+	pbkdf2_sha256("password", 8, "salt", 4, 4096, dk, 32);
+	hex_encode(dk, 32, hex);
+	CHECK(str_eq(hex, "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a"));
+	char *rec = password_hash("correct horse");
+	CHECK(password_check("correct horse", rec));
+	CHECK(!password_check("wrong horse", rec));
+	mem_free(rec);
+}
+
 int main(void)
 {
+	test_crypto();
 	test_format();
 	test_strings();
 	test_containers();

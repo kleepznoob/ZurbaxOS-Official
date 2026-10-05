@@ -9,6 +9,8 @@ CC      ?= gcc
 OUT     := build
 OPT     ?= -O2
 
+.DEFAULT_GOAL := all
+
 CFLAGS  := -std=gnu11 $(OPT) -g0 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
            -ffreestanding -fno-stack-protector -fno-pie -fno-plt -fno-math-errno \
            -fno-asynchronous-unwind-tables -fno-ident -ffunction-sections -fdata-sections \
