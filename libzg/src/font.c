@@ -187,7 +187,7 @@ static Glyph *get_glyph(u32 cp)
 
 static f32 nib_units(int weight)
 {
-	return REGULAR_NIB + (f32)(weight - 400) * 0.16f;
+	return 92 + (f32)(weight - 400) * 0.16f;
 }
 
 f32 font_ascent(Font f) { return f.size * 0.95f; }
@@ -274,40 +274,17 @@ static u64 cache_key(Font f, u32 cp, int phase)
 	return ((u64)cp << 32) | (size_q << 16) | (w << 8) | ((u64)f.mono << 7) | (u64)phase | (1ull << 6);
 }
 
-/* Softens glyph edges with a small binomial blur (1-2-1 in each direction),
- * growing the mask by one pixel on every side to make room. */
-static void soften_mask(Mask *m)
-{
-	if (!m->data)
-		return;
-	int w = m->w + 2, h = m->h + 2;
-	u16 *tmp = mem_zalloc(sizeof(u16) * (usize)w * (usize)h);
-	for (int y = 0; y < m->h; y++)
-		for (int x = 0; x < m->w; x++) {
-			u16 v = m->data[(usize)y * m->w + x];
-			u16 *row = tmp + (usize)(y + 1) * w + x;
-			row[0] += v, row[1] += 2 * v, row[2] += v;
-		}
-	u8 *out = mem_alloc((usize)w * (usize)h);
-	for (int y = 0; y < h; y++)
-		for (int x = 0; x < w; x++) {
-			u32 up = y > 0 ? tmp[(usize)(y - 1) * w + x] : 0;
-			u32 mid = tmp[(usize)y * w + x];
-			u32 dn = y + 1 < h ? tmp[(usize)(y + 1) * w + x] : 0;
-			out[(usize)y * w + x] = (u8)MIN(255u, (up + 2 * mid + dn + 8) / 16);
-		}
-	mem_free(tmp);
-	mem_free(m->data);
-	m->data = out;
-	m->x -= 1, m->y -= 1, m->w = w, m->h = h;
-}
-
 static void render_glyph(Font f, Glyph *g, int phase, Mask *out)
 {
-	/* No grid fitting: glyphs keep their true shapes and positions, which gives
-	 * the soft, even texture of unhinted text. */
+	/* Light vertical hinting: land the x-height on a whole pixel so small
+	 * text keeps clear, even lines (horizontal positions stay exact). */
 	f32 s = f.size / 1000;
 	f32 sy = s;
+	if (f.size <= 22) {
+		f32 xh = roundf(520 * s);
+		if (xh >= 4)
+			sy = xh / 520;
+	}
 	f32 nib = nib_units(f.weight);
 	f32 extra = (nib - REGULAR_NIB) * 0.275f; /* half of the added advance, keeps glyphs centred */
 	f32 ox = (f32)phase / SUBPIXEL;
@@ -319,10 +296,10 @@ static void render_glyph(Font f, Glyph *g, int phase, Mask *out)
 		shift = (MONO_ADVANCE - adv * squeeze) / 2 / squeeze;
 	}
 	Mat m = { sx, 0, 0, -sy, ox + shift * sx, 0 };
-	/* Stem darkening: the edge softening below spreads ink outward, so start
-	 * from slightly heavier strokes to keep the same perceived weight. */
-	f32 px_width = nib * s + 0.18f + (f.size < 18 ? (18 - f.size) * 0.02f : 0);
-	StrokeStyle st = { px_width / mat_scale_factor(m), CAP_ROUND, JOIN_ROUND, 4 };
+	/* Keep hairlines from fading at very small sizes. */
+	f32 px_width = maxf(nib * s, 1.0f);
+	/* Flat terminals and sharp corners give a grotesque, UI-friendly texture. */
+	StrokeStyle st = { px_width / mat_scale_factor(m), CAP_SQUARE, JOIN_MITER, 2.2f };
 	Path outline = { 0 };
 	path_stroke_outline(&g->strokes, m, &st, &outline);
 	f32 dot_scale = maxf(nib / REGULAR_NIB, 0.8f);
@@ -336,7 +313,6 @@ static void render_glyph(Font f, Glyph *g, int phase, Mask *out)
 	if (!mask_from_path(out, &outline, mat_identity(), FILL_NONZERO, clip))
 		memset(out, 0, sizeof *out);
 	path_free(&outline);
-	soften_mask(out);
 }
 
 static const Mask *glyph_mask(Font f, u32 cp, int phase)
