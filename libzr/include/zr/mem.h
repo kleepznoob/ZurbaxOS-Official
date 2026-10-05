@@ -122,7 +122,7 @@ void vec_grow_(void **data, usize *cap, usize need, usize elem);
 	(vec_reserve((v), (v)->len + 1),                                                       \
 	 memmove(&(v)->data[(i) + 1], &(v)->data[(i)], ((v)->len - (i)) * sizeof(*(v)->data)), \
 	 (v)->data[(i)] = (__VA_ARGS__), (v)->len++)
-#define vec_each(v, it) for (__typeof__((v)->data) it = (v)->data; it && it < (v)->data + (v)->len; it++)
+#define vec_each(v, it) for (__auto_type it = (v)->data; it && it < (v)->data + (v)->len; it++)
 
 /* ---- Sorting --------------------------------------------------------------------------- */
 

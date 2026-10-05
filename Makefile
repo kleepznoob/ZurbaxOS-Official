@@ -13,7 +13,7 @@ CFLAGS  := -std=gnu11 $(OPT) -g0 -Wall -Wextra -Wno-unused-parameter -Wno-missin
            -ffreestanding -fno-stack-protector -fno-pie -fno-plt -fno-math-errno \
            -fno-asynchronous-unwind-tables -fno-ident -ffunction-sections -fdata-sections \
            -march=x86-64-v2 -mtune=generic \
-           -Ilibzr/include -Ilibzg/include -Ilibzui/include
+           -Ilibzr/include -Ilibzg/include -Ilibzg/src -Ilibzui/include
 LDFLAGS := -nostdlib -static -no-pie -Wl,--gc-sections -Wl,--build-id=none -s
 LDLIBS  := -lgcc
 
