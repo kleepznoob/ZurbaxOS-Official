@@ -116,7 +116,28 @@ void shell_launch(const char *app_id, const char *arg)
 		o.uid = S.set.uid;
 		o.gid = S.set.gid;
 	}
-	int pid = proc_spawn(path, argv, NULL, &o);
+	/* Apps get the user's home, name, time zone and the display socket. */
+	usize nenv = 0;
+	while (environ[nenv])
+		nenv++;
+	char **envp = NEW_ARRAY(char *, nenv + 8);
+	int ne = 0;
+	char home[160], user[96], lang[64], tzv[80];
+	fmt(home, sizeof home, "HOME=%s", S.set.home);
+	fmt(user, sizeof user, "USER=%s", S.set.user_name);
+	fmt(lang, sizeof lang, "LANG=%s", "en_US.UTF-8");
+	fmt(tzv, sizeof tzv, "TZ=%s", S.set.timezone);
+	envp[ne++] = home;
+	envp[ne++] = user;
+	envp[ne++] = lang;
+	envp[ne++] = tzv;
+	for (char **e = environ; *e; e++)
+		if (!str_starts(*e, "HOME=") && !str_starts(*e, "USER=") && !str_starts(*e, "LANG=") && !str_starts(*e, "TZ="))
+			envp[ne++] = *e;
+	envp[ne] = NULL;
+	dir_make(S.set.home, 0700);
+	int pid = proc_spawn(path, argv, envp, &o);
+	mem_free(envp);
 	if (pid < 0)
 		shell_notify("system", "error", "Could not open", app_id);
 }
@@ -438,13 +459,71 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 
 static void finish_session_action(void);
 
+/* Alarms set in Clock live in ~/.config/zurbax/alarms.conf:
+ * "HH:MM DAYS ENABLED label" with DAYS bit 0 = Sunday, 0 = ring once. */
+static void check_alarms(void)
+{
+	char *path = str_fmt("%s/.config/zurbax/alarms.conf", S.set.home);
+	char *text = file_read(path, NULL);
+	if (!text) {
+		mem_free(path);
+		return;
+	}
+	Civil now;
+	civil_local(time_unix(), &now);
+	StrBuf out = { 0 };
+	bool changed = false;
+	usize n;
+	char **lines = str_split(text, '\n', &n);
+	for (usize i = 0; i < n; i++) {
+		const char *line = lines[i];
+		const char *p = line;
+		while (*p == ' ')
+			p++;
+		if (!*p || *p == '#') {
+			if (*line)
+				sb_fmt(&out, "%s\n", line);
+			continue;
+		}
+		int h = (int)str_to_int(p, &p);
+		if (*p == ':')
+			p++;
+		int m = (int)str_to_int(p, &p);
+		int days = (int)str_to_int(p, &p);
+		int enabled = (int)str_to_int(p, &p);
+		while (*p == ' ')
+			p++;
+		const char *label = p;
+		bool due = enabled && h == now.hour && m == now.min && (days == 0 || (days & (1 << now.wday)));
+		if (due) {
+			char t[16];
+			fmt(t, sizeof t, "%02d:%02d", h, m);
+			shell_notify("clock", "alarm", *label ? label : "Alarm", t);
+			if (days == 0) {
+				enabled = 0; /* one-time alarms switch themselves off */
+				changed = true;
+			}
+		}
+		sb_fmt(&out, "%02d:%02d %d %d %s\n", h, m, days, enabled, label);
+	}
+	if (changed)
+		file_write_atomic(path, out.data, out.len);
+	str_split_free(lines, n);
+	sb_free(&out);
+	mem_free(text);
+	mem_free(path);
+}
+
 void shell_tick(void)
 {
 	static i64 last_minute = -1;
 	i64 minute = time_unix() / (S.set.clock_seconds ? 1 : 60);
 	if (minute != last_minute) {
+		bool new_minute = last_minute >= 0 && (S.set.clock_seconds ? time_unix() % 60 == 0 : true);
 		last_minute = minute;
 		shell_mark_dirty();
+		if (new_minute)
+			check_alarms();
 	}
 	if (S.launcher_k != (S.launcher_open ? 1.0f : 0.0f) || S.lock_k != (S.locked ? 1.0f : 0.0f) ||
 	    S.shutdown_k != (S.shutting_down ? 1.0f : 0.0f))

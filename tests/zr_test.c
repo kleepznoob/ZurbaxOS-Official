@@ -327,14 +327,22 @@ static void test_json(void)
 
 static void test_tz(void)
 {
-	/* Uses the build machine's zone files if present. */
-	char *zone = file_read("/usr/share/zoneinfo/Europe/Bucharest", NULL);
-	if (!zone)
-		return;
-	mem_free(zone);
-	dir_make("/tmp/zr-tz/system/share", 0755);
-	/* tz_set reads /system/share/zoneinfo; emulate it with a lookup through /tmp is not
-	 * possible without root links, so test the rule engine via a copied file path. */
+	/* Built-in rules (no zone files are installed on the build machine's /system). */
+	CHECK(tz_set("Europe/Bucharest"));
+	CHECK(tz_offset(1782907200) == 3 * 3600);   /* July: summer time */
+	CHECK(tz_offset(1768478400) == 2 * 3600);   /* January */
+	CHECK(tz_offset(1774745999) == 2 * 3600);   /* 29 Mar 2026 00:59:59 UTC */
+	CHECK(tz_offset(1774746000) == 3 * 3600);   /* 01:00 UTC: clocks go forward */
+	CHECK(tz_offset(1792889999) == 3 * 3600);   /* 25 Oct 2026 00:59:59 UTC */
+	CHECK(tz_offset(1792890000) == 2 * 3600);   /* 01:00 UTC: back to winter time */
+	CHECK(tz_offset_in("America/New_York", 1772953199) == -5 * 3600);
+	CHECK(tz_offset_in("America/New_York", 1772953200) == -4 * 3600);
+	CHECK(tz_offset_in("Australia/Sydney", 1768478400) == 11 * 3600);
+	CHECK(tz_offset_in("Australia/Sydney", 1782907200) == 10 * 3600);
+	CHECK(tz_offset_in("Asia/Kolkata", 1782907200) == 5 * 3600 + 1800);
+	CHECK(tz_offset_in("Asia/Kathmandu", 1782907200) == 5 * 3600 + 2700);
+	CHECK(tz_offset_in("America/Phoenix", 1782907200) == -7 * 3600);
+	tz_set("UTC");
 }
 
 static void test_crypto(void)

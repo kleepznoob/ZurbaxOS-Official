@@ -417,6 +417,10 @@ static int run_snapshot(const UiAppDesc *desc, const char *spec)
 
 int ui_run(const UiAppDesc *desc)
 {
+	/* The desktop passes the user's time zone. */
+	const char *tz = env_get("TZ");
+	if (tz && *tz)
+		tz_set(tz);
 	const char *snap = env_get("ZUI_SNAPSHOT");
 	if (snap && *snap)
 		return run_snapshot(desc, snap);

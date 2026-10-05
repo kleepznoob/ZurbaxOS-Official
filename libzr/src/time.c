@@ -242,7 +242,18 @@ bool tz_set(const char *zone)
 	mem_free(path);
 	if (!d || len < 44 || memcmp(d, "TZif", 4) != 0) {
 		mem_free(d);
-		return false;
+		/* No compiled zone file: use the built-in rule for that city. */
+		const ZoneInfo *zi = tz_find(zone);
+		if (!zi)
+			return false;
+		mem_free(tz.times);
+		mem_free(tz.idx);
+		mem_free(tz.offsets);
+		memset(&tz, 0, sizeof tz);
+		tz.has_rule = parse_posix_rule(zi->posix, &tz.rule);
+		tz.loaded = tz.has_rule;
+		str_copy(tz.name, zone, sizeof tz.name);
+		return tz.loaded;
 	}
 	mem_free(tz.times);
 	mem_free(tz.idx);
@@ -320,6 +331,15 @@ i32 tz_offset(i64 utc)
 			hi = mid;
 	}
 	return tz.offsets[tz.idx[lo]];
+}
+
+i32 tz_offset_in(const char *zone, i64 utc)
+{
+	const ZoneInfo *zi = tz_find(zone);
+	TzRule r;
+	if (!zi || !parse_posix_rule(zi->posix, &r))
+		return 0;
+	return rule_offset(&r, utc);
 }
 
 void civil_local(i64 utc, Civil *out)

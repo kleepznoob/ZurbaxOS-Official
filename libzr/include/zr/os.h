@@ -33,6 +33,17 @@ const char *tz_name(void);
 i32 tz_offset(i64 utc);                      /* seconds east of UTC at that instant */
 void civil_local(i64 utc, Civil *out);
 
+/* Built-in zones (main cities, current rules) for pickers and world clocks. */
+typedef struct {
+	const char *zone;      /* IANA name, e.g. "Europe/Bucharest" */
+	const char *city;
+	const char *country;
+	const char *posix;     /* POSIX TZ rule */
+} ZoneInfo;
+const ZoneInfo *tz_zones(usize *count);
+const ZoneInfo *tz_find(const char *zone);
+i32 tz_offset_in(const char *zone, i64 utc);  /* without changing the current zone */
+
 /* ---- Environment and arguments ------------------------------------------------------- */
 
 extern char **environ;
