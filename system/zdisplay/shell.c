@@ -610,6 +610,7 @@ void shell_tick(void)
 			shell_mark_dirty();
 	}
 	game_mode_update();
+	screentime_tick();
 	/* The fade to black finished: carry out the action. */
 	static bool done;
 	if (S.shutting_down && S.shutdown_k >= 0.999f && !done) {
@@ -671,6 +672,7 @@ static void finish_session_action(void)
 		return;
 	}
 	settings_save();
+	screentime_flush();
 	int fd = unix_connect("/run/zinit.sock", SOCK_SEQPACKET);
 	const char *cmd = action == SESSION_RESTART ? "reboot" : "poweroff";
 	if (fd >= 0) {

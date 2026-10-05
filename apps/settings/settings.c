@@ -650,11 +650,46 @@ static void page_gaming(Ui *ui, Rect r)
 
 static void page_screentime(Ui *ui, Rect r)
 {
+	Theme *t = &ui->theme;
 	Rect b = page_body(r);
 	page_title(ui, &b, "Screen Time", "See how long you use the computer and set healthy limits.");
-	Rect rows = card_rows(ui, &b, 2, 64);
-	switch_row(ui, &rows, 64, false, "Track screen time", "Counts time per app on this computer only", "screen_time", true);
-	switch_row(ui, &rows, 64, true, "Break reminders", "A gentle reminder to rest your eyes every hour", "break_reminders", false);
+	/* Today's total, from the desktop's count. */
+	Civil c;
+	civil_local(time_unix(), &c);
+	char *path = str_fmt("%s/.local/share/zurbax/screentime/%04d-%02d-%02d.conf", home_dir(), c.year, c.month, c.day);
+	Conf *day = conf_load(path);
+	mem_free(path);
+	i64 total = 0;
+	char *text = NULL;
+	UNUSED(text);
+	path = str_fmt("%s/.local/share/zurbax/screentime/%04d-%02d-%02d.conf", home_dir(), c.year, c.month, c.day);
+	char *raw = file_read(path, NULL);
+	mem_free(path);
+	if (raw) {
+		for (const char *p = raw; p && *p;) {
+			const char *eq = str_chr(p, '=');
+			if (!eq)
+				break;
+			total += str_to_int(eq + 1, NULL);
+			p = str_chr(eq, '\n');
+			if (p)
+				p++;
+		}
+		mem_free(raw);
+	}
+	conf_free(day);
+	char tot[48];
+	if (total >= 3600)
+		fmt(tot, sizeof tot, "%lld h %lld min today", (long long)(total / 3600), (long long)(total % 3600 / 60));
+	else
+		fmt(tot, sizeof tot, "%lld min today", (long long)(total / 60));
+	Rect card = cut_top(&b, 96);
+	ui_card(ui, card);
+	Rect in = pad(card, 20);
+	ui_app_icon(ui, rect(in.x, in.y, 56, 56), "screentime");
+	ui_text(ui, ui_font(ui, 24, 300), in.x + 72, in.y + 30, tot, t->text);
+	ui_text(ui, ui_font(ui, 12, 400), in.x + 72, in.y + 50, "Limits per app, downtime and break reminders are in the Screen Time app.", t->text_dim);
+	cut_top(&b, 16);
 	if (ui_button_suggested(ui, cut_left(&(Rect){ b.x, b.y, 200, 34 }, 200), "Open Screen Time"))
 		ui_launch(ui, "screentime", NULL);
 }

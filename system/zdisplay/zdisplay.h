@@ -338,6 +338,10 @@ void set_volume(int v);
 void set_brightness(int v);
 int account_update(const MsgAccount *m, char *msg, usize cap);
 
+/* screentime.c */
+void screentime_tick(void);
+void screentime_flush(void);
+
 /* splash.c */
 void splash_start(void);
 void splash_draw(Canvas *frame);
