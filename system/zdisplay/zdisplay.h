@@ -100,6 +100,7 @@ typedef struct {
 	char exec[256];
 	char category[32];
 	char keywords[128];
+	char opens[160];            /* file extensions this app opens, comma-separated */
 	bool hidden;
 } AppInfo;
 

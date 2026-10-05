@@ -57,6 +57,7 @@ void shell_reload_apps(void)
 			str_copy(a->icon, conf_get(c, "icon", e->name), sizeof a->icon);
 			str_copy(a->category, conf_get(c, "category", "Other"), sizeof a->category);
 			str_copy(a->keywords, conf_get(c, "keywords", ""), sizeof a->keywords);
+			str_copy(a->opens, conf_get(c, "opens", ""), sizeof a->opens);
 			fmt(a->exec, sizeof a->exec, "%s/%s/%s", dirs[d], e->name, conf_get(c, "exec", e->name));
 			a->hidden = conf_get_bool(c, "hidden", false);
 			conf_free(c);
@@ -78,14 +79,50 @@ const AppInfo *shell_app(const char *id)
 	return NULL;
 }
 
+/* Which app opens a file: by its extension, from the apps' "opens" lists. */
+static const AppInfo *app_for_file(const char *path)
+{
+	if (str_starts(path, "http://") || str_starts(path, "https://"))
+		return shell_app("drift");
+	if (str_starts(path, "mailto:"))
+		return shell_app("mail");
+	if (dir_exists(path))
+		return shell_app("vault");
+	const char *ext = path_ext(path);
+	if (!*ext)
+		return shell_app("writer");
+	for (int i = 0; i < S.napps; i++) {
+		usize n;
+		char **parts = str_split(S.apps[i].opens, ',', &n);
+		bool hit = false;
+		for (usize k = 0; k < n && !hit; k++)
+			hit = str_eq_nocase(str_trim(parts[k]), ext);
+		str_split_free(parts, n);
+		if (hit)
+			return &S.apps[i];
+	}
+	return NULL;
+}
+
 void shell_launch(const char *app_id, const char *arg)
 {
+	if ((!app_id || !*app_id) && arg && *arg) {
+		const AppInfo *h = app_for_file(arg);
+		if (!h) {
+			const char *ext = path_ext(arg);
+			if (str_eq_nocase(ext, "exe") || str_eq_nocase(ext, "msi"))
+				shell_notify("system", "computer", "Windows programs can't run yet", path_base(arg));
+			else
+				shell_notify("system", "file", "No app can open this file", path_base(arg));
+			return;
+		}
+		app_id = h->id;
+	}
 	const AppInfo *a = shell_app(app_id);
 	char path[280];
 	if (a) {
 		str_copy(path, a->exec, sizeof path);
 	} else {
-		/* Open a file or URL with a matching handler, or fall back. */
 		char *p = zurbax_path("apps");
 		fmt(path, sizeof path, "%s/%s/%s", p, app_id, app_id);
 		mem_free(p);
