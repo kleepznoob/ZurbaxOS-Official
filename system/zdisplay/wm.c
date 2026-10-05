@@ -118,6 +118,7 @@ static void free_window(Window *w)
 
 void window_destroy(Window *w, bool animate)
 {
+	shell_mark_dirty(); /* the dock and panel reflect window state */
 	if (w->closing)
 		return;
 	damage_window(w);
@@ -176,6 +177,7 @@ void window_raise(Window *w)
 
 void window_focus(Window *w)
 {
+	shell_mark_dirty(); /* the dock and panel reflect window state */
 	if (w == S.focus)
 		return;
 	Window *old = S.focus;
@@ -216,6 +218,7 @@ void window_set_rect(Window *w, Rect r, bool animate)
 
 void window_maximize(Window *w, bool on)
 {
+	shell_mark_dirty(); /* the dock and panel reflect window state */
 	if (!(w->flags & WIN_RESIZABLE) && on)
 		return;
 	if (on && !(w->states & STATE_MAXIMIZED)) {
@@ -232,6 +235,7 @@ void window_maximize(Window *w, bool on)
 
 void window_tile(Window *w, int side)
 {
+	shell_mark_dirty(); /* the dock and panel reflect window state */
 	if (!(w->flags & WIN_RESIZABLE))
 		return;
 	if (!(w->states & (STATE_MAXIMIZED | STATE_TILED_LEFT | STATE_TILED_RIGHT)))
@@ -246,6 +250,7 @@ void window_tile(Window *w, int side)
 
 void window_minimize(Window *w, bool on)
 {
+	shell_mark_dirty(); /* the dock and panel reflect window state */
 	if (on == w->minimized)
 		return;
 	w->minimized = on;

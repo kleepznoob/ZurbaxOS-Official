@@ -37,6 +37,7 @@ enum {
 	MSG_SETTINGS_CHANGED,
 	MSG_SCREENSHOT,     /* + memfd to receive pixels */
 	MSG_SESSION,        /* lock, logout, restart, shut down, sleep */
+	MSG_WIN_SET_SIZE,   /* the app asks for a new size (e.g. switching modes) */
 
 	/* server -> app */
 	MSG_WELCOME = 64,
@@ -128,6 +129,11 @@ typedef struct {
 	MsgHeader h;
 	u32 min_width, min_height, max_width, max_height;
 } MsgWinSizeHints;
+
+typedef struct {
+	MsgHeader h;
+	u32 width, height;     /* logical */
+} MsgWinSetSize;
 
 enum {
 	CURSOR_DEFAULT = 0, CURSOR_POINTER, CURSOR_TEXT, CURSOR_MOVE, CURSOR_RESIZE_NS, CURSOR_RESIZE_EW,

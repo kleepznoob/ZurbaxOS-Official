@@ -155,16 +155,47 @@ static const Landscape LANDSCAPES[] = {
 	  { "#9fc1a0", "#7aa67d", "#5a8c60", "#3f7046", "#28532f" }, 0.25f, 0.4f, false },
 };
 
+/* Scales a picture to cover the screen. focus_y picks which part of the
+ * picture stays when the top or bottom has to be cropped (0 top, 1 bottom). */
+static Canvas *cover(Canvas *img, int w, int h, f32 focus_y)
+{
+	Canvas *c = canvas_new(w, h);
+	f32 s = maxf((f32)w / (f32)img->width, (f32)h / (f32)img->height);
+	f32 sw = (f32)w / s, sh = (f32)h / s;
+	Rect src = rect(((f32)img->width - sw) / 2, ((f32)img->height - sh) * focus_y, sw, sh);
+	blit_scaled(c, img, src, rect(0, 0, (f32)w, (f32)h), 1); /* box-filters large downscales */
+	return c;
+}
+
+/* Pictures that ship with Zurbax, in /system/share/wallpapers. */
+static const struct {
+	const char *name, *file;
+	f32 focus_y;
+} BUILTIN_PHOTOS[] = {
+	{ "lake", "lake.png", 0.72f },
+};
+
 Canvas *wallpaper_render(const char *name, int w, int h)
 {
 	/* A user picture? */
 	if (name && name[0] == '/') {
 		Canvas *img = image_load(name);
 		if (img) {
-			Canvas *c = canvas_new(w, h);
-			f32 s = maxf((f32)w / (f32)img->width, (f32)h / (f32)img->height);
-			f32 sw = (f32)w / s, sh = (f32)h / s;
-			blit_scaled(c, img, rect(((f32)img->width - sw) / 2, ((f32)img->height - sh) / 2, sw, sh), rect(0, 0, (f32)w, (f32)h), 1);
+			Canvas *c = cover(img, w, h, 0.5f);
+			canvas_free(img);
+			return c;
+		}
+	}
+	for (usize i = 0; i < ARRAY_LEN(BUILTIN_PHOTOS); i++) {
+		if (!name || !str_eq(name, BUILTIN_PHOTOS[i].name))
+			continue;
+		char *rel = str_fmt("share/wallpapers/%s", BUILTIN_PHOTOS[i].file);
+		char *path = zurbax_path(rel);
+		Canvas *img = image_load(path);
+		mem_free(rel);
+		mem_free(path);
+		if (img) {
+			Canvas *c = cover(img, w, h, BUILTIN_PHOTOS[i].focus_y);
 			canvas_free(img);
 			return c;
 		}

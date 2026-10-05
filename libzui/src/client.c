@@ -308,6 +308,15 @@ void ui_window_action(Ui *ui, u32 action)
 	ui->action = action;
 }
 
+void ui_window_resize(Ui *ui, int width, int height)
+{
+	Client *c = ui->driver;
+	if (!c)
+		return;
+	MsgWinSetSize m = { .width = (u32)width, .height = (u32)height };
+	send_msg(c, &m, MSG_WIN_SET_SIZE, sizeof m, NULL, 0);
+}
+
 void ui_notify(Ui *ui, const char *title, const char *body, const char *icon)
 {
 	Client *c = ui->driver;

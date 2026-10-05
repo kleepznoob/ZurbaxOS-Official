@@ -82,8 +82,10 @@ static void handle_commit(Window *w, const MsgWinCommit *m)
 	w->want_frame = true;
 	/* Only show the window once its buffer matches its size. */
 	u32 want_w = (u32)roundf(w->rect.w * S.scale), want_h = (u32)roundf(w->rect.h * S.scale);
-	if (!w->mapped && ABS((int)w->bw - (int)want_w) <= 1 && ABS((int)w->bh - (int)want_h) <= 1)
+	if (!w->mapped && ABS((int)w->bw - (int)want_w) <= 1 && ABS((int)w->bh - (int)want_h) <= 1) {
 		w->mapped = true;
+		shell_mark_dirty();
+	}
 	Rect v = window_visual_rect(w);
 	if (m->dw > 0)
 		damage_physical(rect(v.x * S.scale + (f32)m->dx, v.y * S.scale + (f32)m->dy, (f32)m->dw, (f32)m->dh));
@@ -239,6 +241,19 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		damage_all();
 		break;
 	}
+	case MSG_WIN_SET_SIZE:
+		if (w && len >= sizeof(MsgWinSetSize) && !(w->states & (STATE_MAXIMIZED | STATE_FULLSCREEN | STATE_TILED_LEFT | STATE_TILED_RIGHT))) {
+			const MsgWinSetSize *m = (const MsgWinSetSize *)buf;
+			Rect wa = work_area();
+			f32 nw = clampf((f32)MAX(m->width, w->min_w), 120, wa.w), nh = clampf((f32)MAX(m->height, w->min_h), 80, wa.h);
+			/* Grow around the window's centre, then keep it on screen. */
+			Rect r = rect(w->rect.x + (w->rect.w - nw) / 2, w->rect.y, nw, nh);
+			r.x = clampf(r.x, wa.x, wa.x + wa.w - r.w);
+			r.y = clampf(r.y, wa.y, wa.y + wa.h - r.h);
+			window_set_rect(w, r, true);
+			window_configure(w);
+		}
+		break;
 	case MSG_SESSION:
 		if (len >= sizeof(MsgSession))
 			shell_session_action(((const MsgSession *)buf)->action);

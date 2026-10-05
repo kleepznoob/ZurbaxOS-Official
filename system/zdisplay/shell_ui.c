@@ -32,14 +32,16 @@ static void format_clock(char *buf, usize cap, bool with_date)
 	static const char *days[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 	static const char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 	char t[32];
-	if (S.set.clock_24h)
-		fmt(t, sizeof t, S.set.clock_seconds ? "%02d:%02d:%02d" : "%02d:%02d", c.hour, c.min, c.sec);
+	int h12 = c.hour % 12 ? c.hour % 12 : 12;
+	const char *ampm = c.hour < 12 ? "AM" : "PM";
+	if (S.set.clock_24h && S.set.clock_seconds)
+		fmt(t, sizeof t, "%02d:%02d:%02d", c.hour, c.min, c.sec);
+	else if (S.set.clock_24h)
+		fmt(t, sizeof t, "%02d:%02d", c.hour, c.min);
+	else if (S.set.clock_seconds)
+		fmt(t, sizeof t, "%d:%02d:%02d %s", h12, c.min, c.sec, ampm);
 	else
-		fmt(t, sizeof t, S.set.clock_seconds ? "%d:%02d:%02d %s" : "%d:%02d %s", c.hour % 12 ? c.hour % 12 : 12, c.min,
-		    S.set.clock_seconds ? c.sec : 0, c.hour < 12 ? "AM" : "PM");
-	if (!S.set.clock_24h && !S.set.clock_seconds) {
-		fmt(t, sizeof t, "%d:%02d %s", c.hour % 12 ? c.hour % 12 : 12, c.min, c.hour < 12 ? "AM" : "PM");
-	}
+		fmt(t, sizeof t, "%d:%02d %s", h12, c.min, ampm);
 	if (with_date)
 		fmt(buf, cap, "%s %s %d  %s", days[c.wday], months[c.month - 1], c.day, t);
 	else
@@ -93,82 +95,130 @@ static bool panel_button(Ui *ui, Rect r, const char *id, bool active)
 	UiId bid = ui_id(ui, id);
 	UiInteract it = ui_interact(ui, bid, r);
 	f32 hover = ui_fade(ui, bid, it.hovered || active, 0.12f);
-	if (hover > 0)
-		ui_round(ui, rect_inset(r, 0, 3), 6, color_scale_alpha(color_hex("#ffffff26"), hover));
+	f32 press = ui_fade(ui, ui_id(ui, "press"), it.held || active, 0.08f);
+	if (hover > 0) {
+		Rect pill = rect_inset(r, 0, 4);
+		ui_round(ui, pill, pill.h / 2, color_scale_alpha(color_hex("#ffffff"), 0.13f * hover + 0.07f * press));
+		ui_border(ui, pill, pill.h / 2, 1, color_scale_alpha(color_hex("#ffffff"), 0.10f * hover));
+	}
 	return it.clicked;
+}
+
+/* Frosted glass: the blurred wallpaper behind the bar, a cool tint and a
+ * fine highlight along the bottom edge. Turns solid behind maximized windows. */
+static void panel_background(Ui *ui, Rect bar, f32 solid)
+{
+	Rect d = ui_to_device(ui, bar);
+	d.w = minf(d.w, (f32)S.wallpaper_blur->width);
+	d.h = minf(d.h, (f32)S.wallpaper_blur->height);
+	Canvas glass = canvas_view(S.wallpaper_blur, d);
+	blit(ui->canvas, &glass, (int)d.x, (int)d.y, 1);
+	Paint tint = paint_linear(0, d.y, 0, d.y + d.h, color_hex("#0d122088"), color_hex("#0d122060"));
+	fill_rect_paint(ui->canvas, d, &tint);
+	if (solid > 0)
+		ui_fill(ui, bar, color_scale_alpha(color_hex("#16171b"), solid));
+	/* A soft top sheen, then a light hairline and a dark one below it. */
+	Paint sheen = paint_linear(0, d.y, 0, d.y + d.h * 0.5f, color_hex("#ffffff12"), color_hex("#ffffff00"));
+	fill_rect_paint(ui->canvas, rect(d.x, d.y, d.w, d.h * 0.5f), &sheen);
+	ui_fill(ui, rect(bar.x, bar.y + bar.h - 1, bar.w, 1), color_hex("#ffffff1c"));
+	ui_fill(ui, rect(bar.x, bar.y + bar.h, bar.w, 1), color_hex("#00000040"));
+	Paint drop = paint_linear(0, d.y + d.h + S.scale, 0, d.y + d.h + 6 * S.scale, color_hex("#00000022"), color_hex("#00000000"));
+	fill_rect_paint(ui->canvas, rect(d.x, d.y + d.h + S.scale, d.w, 5 * S.scale), &drop);
 }
 
 void panel_draw(Ui *ui)
 {
 	Rect bar = rect(0, 0, S.sw, PANEL_HEIGHT);
-	shell_surface(rect(0, 0, S.sw, PANEL_HEIGHT + 2));
+	shell_surface(rect(0, 0, S.sw, PANEL_HEIGHT + 8));
 	f32 solid = ui_fade(ui, ui_id(ui, "panel-solid"), any_maximized(), 0.25f);
-	/* Transparent over the wallpaper; solid when a window is maximized. */
-	Paint grad = paint_linear(0, 0, 0, PANEL_HEIGHT * S.scale, color_hex("#00000070"), color_hex("#00000030"));
-	Rect d = ui_to_device(ui, bar);
-	fill_rect_paint(ui->canvas, d, &grad);
-	if (solid > 0)
-		ui_fill(ui, bar, color_scale_alpha(color_hex("#1b1c20"), solid));
-	Font f = ui_font(ui, 13, 600);
-	f32 base = (PANEL_HEIGHT + font_cap_height(f)) / 2;
+	panel_background(ui, bar, solid);
+	Font bold = ui_font(ui, 13, 700), medium = ui_font(ui, 13, 500);
+	f32 base = roundf((PANEL_HEIGHT + font_cap_height(bold)) / 2);
 
-	/* Applications */
+	/* Applications: the Zurbax mark and the label. */
 	const char *apps = "Applications";
-	f32 aw = ui_text_width(ui, f, apps) + 24;
+	f32 aw = 8 + 16 + 7 + ui_text_width(ui, bold, apps) + 12;
 	panel_apps_btn = rect(4, 0, aw, PANEL_HEIGHT);
 	if (panel_button(ui, panel_apps_btn, "panel-apps", S.launcher_open)) {
 		S.launcher_open = !S.launcher_open;
 		S.notifications_open = S.session_menu_open = false;
 	}
-	panel_text(ui, f, 16, base, apps, 1);
+	f32 iy = (PANEL_HEIGHT - 16) / 2;
+	ui_icon(ui, rect(12.5f, iy + 1, 16, 16), "zurbax-logo", color_hex("#00000055"));
+	ui_icon(ui, rect(12, iy, 16, 16), "zurbax-logo", COLOR_WHITE);
+	panel_text(ui, bold, 12 + 16 + 7, base, apps, 1);
 
-	/* Clock */
-	char clock[64];
-	format_clock(clock, sizeof clock, true);
-	f32 cw = ui_text_width(ui, f, clock);
-	panel_clock_btn = rect((S.sw - cw) / 2 - 12, 0, cw + 24, PANEL_HEIGHT);
+	/* Date in medium weight, the time in bold beside it. */
+	char date[48], time[32];
+	{
+		Civil c;
+		civil_local(time_unix(), &c);
+		static const char *days[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+		static const char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+		fmt(date, sizeof date, "%s %d %s", days[c.wday], c.day, months[c.month - 1]);
+		format_clock(time, sizeof time, false);
+	}
+	f32 dw = ui_text_width(ui, medium, date), tw = ui_text_width(ui, bold, time), gap = 9;
+	f32 cw = dw + gap + tw, cx = roundf((S.sw - cw) / 2);
+	panel_clock_btn = rect(cx - 14, 0, cw + 28, PANEL_HEIGHT);
 	if (panel_button(ui, panel_clock_btn, "panel-clock", S.notifications_open)) {
 		S.notifications_open = !S.notifications_open;
 		S.launcher_open = S.session_menu_open = false;
 		for (int i = 0; i < S.nnotices; i++)
 			S.notices[i].read = true;
 	}
-	panel_text(ui, f, (S.sw - cw) / 2, base, clock, 1);
+	panel_text(ui, medium, cx, base, date, 0.82f);
+	ui_circle(ui, cx + dw + gap / 2, base - font_cap_height(bold) / 2, 1.3f, color_scale_alpha(COLOR_WHITE, 0.55f));
+	panel_text(ui, bold, cx + dw + gap, base, time, 1);
+	int unread = 0;
+	for (int i = 0; i < S.nnotices; i++)
+		unread += !S.notices[i].read;
+	if (unread)
+		ui_circle(ui, cx + cw + 6, base - font_cap_height(bold) - 1, 3, ui->theme.accent);
 
-	/* Status indicators, right to left. */
-	f32 x = S.sw - 10;
-	f32 icon = 16, iy = (PANEL_HEIGHT - icon) / 2;
-	f32 right = x;
-	Color white = COLOR_WHITE, shadow = color_hex("#00000060");
+	/* Status: network, sound and battery grouped in one pill, power apart. */
+	f32 icon = 16;
+	f32 x = S.sw - 6;
+	Color white = COLOR_WHITE, shadow = color_hex("#00000055");
 #define STATUS_ICON(name) do { x -= icon; \
 		ui_icon(ui, rect(x + 0.5f, iy + 1, icon, icon), name, shadow); \
-		ui_icon(ui, rect(x, iy, icon, icon), name, white); x -= 12; } while (0)
+		ui_icon(ui, rect(x, iy, icon, icon), name, white); } while (0)
+	Rect power = rect(x - 30, 0, 30, PANEL_HEIGHT);
+	bool power_click = panel_button(ui, power, "panel-power", false);
+	x -= 7;
 	STATUS_ICON("system-shutdown");
+	x -= 7 + 6;
+	f32 right = x;
+	x -= 10;
 	if (S.battery >= 0) {
 		if (S.set.show_battery_percent) {
 			char pct[8];
 			fmt(pct, sizeof pct, "%d%%", S.battery);
-			f32 pw = ui_text_width(ui, ui_font(ui, 12, 600), pct);
-			x -= pw;
-			panel_text(ui, ui_font(ui, 12, 600), x, base, pct, 1);
-			x -= 6;
+			Font small = ui_font(ui, 12, 600);
+			x -= ui_text_width(ui, small, pct);
+			panel_text(ui, small, x, base, pct, 1);
+			x -= 4;
 		}
 		STATUS_ICON(S.charging ? "battery-charging" : S.battery > 80 ? "battery-full" : S.battery > 45 ? "battery-good" :
 							   S.battery > 15 ? "battery-low" : "battery-caution");
+		x -= 12;
 	}
 	STATUS_ICON(S.muted || S.volume == 0 ? "audio-volume-muted" : S.volume < 34 ? "audio-volume-low" :
 						   S.volume < 67 ? "audio-volume-medium" : "audio-volume-high");
+	x -= 12;
 	STATUS_ICON(S.wifi_connected ? (S.wifi_strength > 66 ? "network-wireless" : S.wifi_strength > 33 ? "network-wireless-good" : "network-wireless-weak")
 				     : "network-wireless-none");
-	int unread = 0;
-	for (int i = 0; i < S.nnotices; i++)
-		unread += !S.notices[i].read;
-	STATUS_ICON(S.set.do_not_disturb ? "notifications-disabled" : "bell");
-	if (unread)
-		ui_circle(ui, x + 12 + icon - 2, iy + 3, 3.5f, ui->theme.accent);
+	if (S.set.do_not_disturb) {
+		x -= 12;
+		STATUS_ICON("notifications-disabled");
+	}
+	x -= 10;
 #undef STATUS_ICON
-	panel_status_btn = rect(x + 4, 0, right - x + 4, PANEL_HEIGHT);
-	if (panel_button(ui, panel_status_btn, "panel-status", S.session_menu_open)) {
+	panel_status_btn = rect(x, 0, right - x, PANEL_HEIGHT);
+	/* The group sits in a faint pill even when idle, so it reads as one control. */
+	Rect pill = rect_inset(panel_status_btn, 0, 4);
+	ui_round(ui, pill, pill.h / 2, color_hex("#ffffff0d"));
+	if (panel_button(ui, panel_status_btn, "panel-status", S.session_menu_open) || power_click) {
 		S.session_menu_open = !S.session_menu_open;
 		S.launcher_open = S.notifications_open = false;
 	}

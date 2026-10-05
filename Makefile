@@ -70,9 +70,16 @@ all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS)
 
 # A development root that mirrors /system, so programs find their data files.
 DEVROOT := $(OUT)/root/system
-devroot:
-	@mkdir -p $(DEVROOT)/share
+devroot: all
+	@mkdir -p $(DEVROOT)/share $(DEVROOT)/bin
 	@ln -sfn $(CURDIR)/data/icons $(DEVROOT)/share/icons
+	@for f in $(CURDIR)/data/*; do case $$f in */icons) ;; *) ln -sfn $$f $(DEVROOT)/share/$$(basename $$f);; esac; done
+	@for p in $(SYSTEM); do ln -sfn $(CURDIR)/$(OUT)/bin/$$p $(DEVROOT)/bin/$$p; done
+	@for a in $(APPS); do \
+		mkdir -p $(DEVROOT)/apps/$$a; \
+		ln -sfn $(CURDIR)/$(OUT)/apps/$$a/$$a $(DEVROOT)/apps/$$a/$$a; \
+		for f in apps/$$a/*; do case $$f in *.c|*.h) ;; *) ln -sfn $(CURDIR)/$$f $(DEVROOT)/apps/$$a/$$(basename $$f);; esac; done; \
+	done
 
 test: $(TESTS) devroot
 	@for t in $(TESTS); do echo "== $$t"; ZURBAX_ROOT=$(DEVROOT) $$t || exit 1; done

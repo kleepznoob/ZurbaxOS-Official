@@ -36,7 +36,7 @@ void settings_load(void)
 	s->dark = conf_get_bool(c, "dark", false);
 	str_copy(s->accent_name, conf_get(c, "accent", "blue"), sizeof s->accent_name);
 	s->accent = s->accent_name[0] == '#' ? color_hex(s->accent_name) : theme_accent_named(s->accent_name);
-	str_copy(s->wallpaper, conf_get(c, "wallpaper", "ridgeline"), sizeof s->wallpaper);
+	str_copy(s->wallpaper, conf_get(c, "wallpaper", "lake"), sizeof s->wallpaper);
 	s->text_scale = (f32)conf_get_float(c, "text_scale", 1.0);
 	s->scale_override = (f32)conf_get_float(c, "display_scale", 0);
 	s->natural_scroll = conf_get_bool(c, "natural_scroll", true);

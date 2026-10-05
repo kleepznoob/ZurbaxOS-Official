@@ -311,6 +311,7 @@ Loop *ui_loop(Ui *ui);
 void ui_wake(Ui *ui);                 /* thread-safe: schedule a redraw */
 void ui_set_title(Ui *ui, const char *title);
 void ui_window_action(Ui *ui, u32 action);
+void ui_window_resize(Ui *ui, int width, int height); /* ask for a new logical size */
 void ui_notify(Ui *ui, const char *title, const char *body, const char *icon);
 void ui_launch(Ui *ui, const char *app_id, const char *arg);
 void ui_settings_changed(Ui *ui);
