@@ -9,6 +9,7 @@ typedef struct {
 	f64 blink_start;
 	bool dragging;
 	f32 want_x;             /* preferred caret x for vertical movement */
+	bool reveal;            /* scroll the caret into view on the next layout */
 } EditState;
 
 static bool is_word(u8 c)
@@ -62,8 +63,8 @@ static int edit_keys(Ui *ui, StrBuf *text, EditState *st, bool multiline, bool r
 	int events = 0;
 	for (int i = 0; i < ui->nkeys; i++) {
 		UiKey *k = &ui->keys[i];
-		if (!k->pressed || !k->code)
-			continue;
+		if (!k->pressed)
+			continue; /* code 0 = text without a key (compose, input methods) */
 		bool shift = k->mods & MOD_SHIFT, ctrl = k->mods & MOD_CTRL;
 		usize len = text->len;
 		const char *s = sb_str(text);
@@ -189,7 +190,7 @@ static int edit_keys(Ui *ui, StrBuf *text, EditState *st, bool multiline, bool r
 		if (moved && !shift)
 			st->anchor = st->cursor;
 		if (handled) {
-			k->code = 0;
+			k->code = 0, k->text[0] = 0;
 			st->blink_start = ui->now;
 		}
 	}
@@ -227,6 +228,22 @@ static bool caret_visible(Ui *ui, EditState *st)
 void ui_focus(Ui *ui, const char *id)
 {
 	ui->focus = ui_id(ui, id);
+	ui->redraw = true;
+}
+
+usize ui_textarea_cursor(Ui *ui, const char *id)
+{
+	EditState *st = ui_state(ui, ui_id(ui, id), sizeof *st);
+	return st->cursor;
+}
+
+void ui_textarea_select(Ui *ui, const char *id, usize start, usize end)
+{
+	EditState *st = ui_state(ui, ui_id(ui, id), sizeof *st);
+	st->anchor = start;
+	st->cursor = end;
+	st->reveal = true;
+	st->blink_start = ui->now;
 	ui->redraw = true;
 }
 
@@ -526,7 +543,7 @@ int ui_textarea(Ui *ui, Rect r, const char *id, StrBuf *text, f32 font_size, u32
 			st->cursor = tl.start + text_hit(df, s + tl.start, n, st->want_x * ui->scale);
 			if (!(k->mods & MOD_SHIFT))
 				st->anchor = st->cursor;
-			k->code = 0;
+			k->code = 0, k->text[0] = 0;
 			st->blink_start = ui->now;
 		}
 		int ev = edit_keys(ui, text, st, true, readonly, false);
@@ -547,6 +564,16 @@ int ui_textarea(Ui *ui, Rect r, const char *id, StrBuf *text, f32 font_size, u32
 			st->scroll_y = cy;
 		if (cy + lh > st->scroll_y + inner.h)
 			st->scroll_y = cy + lh - inner.h;
+	}
+	if (st->reveal) {
+		st->reveal = false;
+		usize cl = 0;
+		for (usize i = 0; i < lines.len; i++)
+			if (st->cursor >= lines.data[i].start)
+				cl = i;
+		f32 cy = (f32)cl * lh;
+		if (cy < st->scroll_y || cy + lh > st->scroll_y + inner.h)
+			st->scroll_y = cy - inner.h / 3;
 	}
 	st->scroll_y = clampf(st->scroll_y, 0, maxf(0, content_h - inner.h));
 

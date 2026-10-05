@@ -15,6 +15,20 @@ bool str_eq_nocase(const char *a, const char *b)
 	return str_cmp_nocase(a, b) == 0;
 }
 
+bool str_eq_nocase_n(const char *a, const char *b, usize n)
+{
+	for (usize i = 0; i < n; i++) {
+		u8 x = (u8)a[i], y = (u8)b[i];
+		if (x >= 'A' && x <= 'Z')
+			x += 32;
+		if (y >= 'A' && y <= 'Z')
+			y += 32;
+		if (x != y)
+			return false;
+	}
+	return true;
+}
+
 int str_cmp(const char *a, const char *b)
 {
 	while (*a && *a == *b)

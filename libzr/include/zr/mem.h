@@ -28,6 +28,7 @@ usize mem_usable(const void *p);
 
 bool str_eq(const char *a, const char *b);
 bool str_eq_nocase(const char *a, const char *b);
+bool str_eq_nocase_n(const char *a, const char *b, usize n); /* first n bytes, ASCII case-insensitive */
 int str_cmp(const char *a, const char *b);
 int str_cmp_nocase(const char *a, const char *b);
 int str_cmp_natural(const char *a, const char *b); /* "file2" < "file10" */

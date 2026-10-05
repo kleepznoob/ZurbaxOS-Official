@@ -135,7 +135,14 @@ void shell_launch(const char *app_id, const char *arg)
 		if (!str_starts(*e, "HOME=") && !str_starts(*e, "USER=") && !str_starts(*e, "LANG=") && !str_starts(*e, "TZ="))
 			envp[ne++] = *e;
 	envp[ne] = NULL;
-	dir_make(S.set.home, 0700);
+	if (!dir_exists(S.set.home)) {
+		char *parent = path_dir(S.set.home);
+		dir_make(parent, 0755);
+		mem_free(parent);
+		dir_make(S.set.home, 0700);
+		if (o.drop_privileges)
+			sys_chown(S.set.home, o.uid, o.gid);
+	}
 	int pid = proc_spawn(path, argv, envp, &o);
 	mem_free(envp);
 	if (pid < 0)

@@ -427,8 +427,11 @@ void sb_reserve(StrBuf *sb, usize extra)
 	usize cap = sb->cap ? sb->cap : 32;
 	while (cap < need)
 		cap *= 2;
+	bool fresh = sb->data == NULL;
 	sb->data = mem_realloc(sb->data, cap);
 	sb->cap = cap;
+	if (fresh)
+		sb->data[0] = 0;
 }
 
 void sb_add(StrBuf *sb, const void *data, usize n)
@@ -482,6 +485,7 @@ void sb_insert(StrBuf *sb, usize pos, const char *s, usize n)
 	memmove(sb->data + pos + n, sb->data + pos, sb->len - pos + 1);
 	memcpy(sb->data + pos, s, n);
 	sb->len += n;
+	sb->data[sb->len] = 0;
 }
 
 void sb_remove(StrBuf *sb, usize pos, usize n)

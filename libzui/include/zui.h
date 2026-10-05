@@ -89,7 +89,7 @@ typedef struct Ui {
 	int click_count;
 	f32 scroll_dx, scroll_dy;
 	u32 scroll_phase, scroll_source;
-	UiKey keys[32];
+	UiKey keys[256];
 	int nkeys;
 	u32 mods;
 	bool window_focused;
@@ -256,6 +256,8 @@ int ui_entry(Ui *ui, Rect r, const char *id, StrBuf *text, const char *placehold
 enum { TEXT_READONLY = 1, TEXT_MONO = 2, TEXT_NO_WRAP = 4, TEXT_NO_FRAME = 8 };
 int ui_textarea(Ui *ui, Rect r, const char *id, StrBuf *text, f32 font_size, u32 flags);
 void ui_focus(Ui *ui, const char *id);
+usize ui_textarea_cursor(Ui *ui, const char *id);                      /* byte offset of the caret */
+void ui_textarea_select(Ui *ui, const char *id, usize start, usize end); /* select and scroll to it */
 bool ui_is_focused(Ui *ui, const char *id);
 
 /* Scrolling: content drawn between begin and end moves with the scroll offset.
@@ -285,6 +287,14 @@ void ui_dialog_open(Ui *ui, const char *id);
 void ui_dialog_close(Ui *ui);
 bool ui_dialog_begin(Ui *ui, const char *id, f32 w, f32 h, Rect *content);
 void ui_dialog_end(Ui *ui);
+
+/* File chooser. Open it once, then call ui_file_dialog every frame; it returns
+ * true (with the path) in the frame the user picks something. `filters` is a
+ * comma-separated list of extensions ("png,jpg") or NULL for all files. */
+enum { FILE_OPEN = 1, FILE_SAVE, FILE_FOLDER };
+void ui_file_dialog_open(Ui *ui, const char *id, u32 mode, const char *start_dir, const char *filters, const char *suggested_name);
+bool ui_file_dialog(Ui *ui, const char *id, char *out_path, usize cap);
+const char *ui_file_icon(const char *name, bool is_dir); /* symbolic icon for a file type */
 
 /* ---- App runtime -------------------------------------------------------------------- */
 

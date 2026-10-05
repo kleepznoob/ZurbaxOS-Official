@@ -208,6 +208,7 @@ bool ui_key_pressed(Ui *ui, u32 code, u32 mods)
 		UiKey *k = &ui->keys[i];
 		if (k->pressed && k->code == code && (k->mods & ~(u32)MOD_CAPS) == mods) {
 			k->code = 0; /* consumed */
+			k->text[0] = 0;
 			return true;
 		}
 	}

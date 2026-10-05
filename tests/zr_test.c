@@ -102,6 +102,11 @@ static void test_strings(void)
 	sb_remove(&sb, 1, 1);
 	CHECK(str_eq(sb_str(&sb), ">ello, Zurbax #1"));
 	sb_free(&sb);
+	/* Inserting into an empty buffer must leave it terminated. */
+	StrBuf e = { 0 };
+	sb_insert(&e, 0, "ab", 2);
+	CHECK(e.len == 2 && strlen(sb_str(&e)) == 2);
+	sb_free(&e);
 }
 
 static int cmp_int(const void *a, const void *b, void *ctx)
