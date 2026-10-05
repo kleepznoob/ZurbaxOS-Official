@@ -52,6 +52,8 @@ int proc_spawn(const char *path, char *const argv[], char *const envp[], const S
 			sys_dup3(o->stdout_fd, 1, 0);
 		if (o->stderr_fd >= 0 && o->stderr_fd != 2)
 			sys_dup3(o->stderr_fd, 2, 0);
+		if (o->controlling_tty)
+			sys_ioctl(0, TIOCSCTTY, 0);
 		if (o->cwd)
 			sys_chdir(o->cwd);
 		if (o->drop_privileges) {

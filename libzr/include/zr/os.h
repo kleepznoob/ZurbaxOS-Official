@@ -56,6 +56,7 @@ typedef struct {
 	const char *cwd;
 	int stdin_fd, stdout_fd, stderr_fd; /* -1 = inherit */
 	bool new_session;
+	bool controlling_tty;               /* make stdin (a terminal) the controlling terminal */
 	u32 uid, gid;                       /* used when drop_privileges is set */
 	bool drop_privileges;
 } SpawnOpts;
