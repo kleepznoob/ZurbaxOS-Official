@@ -195,12 +195,10 @@ static void sample_sheet(void)
 	draw_text_in(c, font(13, 500), rect(glass.x, glass.y + 66, glass.w, 30), "Monday, October 5", color_hex("#ffffffcc"), ALIGN_CENTER);
 
 	png_save(c, "build/tests/zg_sample.png");
-	/* 3x nearest-neighbour zoom of the small text for close inspection. */
+	/* 3x smooth (bilinear) zoom of the small text for close inspection. */
 	Rect z = rect(85, 375, 375, 195);
 	Canvas *zoom = canvas_new((int)z.w * 3, (int)z.h * 3);
-	for (int yy = 0; yy < zoom->height; yy++)
-		for (int xx = 0; xx < zoom->width; xx++)
-			canvas_row(zoom, yy)[xx] = canvas_row(c, (int)z.y + yy / 3)[(int)z.x + xx / 3];
+	blit_scaled(zoom, c, z, rect(0, 0, z.w * 3, z.h * 3), 1);
 	png_save(zoom, "build/tests/zg_zoom.png");
 	canvas_free(zoom);
 	canvas_free(c);
