@@ -1,4 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-<defs><linearGradient id="hl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="0.35" stop-color="#ffffff" stop-opacity="0.08"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd28f"/><stop offset="1" stop-color="#ff7d8f"/></linearGradient></defs>
-<rect x="12" y="12" width="104" height="104" rx="26" fill="url(#sky)"/><rect x="12.5" y="12.5" width="103" height="103" rx="25.5" stroke="#000000" stroke-opacity="0.18" stroke-width="1"/><rect x="13.5" y="13.5" width="101" height="101" rx="24.5" stroke="url(#hl)" stroke-width="1.5"/><circle cx="84" cy="44" r="12" fill="#fff4cc"/><path d="M12 84l28-26 18 16 20-24 38 36v6a26 26 0 0 1-26 24H38a26 26 0 0 1-26-24z" fill="#8f62cf"/><path d="M12 96l34-20 22 14 18-10 30 16a26 26 0 0 1-26 20H38a26 26 0 0 1-26-20z" fill="#5a3a9e"/>
+<defs><radialGradient id="g1" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#000000" stop-opacity="0.32"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient><radialGradient id="g2" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#000000" stop-opacity="0.28800000000000003"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient><linearGradient id="g3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdfdfd"/><stop offset="1" stop-color="#e8ebef"/></linearGradient><linearGradient id="g4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6aa6e8"/><stop offset="0.55" stop-color="#f6c39a"/><stop offset="1" stop-color="#f59f88"/></linearGradient><radialGradient id="g5" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff7da" stop-opacity="0.95"/><stop offset="0.4" stop-color="#ffe3a3" stop-opacity="0.6"/><stop offset="1" stop-color="#ffd08a" stop-opacity="0"/></radialGradient><linearGradient id="g6" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b7da6"/><stop offset="1" stop-color="#3c4a6e"/></linearGradient><linearGradient id="g7" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4e78a8"/><stop offset="1" stop-color="#2b4c78"/></linearGradient><radialGradient id="g8" cx="0.5" cy="0.5" r="0.5"><stop offset="0.65" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.25"/></radialGradient></defs>
+<ellipse cx="64" cy="116" rx="48" ry="7" fill="url(#g1)"/>
+<ellipse cx="64" cy="114.25" rx="36" ry="3.15" fill="url(#g2)"/>
+<rect x="24" y="22" width="80" height="88" rx="2" fill="#000000" fill-opacity="0.15" transform="rotate(-12 64 66) translate(1 2)"/>
+<rect x="24" y="22" width="80" height="88" rx="2" fill="url(#g3)" transform="rotate(-12 64 66)"/>
+<rect x="24" y="22" width="80" height="88" rx="2" stroke="#9aa3af" stroke-opacity="0.4" stroke-width="1" transform="rotate(-12 64 66)"/>
+<rect x="28" y="22" width="80" height="88" rx="2" fill="#000000" fill-opacity="0.15" transform="rotate(8 64 66) translate(1 2)"/>
+<rect x="28" y="22" width="80" height="88" rx="2" fill="url(#g3)" transform="rotate(8 64 66)"/>
+<rect x="28" y="22" width="80" height="88" rx="2" stroke="#9aa3af" stroke-opacity="0.4" stroke-width="1" transform="rotate(8 64 66)"/>
+<rect x="22" y="18" width="84" height="94" rx="2" fill="#000000" fill-opacity="0.2" transform="translate(1 2.5)"/>
+<rect x="22" y="18" width="84" height="94" rx="2" fill="url(#g3)"/>
+<rect x="22.5" y="18.5" width="83" height="93" rx="1.5" stroke="#9aa3af" stroke-opacity="0.45" stroke-width="1"/>
+<rect x="28" y="24" width="72" height="66" fill="url(#g4)"/>
+<circle cx="78" cy="58" r="16" fill="url(#g5)"/>
+<path d="M28 74l16-18 8 6 12-16 14 14 6-4 16 16v8H28z" fill="url(#g6)"/>
+<path d="M60 46l-4 6 4-1 4 4 2-3z" fill="#f4f7fb" fill-opacity="0.85"/>
+<path d="M28 78h72v12H28z" fill="url(#g7)"/>
+<path d="M40 82h20M70 85h18" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.2" stroke-linecap="round"/>
+<rect x="28" y="24" width="72" height="66" fill="url(#g8)"/>
 </svg>

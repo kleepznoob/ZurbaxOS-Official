@@ -547,6 +547,8 @@ static void shader_init(Shader *s, const Paint *p)
 	}
 	case PAINT_RADIAL:
 		build_lut(s, p);
+		if (p->has_radial_mat)
+			s->inv = mat_invert(p->radial_mat);
 		break;
 	case PAINT_IMAGE:
 		s->inv = mat_invert(p->image_mat);
@@ -586,8 +588,14 @@ static inline u32 shade(const Shader *s, int x, int y)
 		return s->lut[i];
 	}
 	case PAINT_RADIAL: {
-		f32 dx = px - s->p->p0.x, dy = py - s->p->p0.y;
-		f32 t = sqrtf(dx * dx + dy * dy) / maxf(s->p->radius, 1e-3f);
+		f32 t;
+		if (s->p->has_radial_mat) {
+			Vec2 q = mat_apply(s->inv, (Vec2){ px, py });
+			t = sqrtf(q.x * q.x + q.y * q.y);
+		} else {
+			f32 dx = px - s->p->p0.x, dy = py - s->p->p0.y;
+			t = sqrtf(dx * dx + dy * dy) / maxf(s->p->radius, 1e-3f);
+		}
 		int i = (int)(clampf(t, 0, 1) * 255 + 0.5f);
 		return s->lut[i];
 	}
@@ -919,4 +927,70 @@ void stroke_path(Canvas *c, const Path *p, Mat m, const Paint *paint, const Stro
 	path_stroke_outline(p, m, style, &outline);
 	fill_path(c, &outline, mat_identity(), paint, FILL_NONZERO);
 	path_free(&outline);
+}
+
+/* ---- Dashing ------------------------------------------------------------------- */
+
+void path_dash(const Path *in, const f32 *pattern, int n, f32 offset, Path *out)
+{
+	f32 total = 0;
+	for (int i = 0; i < n; i++)
+		total += maxf(pattern[i], 0);
+	if (n <= 0 || total <= 0) {
+		/* No usable pattern: copy the path through unchanged. */
+		Poly pl = { 0 };
+		flatten(in, mat_identity(), &pl, 0.05f);
+		for (usize i = 0; i < pl.starts.len; i++) {
+			usize s = pl.starts.data[i];
+			usize e = i + 1 < pl.starts.len ? pl.starts.data[i + 1] : pl.pts.len;
+			for (usize k = s; k < e; k++)
+				(k == s ? path_move : path_line)(out, pl.pts.data[k].x, pl.pts.data[k].y);
+			if (pl.closed.data[i])
+				path_close(out);
+		}
+		poly_free(&pl);
+		return;
+	}
+	Poly pl = { 0 };
+	flatten(in, mat_identity(), &pl, 0.05f);
+	for (usize i = 0; i < pl.starts.len; i++) {
+		usize s = pl.starts.data[i];
+		usize e = i + 1 < pl.starts.len ? pl.starts.data[i + 1] : pl.pts.len;
+		/* Walk the polyline (closing it if needed), emitting the "on" spans. */
+		int idx = 0;
+		f32 remain = 0, phase = fmodf(offset, total);
+		if (phase < 0)
+			phase += total;
+		while (phase >= pattern[idx] && pattern[idx] >= 0) {
+			phase -= pattern[idx];
+			idx = (idx + 1) % n;
+		}
+		remain = pattern[idx] - phase;
+		bool on = (idx % 2) == 0, drawing = false;
+		usize count = e - s + (pl.closed.data[i] ? 1 : 0);
+		for (usize k = 0; k + 1 < count; k++) {
+			Vec2 a = pl.pts.data[s + k], b = pl.pts.data[s + (k + 1) % (e - s)];
+			f32 dx = b.x - a.x, dy = b.y - a.y, len = sqrtf(dx * dx + dy * dy), t = 0;
+			while (len - t > 1e-6f) {
+				f32 step = minf(remain, len - t);
+				f32 x0 = a.x + dx * t / len, y0 = a.y + dy * t / len;
+				f32 x1 = a.x + dx * (t + step) / len, y1 = a.y + dy * (t + step) / len;
+				if (on) {
+					if (!drawing)
+						path_move(out, x0, y0);
+					path_line(out, x1, y1);
+					drawing = true;
+				}
+				t += step;
+				remain -= step;
+				if (remain <= 1e-6f) {
+					idx = (idx + 1) % n;
+					remain = pattern[idx];
+					on = !on;
+					drawing = false;
+				}
+			}
+		}
+	}
+	poly_free(&pl);
 }

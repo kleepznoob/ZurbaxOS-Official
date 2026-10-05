@@ -1,4 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-<defs><linearGradient id="hl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="0.35" stop-color="#ffffff" stop-opacity="0.08"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient><linearGradient id="base" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#72d6ff"/><stop offset="1" stop-color="#2a80fb"/></linearGradient><linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#ffb020"/></linearGradient><linearGradient id="cloud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e3eefc"/></linearGradient></defs>
-<rect x="12" y="12" width="104" height="104" rx="26" fill="url(#base)"/><rect x="12.5" y="12.5" width="103" height="103" rx="25.5" stroke="#000000" stroke-opacity="0.18" stroke-width="1"/><rect x="13.5" y="13.5" width="101" height="101" rx="24.5" stroke="url(#hl)" stroke-width="1.5"/><circle cx="76" cy="48" r="20" fill="url(#sun)"/><path d="M38 94a16 16 0 0 1-2-32 22 22 0 0 1 42-6 16 16 0 0 1 14 38z" fill="url(#cloud)"/>
+<defs><radialGradient id="g1" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#000000" stop-opacity="0.32"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient><radialGradient id="g2" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#000000" stop-opacity="0.28800000000000003"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient><radialGradient id="g3" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffe58a" stop-opacity="0.9"/><stop offset="0.5" stop-color="#ffc94d" stop-opacity="0.35"/><stop offset="1" stop-color="#ffb020" stop-opacity="0"/></radialGradient><radialGradient id="g4" cx="0.42" cy="0.4" r="0.62"><stop offset="0" stop-color="#fffbe0"/><stop offset="0.55" stop-color="#ffd84f"/><stop offset="1" stop-color="#f59e0b"/></radialGradient><linearGradient id="g5" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="0.65" stop-color="#e9eff6"/><stop offset="1" stop-color="#b7c6d8"/></linearGradient><radialGradient id="g6" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient><radialGradient id="g7" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient><radialGradient id="g8" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="60" cy="114" rx="46" ry="6" fill="url(#g1)"/>
+<ellipse cx="60" cy="112.5" rx="34.5" ry="2.7" fill="url(#g2)"/>
+<circle cx="80" cy="44" r="36" fill="url(#g3)"/>
+<circle cx="80" cy="44" r="21" fill="url(#g4)"/>
+<circle cx="34" cy="82" r="18" fill="#4c6a8c" fill-opacity="0.25" transform="translate(2 4)"/>
+<circle cx="52" cy="70" r="22" fill="#4c6a8c" fill-opacity="0.25" transform="translate(2 4)"/>
+<circle cx="74" cy="74" r="19" fill="#4c6a8c" fill-opacity="0.25" transform="translate(2 4)"/>
+<circle cx="88" cy="86" r="14" fill="#4c6a8c" fill-opacity="0.25" transform="translate(2 4)"/>
+<circle cx="60" cy="88" r="18" fill="#4c6a8c" fill-opacity="0.25" transform="translate(2 4)"/>
+<circle cx="40" cy="92" r="14" fill="#4c6a8c" fill-opacity="0.25" transform="translate(2 4)"/>
+<circle cx="34" cy="82" r="18" fill="url(#g5)"/>
+<circle cx="52" cy="70" r="22" fill="url(#g5)"/>
+<circle cx="74" cy="74" r="19" fill="url(#g5)"/>
+<circle cx="88" cy="86" r="14" fill="url(#g5)"/>
+<circle cx="60" cy="88" r="18" fill="url(#g5)"/>
+<circle cx="40" cy="92" r="14" fill="url(#g5)"/>
+<rect x="30" y="86" width="64" height="20" rx="10" fill="url(#g5)"/>
+<ellipse cx="29.5" cy="73.9" rx="9.9" ry="5.04" fill="url(#g6)" transform="rotate(-15 29.5 73.9)"/>
+<ellipse cx="46.5" cy="60.1" rx="12.1" ry="6.16" fill="url(#g7)" transform="rotate(-15 46.5 60.1)"/>
+<ellipse cx="69.25" cy="65.45" rx="10.45" ry="5.32" fill="url(#g8)" transform="rotate(-15 69.25 65.45)"/>
 </svg>

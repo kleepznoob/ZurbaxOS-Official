@@ -65,6 +65,8 @@ typedef struct {
 	f32 radius;               /* radial */
 	GradientStop stops[MAX_STOPS];
 	int nstops;
+	Mat radial_mat;           /* radial: optional unit-circle -> canvas map (ellipses) */
+	bool has_radial_mat;
 	const Canvas *image;      /* PAINT_IMAGE */
 	Mat image_mat;            /* image space -> canvas space */
 	f32 opacity;              /* multiplies everything; 0 means 1 */
@@ -91,6 +93,8 @@ typedef struct {
 
 void fill_path(Canvas *c, const Path *p, Mat m, const Paint *paint, FillRule rule);
 void stroke_path(Canvas *c, const Path *p, Mat m, const Paint *paint, const StrokeStyle *style);
+/* Splits a path into dashes: pattern alternates on/off lengths (user units). */
+void path_dash(const Path *in, const f32 *pattern, int n, f32 offset, Path *out);
 /* Converts a stroke into a fillable outline (nonzero). */
 void path_stroke_outline(const Path *in, Mat m, const StrokeStyle *style, Path *out);
 

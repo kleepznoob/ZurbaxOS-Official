@@ -461,6 +461,8 @@ typedef struct {
 	PaintSpec fill, stroke;
 	f32 fill_opacity, stroke_opacity, opacity;
 	f32 stroke_width;
+	f32 dash[8];
+	int ndash;
 	LineCap cap;
 	LineJoin join;
 	FillRule rule;
@@ -489,6 +491,17 @@ static void apply_style(const Node *n, Style *st)
 			else if (str_eq(k, "stroke-linecap")) st->cap = str_eq(v, "round") ? CAP_ROUND : str_eq(v, "square") ? CAP_SQUARE : CAP_BUTT;
 			else if (str_eq(k, "stroke-linejoin")) st->join = str_eq(v, "round") ? JOIN_ROUND : str_eq(v, "bevel") ? JOIN_BEVEL : JOIN_MITER;
 			else if (str_eq(k, "fill-rule")) st->rule = str_eq(v, "evenodd") ? FILL_EVENODD : FILL_NONZERO;
+			else if (str_eq(k, "stroke-dasharray")) {
+				const char *q = v;
+				st->ndash = 0;
+				while (st->ndash < 8 && parse_num(&q, &st->dash[st->ndash]))
+					st->ndash++;
+				if (st->ndash % 2 == 1 && st->ndash <= 4) { /* odd lists repeat once */
+					for (int d = 0; d < st->ndash; d++)
+						st->dash[st->ndash + d] = st->dash[d];
+					st->ndash *= 2;
+				}
+			}
 		}
 		if (pass == 1 && style) {
 			str_copy(buf, style, sizeof buf);
@@ -584,8 +597,11 @@ static bool make_paint(Ctx *cx, const PaintSpec *ps, f32 opacity, const Path *pa
 			f32 rcx = num_attr(g, "cx", user ? 0 : 0.5f, user ? cx->doc->vb_w : 1);
 			f32 rcy = num_attr(g, "cy", user ? 0 : 0.5f, user ? cx->doc->vb_h : 1);
 			f32 r = num_attr(g, "r", user ? 0 : 0.5f, user ? cx->doc->vb_w : 1);
-			Vec2 c = mat_apply(full, (Vec2){ rcx, rcy });
-			p = (Paint){ .kind = PAINT_RADIAL, .p0 = c, .radius = r * mat_scale_factor(full) };
+			/* Map the unit circle through the gradient's space: in bounding-box
+			 * units a radial gradient on a wide shape becomes an ellipse. */
+			Mat unit = mat_mul(full, mat_mul(mat_translate(rcx, rcy), mat_scale(r, r)));
+			p = (Paint){ .kind = PAINT_RADIAL, .p0 = mat_apply(full, (Vec2){ rcx, rcy }),
+				     .radius = r * mat_scale_factor(full), .radial_mat = unit, .has_radial_mat = true };
 		} else {
 			f32 x1 = num_attr(g, "x1", 0, user ? cx->doc->vb_w : 1), y1 = num_attr(g, "y1", 0, user ? cx->doc->vb_h : 1);
 			f32 x2 = num_attr(g, "x2", user ? cx->doc->vb_w : 1, user ? cx->doc->vb_w : 1);
@@ -610,7 +626,14 @@ static void draw_shape(Ctx *cx, const Path *path, Mat m, const Style *st)
 		fill_path(cx->canvas, path, m, &p, st->rule);
 	if (st->stroke_width > 0 && make_paint(cx, &st->stroke, st->stroke_opacity * st->opacity, path, m, &p)) {
 		StrokeStyle ss = { st->stroke_width, st->cap, st->join, 4 };
-		stroke_path(cx->canvas, path, m, &p, &ss);
+		if (st->ndash > 0) {
+			Path dashed = { 0 };
+			path_dash(path, st->dash, st->ndash, 0, &dashed);
+			stroke_path(cx->canvas, &dashed, m, &p, &ss);
+			path_free(&dashed);
+		} else {
+			stroke_path(cx->canvas, path, m, &p, &ss);
+		}
 	}
 }
 
@@ -749,7 +772,9 @@ void svg_render(const SvgDoc *doc, Canvas *c, Rect dst, Color current)
 	f32 s = minf(dst.w / doc->vb_w, dst.h / doc->vb_h);
 	f32 ox = dst.x + (dst.w - doc->vb_w * s) / 2, oy = dst.y + (dst.h - doc->vb_h * s) / 2;
 	Mat m = mat_mul(mat_translate(ox, oy), mat_mul(mat_scale(s, s), mat_translate(-doc->vb_x, -doc->vb_y)));
-	Style st = { { PAINT_COLOR, COLOR_BLACK, { 0 } }, { PAINT_NONE, 0, { 0 } }, 1, 1, 1, 1, CAP_BUTT, JOIN_MITER, FILL_NONZERO };
+	Style st = { .fill = { PAINT_COLOR, COLOR_BLACK, { 0 } }, .stroke = { PAINT_NONE, 0, { 0 } },
+		     .fill_opacity = 1, .stroke_opacity = 1, .opacity = 1, .stroke_width = 1,
+		     .cap = CAP_BUTT, .join = JOIN_MITER, .rule = FILL_NONZERO };
 	Ctx cx = { doc, c, current };
 	render_node(&cx, doc->root, m, st, 0);
 }
