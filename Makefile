@@ -62,12 +62,18 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: all test clean
+.PHONY: all test clean devroot
 .SECONDARY:
 all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS)
 
-test: $(TESTS)
-	@for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
+# A development root that mirrors /system, so programs find their data files.
+DEVROOT := $(OUT)/root/system
+devroot:
+	@mkdir -p $(DEVROOT)/share
+	@ln -sfn $(CURDIR)/data/icons $(DEVROOT)/share/icons
+
+test: $(TESTS) devroot
+	@for t in $(TESTS); do echo "== $$t"; ZURBAX_ROOT=$(DEVROOT) $$t || exit 1; done
 
 clean:
 	rm -rf $(OUT)/obj $(OUT)/lib $(OUT)/bin $(OUT)/apps $(OUT)/tests
