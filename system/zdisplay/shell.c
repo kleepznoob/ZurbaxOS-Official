@@ -168,6 +168,9 @@ void shell_notify(const char *app, const char *icon, const char *title, const ch
 	str_copy(n->body, body, sizeof n->body);
 	n->time = time_unix();
 	n->shown_at = now_s();
+	/* While a game runs full screen, keep it in the notification center only. */
+	if (S.gaming)
+		n->dismissed = true;
 	shell_mark_dirty();
 }
 
@@ -268,6 +271,17 @@ static void shell_frame(Ui *ui)
 			switcher_draw(ui);
 	}
 	osd_draw(ui);
+	if (S.set.show_fps) {
+		char f[16];
+		fmt(f, sizeof f, "%d FPS", (int)roundf(S.fps));
+		Font ff = ui_font(ui, 12, 700);
+		f32 w = ui_text_width(ui, ff, f) + 18;
+		Rect r = rect(S.sw - w - 10, PANEL_HEIGHT + 10, w, 24);
+		ui_round(ui, r, 12, color_hex("#000000a0"));
+		ui_text_in(ui, ff, r, f, S.fps >= 55 ? color_hex("#7be07b") : S.fps >= 30 ? color_hex("#f9c440") : color_hex("#ff6b6b"),
+			   ALIGN_CENTER);
+		shell_surface(r);
+	}
 	S.shutdown_k = ui_anim(ui, ui_id(ui, "shutdown-k"), S.shutting_down ? 1.0f : 0.0f, 5);
 	if (S.shutdown_k > 0) {
 		f32 k = S.shutdown_k;
@@ -548,6 +562,17 @@ void shell_tick(void)
 		S.osd_until = 0;
 		shell_mark_dirty();
 	}
+	/* Frame rate counter, refreshed twice a second. */
+	static f64 fps_t0;
+	static u32 fps_frames;
+	if (S.now - fps_t0 >= 0.5) {
+		S.fps = (f32)(S.frames_composed - fps_frames) / (f32)(S.now - fps_t0);
+		fps_frames = S.frames_composed;
+		fps_t0 = S.now;
+		if (S.set.show_fps)
+			shell_mark_dirty();
+	}
+	game_mode_update();
 	/* The fade to black finished: carry out the action. */
 	static bool done;
 	if (S.shutting_down && S.shutdown_k >= 0.999f && !done) {

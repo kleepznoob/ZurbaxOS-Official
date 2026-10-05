@@ -146,6 +146,10 @@ typedef struct {
 	char home[128];
 	bool has_password;
 	char password_hash[160];
+	bool game_mode;
+	bool show_fps;
+	bool mouse_accel;
+	bool alert_sounds;
 } Settings;
 
 /* ---- Global server state --------------------------------------------------------------- */
@@ -234,6 +238,9 @@ typedef struct {
 	f32 shutdown_k;
 	bool headless;
 	char screenshot_dir[160];
+	u32 frames_composed;         /* for the frame rate counter */
+	f32 fps;
+	bool gaming;                 /* game mode active: a full-screen window has focus */
 } Server;
 
 extern Server S;
@@ -250,7 +257,6 @@ Rect work_area(void);
 void compose_frame(void);
 void compose_init(void);
 void wallpaper_reload(void);
-Canvas *wallpaper_render(const char *name, int w, int h);
 void cursor_update(void);
 
 /* wm.c */
@@ -326,8 +332,10 @@ void settings_load(void);
 void settings_save(void);
 void settings_apply(void);
 void system_status_poll(void);
+void game_mode_update(void);
 void set_volume(int v);
 void set_brightness(int v);
+int account_update(const MsgAccount *m, char *msg, usize cap);
 
 /* splash.c */
 void splash_start(void);

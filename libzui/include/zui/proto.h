@@ -38,6 +38,7 @@ enum {
 	MSG_SCREENSHOT,     /* + memfd to receive pixels */
 	MSG_SESSION,        /* lock, logout, restart, shut down, sleep */
 	MSG_WIN_SET_SIZE,   /* the app asks for a new size (e.g. switching modes) */
+	MSG_ACCOUNT,        /* change the user's name or password (Settings) */
 
 	/* server -> app */
 	MSG_WELCOME = 64,
@@ -53,6 +54,7 @@ enum {
 	MSG_CLIPBOARD_DATA, /* + memfd */
 	MSG_POPUP_DONE,
 	MSG_DROP_FILES,
+	MSG_REPLY,          /* result of a request such as MSG_ACCOUNT */
 };
 
 typedef struct {
@@ -175,6 +177,17 @@ typedef struct {
 	u32 action;
 } MsgSession;
 
+enum { ACCOUNT_SET_NAME = 1, ACCOUNT_SET_PASSWORD = 2, ACCOUNT_REMOVE_PASSWORD = 4 };
+
+typedef struct {
+	MsgHeader h;
+	u32 seq;               /* echoed in the MSG_REPLY */
+	u32 flags;             /* ACCOUNT_* */
+	char full_name[96];
+	char old_password[128];
+	char new_password[128];
+} MsgAccount;
+
 /* ---- server -> app ---------------------------------------------------------- */
 
 typedef struct {
@@ -283,3 +296,10 @@ typedef struct {
 	f32 x, y;
 	char paths[3000];      /* newline-separated */
 } MsgDropFiles;
+
+typedef struct {
+	MsgHeader h;
+	u32 seq;
+	i32 status;            /* 0 = done, negative = failed */
+	char message[128];
+} MsgReply;

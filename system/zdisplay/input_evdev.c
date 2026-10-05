@@ -333,7 +333,7 @@ static void handle_syn(Device *d)
 {
 	if (d->rel_x != 0 || d->rel_y != 0) {
 		f32 speed = sqrtf(d->rel_x * d->rel_x + d->rel_y * d->rel_y);
-		f32 k = 1.0f + clampf((speed - 3) * 0.06f, 0, 1.4f);
+		f32 k = S.set.mouse_accel ? 1.0f + clampf((speed - 3) * 0.06f, 0, 1.4f) : 1.0f;
 		input_pointer_rel(d->rel_x * k, d->rel_y * k);
 		d->rel_x = d->rel_y = 0;
 	}

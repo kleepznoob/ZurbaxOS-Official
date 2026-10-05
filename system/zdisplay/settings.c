@@ -15,9 +15,14 @@ static void load_account(void)
 	str_copy(S.set.full_name, conf_get(u, "full_name", "Zurbax User"), sizeof S.set.full_name);
 	S.set.uid = (u32)conf_get_int(u, "uid", 1000);
 	S.set.gid = (u32)conf_get_int(u, "gid", 1000);
-	const char *pw = conf_get(u, "password", "");
+	/* The password hash lives apart, readable by root only. */
+	char *spath = str_fmt("%s/system/shadow", zurbax_data());
+	Conf *sh = conf_load(spath);
+	mem_free(spath);
+	const char *pw = conf_get(sh, "password", conf_get(u, "password", ""));
 	str_copy(S.set.password_hash, pw, sizeof S.set.password_hash);
 	S.set.has_password = pw[0] != 0;
+	conf_free(sh);
 	const char *home = env_get("ZURBAX_HOME");
 	if (home && *home)
 		str_copy(S.set.home, home, sizeof S.set.home);
@@ -56,6 +61,10 @@ void settings_load(void)
 	s->lock_after_min = (int)conf_get_int(c, "lock_after_minutes", 10);
 	s->show_battery_percent = conf_get_bool(c, "battery_percent", true);
 	str_copy(s->timezone, conf_get(c, "timezone", ""), sizeof s->timezone);
+	s->game_mode = conf_get_bool(c, "game_mode", true);
+	s->show_fps = conf_get_bool(c, "show_fps", false);
+	s->mouse_accel = conf_get_bool(c, "mouse_accel", true);
+	s->alert_sounds = conf_get_bool(c, "alert_sounds", true);
 	S.volume = (int)conf_get_int(c, "volume", 60);
 	conf_free(c);
 	if (!s->timezone[0]) {
@@ -181,4 +190,97 @@ void set_brightness(int v)
 	file_write_str(path, buf);
 	S.brightness = v;
 	shell_osd("display-brightness", (f32)v / 100);
+}
+
+/* Changes the account on behalf of Settings, which runs without the right to
+ * write the account file. Password changes need the current password. */
+int account_update(const MsgAccount *m, char *msg, usize cap)
+{
+	static f64 last_failure;
+	bool pw_change = m->flags & (ACCOUNT_SET_PASSWORD | ACCOUNT_REMOVE_PASSWORD);
+	if (pw_change && S.set.has_password) {
+		if (now_s() - last_failure < 2.0) {
+			str_copy(msg, "Please wait a moment before trying again.", cap);
+			return -1;
+		}
+		if (!password_check(m->old_password, S.set.password_hash)) {
+			last_failure = now_s();
+			str_copy(msg, "The current password is incorrect.", cap);
+			return -1;
+		}
+	}
+	if ((m->flags & ACCOUNT_SET_PASSWORD) && !m->new_password[0]) {
+		str_copy(msg, "The new password is empty.", cap);
+		return -1;
+	}
+	char *path = str_fmt("%s/system/users.conf", zurbax_data());
+	char *spath = str_fmt("%s/system/shadow", zurbax_data());
+	char *dir = path_dir(path);
+	dir_make(dir, 0755);
+	mem_free(dir);
+	Conf *c = conf_load(path);   /* public profile: name, uid, and whether a password is set */
+	Conf *sh = conf_load(spath); /* the password hash, root only */
+	if (m->flags & ACCOUNT_SET_NAME) {
+		char name[96];
+		str_copy(name, m->full_name, sizeof name);
+		char *t = str_trim(name);
+		if (*t) {
+			conf_set(c, "full_name", t);
+			str_copy(S.set.full_name, t, sizeof S.set.full_name);
+		}
+	}
+	if (m->flags & ACCOUNT_SET_PASSWORD) {
+		char *rec = password_hash(m->new_password);
+		conf_set(sh, "password", rec);
+		str_copy(S.set.password_hash, rec, sizeof S.set.password_hash);
+		S.set.has_password = true;
+		mem_free(rec);
+	} else if (m->flags & ACCOUNT_REMOVE_PASSWORD) {
+		conf_set(sh, "password", "");
+		S.set.password_hash[0] = 0;
+		S.set.has_password = false;
+	}
+	conf_unset(c, "password");
+	conf_set_bool(c, "has_password", S.set.has_password);
+	conf_set(c, "user", S.set.user_name);
+	conf_set_int(c, "uid", S.set.uid);
+	conf_set_int(c, "gid", S.set.gid);
+	if (!conf_get(c, "full_name", NULL))
+		conf_set(c, "full_name", S.set.full_name);
+	bool ok = conf_save(c) && conf_save(sh);
+	sys_chmod(path, 0644);
+	sys_chmod(spath, 0600);
+	conf_free(c);
+	conf_free(sh);
+	mem_free(path);
+	mem_free(spath);
+	shell_mark_dirty();
+	str_copy(msg, ok ? "Saved." : "The account file could not be written.", cap);
+	return ok ? 0 : -1;
+}
+
+/* Game mode: while a full-screen window has focus, run the processor at full
+ * speed and hold back notifications. The previous governor is restored after. */
+void game_mode_update(void)
+{
+	static char saved[32];
+	bool want = S.set.game_mode && S.focus && (S.focus->states & STATE_FULLSCREEN) && !S.focus->closing;
+	if (want == S.gaming)
+		return;
+	S.gaming = want;
+	if (want && !saved[0]) {
+		char *g = file_read_line("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor");
+		str_copy(saved, g ? g : "", sizeof saved);
+		mem_free(g);
+	}
+	const char *gov = want ? "performance" : saved;
+	if (!gov[0])
+		return;
+	for (int i = 0; i < 256; i++) {
+		char path[96];
+		fmt(path, sizeof path, "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_governor", i);
+		if (!file_exists(path))
+			break;
+		file_write_str(path, gov);
+	}
 }

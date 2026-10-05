@@ -1,67 +1,136 @@
 /* Input routing and keyboard mapping. Hardware event reading lives in input_evdev.c. */
 #include "zdisplay.h"
 
-/* ---- Keyboard layout ------------------------------------------------------------------ */
+/* ---- Keyboard layouts ------------------------------------------------------------------
+ * The US layout is the base; other layouts list only the keys that differ.
+ * Each entry: key code, unshifted text, shifted text, AltGr text (optional). */
 
 typedef struct {
-	const char *name;
-	const char *lower[64];   /* indexed by key code 0..63 for the main block */
-	const char *upper[64];
+	u16 code;
+	const char *lower, *upper, *altgr;
+} KeyDef;
+
+typedef struct {
+	const char *name;      /* id stored in settings */
+	const char *title;     /* shown in Settings */
+	const KeyDef *keys;
 } Layout;
 
-/* Base (US) rows; other layouts override a handful of keys. */
-#define KROW_NUM_L { [KEY_1]="1",[KEY_2]="2",[KEY_3]="3",[KEY_4]="4",[KEY_5]="5",[KEY_6]="6",[KEY_7]="7",[KEY_8]="8",[KEY_9]="9",[KEY_0]="0",[KEY_MINUS]="-",[KEY_EQUAL]="=" }
-#define KROW_NUM_U { [KEY_1]="!",[KEY_2]="@",[KEY_3]="#",[KEY_4]="$",[KEY_5]="%",[KEY_6]="^",[KEY_7]="&",[KEY_8]="*",[KEY_9]="(",[KEY_0]=")",[KEY_MINUS]="_",[KEY_EQUAL]="+" }
-
-static const Layout layouts[] = {
-	{ "us",
-	  { [KEY_Q]="q",[KEY_W]="w",[KEY_E]="e",[KEY_R]="r",[KEY_T]="t",[KEY_Y]="y",[KEY_U]="u",[KEY_I]="i",[KEY_O]="o",[KEY_P]="p",
-	    [KEY_A]="a",[KEY_S]="s",[KEY_D]="d",[KEY_F]="f",[KEY_G]="g",[KEY_H]="h",[KEY_J]="j",[KEY_K]="k",[KEY_L]="l",
-	    [KEY_Z]="z",[KEY_X]="x",[KEY_C]="c",[KEY_V]="v",[KEY_B]="b",[KEY_N]="n",[KEY_M]="m",
-	    [KEY_1]="1",[KEY_2]="2",[KEY_3]="3",[KEY_4]="4",[KEY_5]="5",[KEY_6]="6",[KEY_7]="7",[KEY_8]="8",[KEY_9]="9",[KEY_0]="0",
-	    [KEY_MINUS]="-",[KEY_EQUAL]="=",[KEY_LEFTBRACE]="[",[KEY_RIGHTBRACE]="]",[KEY_BACKSLASH]="\\",[KEY_SEMICOLON]=";",
-	    [KEY_APOSTROPHE]="'",[KEY_GRAVE]="`",[KEY_COMMA]=",",[KEY_DOT]=".",[KEY_SLASH]="/",[KEY_SPACE]=" " },
-	  { [KEY_Q]="Q",[KEY_W]="W",[KEY_E]="E",[KEY_R]="R",[KEY_T]="T",[KEY_Y]="Y",[KEY_U]="U",[KEY_I]="I",[KEY_O]="O",[KEY_P]="P",
-	    [KEY_A]="A",[KEY_S]="S",[KEY_D]="D",[KEY_F]="F",[KEY_G]="G",[KEY_H]="H",[KEY_J]="J",[KEY_K]="K",[KEY_L]="L",
-	    [KEY_Z]="Z",[KEY_X]="X",[KEY_C]="C",[KEY_V]="V",[KEY_B]="B",[KEY_N]="N",[KEY_M]="M",
-	    [KEY_1]="!",[KEY_2]="@",[KEY_3]="#",[KEY_4]="$",[KEY_5]="%",[KEY_6]="^",[KEY_7]="&",[KEY_8]="*",[KEY_9]="(",[KEY_0]=")",
-	    [KEY_MINUS]="_",[KEY_EQUAL]="+",[KEY_LEFTBRACE]="{",[KEY_RIGHTBRACE]="}",[KEY_BACKSLASH]="|",[KEY_SEMICOLON]=":",
-	    [KEY_APOSTROPHE]="\"",[KEY_GRAVE]="~",[KEY_COMMA]="<",[KEY_DOT]=">",[KEY_SLASH]="?",[KEY_SPACE]=" " } },
+static const KeyDef US[] = {
+	{ KEY_Q, "q", "Q" }, { KEY_W, "w", "W" }, { KEY_E, "e", "E" }, { KEY_R, "r", "R" }, { KEY_T, "t", "T" },
+	{ KEY_Y, "y", "Y" }, { KEY_U, "u", "U" }, { KEY_I, "i", "I" }, { KEY_O, "o", "O" }, { KEY_P, "p", "P" },
+	{ KEY_A, "a", "A" }, { KEY_S, "s", "S" }, { KEY_D, "d", "D" }, { KEY_F, "f", "F" }, { KEY_G, "g", "G" },
+	{ KEY_H, "h", "H" }, { KEY_J, "j", "J" }, { KEY_K, "k", "K" }, { KEY_L, "l", "L" },
+	{ KEY_Z, "z", "Z" }, { KEY_X, "x", "X" }, { KEY_C, "c", "C" }, { KEY_V, "v", "V" }, { KEY_B, "b", "B" },
+	{ KEY_N, "n", "N" }, { KEY_M, "m", "M" },
+	{ KEY_1, "1", "!" }, { KEY_2, "2", "@" }, { KEY_3, "3", "#" }, { KEY_4, "4", "$" }, { KEY_5, "5", "%" },
+	{ KEY_6, "6", "^" }, { KEY_7, "7", "&" }, { KEY_8, "8", "*" }, { KEY_9, "9", "(" }, { KEY_0, "0", ")" },
+	{ KEY_MINUS, "-", "_" }, { KEY_EQUAL, "=", "+" }, { KEY_LEFTBRACE, "[", "{" }, { KEY_RIGHTBRACE, "]", "}" },
+	{ KEY_BACKSLASH, "\\", "|" }, { KEY_SEMICOLON, ";", ":" }, { KEY_APOSTROPHE, "'", "\"" }, { KEY_GRAVE, "`", "~" },
+	{ KEY_COMMA, ",", "<" }, { KEY_DOT, ".", ">" }, { KEY_SLASH, "/", "?" }, { KEY_SPACE, " ", " " },
+	{ KEY_102ND, "\\", "|" },
+	/* AltGr extras available on every layout. */
+	{ KEY_E, NULL, NULL, "€" }, { KEY_A, NULL, NULL, "â" }, { KEY_I, NULL, NULL, "î" }, { KEY_S, NULL, NULL, "ș" },
+	{ KEY_T, NULL, NULL, "ț" }, { KEY_Q, NULL, NULL, "ă" }, { KEY_C, NULL, NULL, "©" },
+	{ 0 },
 };
 
-static const Layout *active_layout = &layouts[0];
+static const KeyDef GB[] = {
+	{ KEY_2, "2", "\"" }, { KEY_3, "3", "£" }, { KEY_APOSTROPHE, "'", "@" }, { KEY_BACKSLASH, "#", "~" },
+	{ KEY_GRAVE, "`", "¬" }, { KEY_102ND, "\\", "|" }, { KEY_4, "4", "$", "€" },
+	{ 0 },
+};
 
-/* A few common AltGr compositions, shared across layouts. */
-static const char *altgr_text(u32 code)
+static const KeyDef RO[] = {
+	{ KEY_LEFTBRACE, "ă", "Ă", "[" }, { KEY_RIGHTBRACE, "î", "Î", "]" }, { KEY_SEMICOLON, "ș", "Ș", ";" },
+	{ KEY_APOSTROPHE, "ț", "Ț", "'" }, { KEY_BACKSLASH, "â", "Â", "\\" }, { KEY_GRAVE, "„", "”", "`" },
+	{ KEY_COMMA, ",", ";", "<" }, { KEY_DOT, ".", ":", ">" }, { KEY_102ND, "\\", "|" },
+	{ KEY_9, "9", "(", "{" }, { KEY_0, "0", ")", "}" },
+	{ 0 },
+};
+
+static const KeyDef DE[] = {
+	{ KEY_Y, "z", "Z" }, { KEY_Z, "y", "Y" },
+	{ KEY_2, "2", "\"", "²" }, { KEY_3, "3", "§", "³" }, { KEY_6, "6", "&" }, { KEY_7, "7", "/", "{" },
+	{ KEY_8, "8", "(", "[" }, { KEY_9, "9", ")", "]" }, { KEY_0, "0", "=", "}" },
+	{ KEY_MINUS, "ß", "?", "\\" }, { KEY_EQUAL, "´", "`" }, { KEY_LEFTBRACE, "ü", "Ü" },
+	{ KEY_RIGHTBRACE, "+", "*", "~" }, { KEY_SEMICOLON, "ö", "Ö" }, { KEY_APOSTROPHE, "ä", "Ä" },
+	{ KEY_GRAVE, "^", "°" }, { KEY_BACKSLASH, "#", "'" }, { KEY_COMMA, ",", ";" }, { KEY_DOT, ".", ":" },
+	{ KEY_SLASH, "-", "_" }, { KEY_102ND, "<", ">", "|" }, { KEY_Q, "q", "Q", "@" }, { KEY_M, "m", "M", "µ" },
+	{ 0 },
+};
+
+static const KeyDef FR[] = {
+	{ KEY_Q, "a", "A" }, { KEY_A, "q", "Q" }, { KEY_W, "z", "Z" }, { KEY_Z, "w", "W" },
+	{ KEY_SEMICOLON, "m", "M" }, { KEY_M, ",", "?" }, { KEY_COMMA, ";", "." }, { KEY_DOT, ":", "/" },
+	{ KEY_SLASH, "!", "§" }, { KEY_APOSTROPHE, "ù", "%" }, { KEY_BACKSLASH, "*", "µ" },
+	{ KEY_LEFTBRACE, "^", "¨" }, { KEY_RIGHTBRACE, "$", "£", "¤" }, { KEY_GRAVE, "²", "²" },
+	{ KEY_1, "&", "1" }, { KEY_2, "é", "2", "~" }, { KEY_3, "\"", "3", "#" }, { KEY_4, "'", "4", "{" },
+	{ KEY_5, "(", "5", "[" }, { KEY_6, "-", "6", "|" }, { KEY_7, "è", "7", "`" }, { KEY_8, "_", "8", "\\" },
+	{ KEY_9, "ç", "9", "^" }, { KEY_0, "à", "0", "@" }, { KEY_MINUS, ")", "°", "]" }, { KEY_EQUAL, "=", "+", "}" },
+	{ KEY_102ND, "<", ">" },
+	{ 0 },
+};
+
+static const KeyDef ES[] = {
+	{ KEY_2, "2", "\"", "@" }, { KEY_3, "3", "·", "#" }, { KEY_6, "6", "&" }, { KEY_7, "7", "/" },
+	{ KEY_8, "8", "(" }, { KEY_9, "9", ")" }, { KEY_0, "0", "=" }, { KEY_MINUS, "'", "?" }, { KEY_EQUAL, "¡", "¿" },
+	{ KEY_LEFTBRACE, "`", "^", "[" }, { KEY_RIGHTBRACE, "+", "*", "]" }, { KEY_SEMICOLON, "ñ", "Ñ" },
+	{ KEY_APOSTROPHE, "´", "¨", "{" }, { KEY_BACKSLASH, "ç", "Ç", "}" }, { KEY_GRAVE, "º", "ª", "\\" },
+	{ KEY_COMMA, ",", ";" }, { KEY_DOT, ".", ":" }, { KEY_SLASH, "-", "_" }, { KEY_102ND, "<", ">" },
+	{ KEY_1, "1", "!", "|" },
+	{ 0 },
+};
+
+static const Layout LAYOUTS[] = {
+	{ "us", "English (US)", NULL }, { "gb", "English (UK)", GB }, { "ro", "Romanian", RO },
+	{ "de", "German", DE },         { "fr", "French", FR },       { "es", "Spanish", ES },
+};
+
+static const Layout *active_layout = &LAYOUTS[0];
+
+/* Looks a key up in the active layout, then in the US base. */
+static const KeyDef *find_key(u32 code, bool want_altgr)
 {
-	switch (code) {
-	case KEY_E: return "\xe2\x82\xac"; /* € */
-	case KEY_A: return "\xc3\xa2";     /* â */
-	case KEY_I: return "\xc3\xae";     /* î */
-	case KEY_S: return "\xc8\x99";     /* ș */
-	case KEY_T: return "\xc8\x9b";     /* ț */
-	case KEY_Q: return "\xc4\x83";     /* ă */
-	case KEY_C: return "\xc2\xa9";     /* © */
-	default: return NULL;
+	for (int pass = 0; pass < 2; pass++) {
+		const KeyDef *k = pass == 0 ? active_layout->keys : US;
+		if (!k)
+			continue;
+		for (; k->code; k++) {
+			if (k->code != code)
+				continue;
+			if (want_altgr ? k->altgr != NULL : k->lower != NULL)
+				return k;
+		}
 	}
+	return NULL;
 }
 
 void input_set_layout(const char *name)
 {
-	for (usize i = 0; i < ARRAY_LEN(layouts); i++)
-		if (str_eq(layouts[i].name, name)) {
-			active_layout = &layouts[i];
-			return;
-		}
-	active_layout = &layouts[0];
+	active_layout = &LAYOUTS[0];
+	for (usize i = 0; i < ARRAY_LEN(LAYOUTS); i++)
+		if (str_eq(LAYOUTS[i].name, name))
+			active_layout = &LAYOUTS[i];
+}
+
+/* A key whose shifted text differs only in case is a letter: Caps Lock applies. */
+static bool is_letter_key(const KeyDef *k)
+{
+	if (!k->lower || !k->upper || str_eq(k->lower, k->upper))
+		return false;
+	u8 c = (u8)k->lower[0];
+	if (c < 0x80)
+		return is_alpha(c);
+	return (u8)k->upper[0] >= 0xC3; /* accented and other non-ASCII letters */
 }
 
 const char *keymap_text(u32 code, u32 mods)
 {
 	if ((mods & MOD_ALT) && (mods & MOD_CTRL)) {
-		const char *t = altgr_text(code);
-		if (t)
-			return t;
+		const KeyDef *k = find_key(code, true);
+		if (k)
+			return k->altgr;
 	}
 	if (mods & (MOD_CTRL | MOD_ALT | MOD_SUPER))
 		return "";
@@ -70,14 +139,12 @@ const char *keymap_text(u32 code, u32 mods)
 	case KEY_KPENTER: return "\n";
 	case KEY_TAB: return "\t";
 	}
-	if (code >= ARRAY_LEN(active_layout->lower))
+	const KeyDef *k = find_key(code, false);
+	if (!k)
 		return "";
 	bool caps = mods & MOD_CAPS, shift = mods & MOD_SHIFT;
-	const char *base = active_layout->lower[code];
-	/* Caps Lock affects only letters. */
-	bool letter = base && is_alpha((u8)base[0]) && !base[1];
-	bool upper = letter ? (shift ^ caps) : shift;
-	const char *s = upper ? active_layout->upper[code] : active_layout->lower[code];
+	bool upper = is_letter_key(k) ? (shift ^ caps) : shift;
+	const char *s = upper ? k->upper : k->lower;
 	return s ? s : "";
 }
 

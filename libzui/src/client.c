@@ -152,6 +152,14 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		}
 		break;
 	}
+	case MSG_REPLY: {
+		const MsgReply *m = (const MsgReply *)buf;
+		ui->reply_seq = m->seq;
+		ui->reply_status = m->status;
+		str_copy(ui->reply_message, m->message, sizeof ui->reply_message);
+		ui->redraw = true;
+		break;
+	}
 	case MSG_POPUP_DONE:
 		break;
 	case MSG_DROP_FILES: {
@@ -347,6 +355,23 @@ void ui_settings_changed(Ui *ui)
 		return;
 	MsgHeader m = { 0 };
 	send_msg(c, &m, MSG_SETTINGS_CHANGED, sizeof m, NULL, 0);
+}
+
+u32 ui_account_update(Ui *ui, u32 flags, const char *full_name, const char *old_password, const char *new_password)
+{
+	static u32 seq;
+	Client *c = ui->driver;
+	if (!c)
+		return 0;
+	MsgAccount m = { .seq = ++seq, .flags = flags };
+	str_copy(m.full_name, full_name ? full_name : "", sizeof m.full_name);
+	str_copy(m.old_password, old_password ? old_password : "", sizeof m.old_password);
+	str_copy(m.new_password, new_password ? new_password : "", sizeof m.new_password);
+	send_msg(c, &m, MSG_ACCOUNT, sizeof m, NULL, 0);
+	/* Don't leave passwords lying around in memory. */
+	memset(m.old_password, 0, sizeof m.old_password);
+	memset(m.new_password, 0, sizeof m.new_password);
+	return seq;
 }
 
 void ui_session(Ui *ui, u32 action)

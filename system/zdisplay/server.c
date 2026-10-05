@@ -254,6 +254,13 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 			window_configure(w);
 		}
 		break;
+	case MSG_ACCOUNT:
+		if (len >= sizeof(MsgAccount)) {
+			MsgReply r = { .seq = ((const MsgAccount *)buf)->seq };
+			r.status = account_update((const MsgAccount *)buf, r.message, sizeof r.message);
+			server_send(c, &r, MSG_REPLY, sizeof r, h->win, NULL, 0);
+		}
+		break;
 	case MSG_SESSION:
 		if (len >= sizeof(MsgSession))
 			shell_session_action(((const MsgSession *)buf)->action);

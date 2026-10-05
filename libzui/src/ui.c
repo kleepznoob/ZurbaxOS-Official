@@ -199,6 +199,9 @@ UiInteract ui_interact(Ui *ui, UiId id, Rect r)
 	}
 	if (inside && ui->released[BUTTON_RIGHT])
 		it.right_clicked = true;
+	/* A click usually changes state that was already drawn this frame. */
+	if (it.clicked || it.right_clicked || it.pressed_now)
+		ui->redraw = true;
 	return it;
 }
 

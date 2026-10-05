@@ -140,6 +140,11 @@ typedef struct Ui {
 	char *paste_in;         /* clipboard text that arrived for the focused field */
 	bool quit;
 
+	/* replies to requests (ui_account_update) */
+	u32 reply_seq;
+	i32 reply_status;
+	char reply_message[128];
+
 	/* the app */
 	void *user;
 	void *driver;
@@ -296,6 +301,12 @@ void ui_file_dialog_open(Ui *ui, const char *id, u32 mode, const char *start_dir
 bool ui_file_dialog(Ui *ui, const char *id, char *out_path, usize cap);
 const char *ui_file_icon(const char *name, bool is_dir); /* symbolic icon for a file type */
 
+/* Wallpapers: built-in names, or an absolute path to a picture. */
+extern const char *const WALLPAPER_NAMES[];
+extern const char *const WALLPAPER_TITLES[];
+extern const int WALLPAPER_COUNT;
+Canvas *wallpaper_render(const char *name, int w, int h);
+
 /* ---- App runtime -------------------------------------------------------------------- */
 
 typedef struct {
@@ -326,6 +337,8 @@ void ui_notify(Ui *ui, const char *title, const char *body, const char *icon);
 void ui_launch(Ui *ui, const char *app_id, const char *arg);
 void ui_settings_changed(Ui *ui);
 void ui_session(Ui *ui, u32 action);
+/* Asks the desktop to change the account; the answer arrives in ui->reply_* with the returned seq. */
+u32 ui_account_update(Ui *ui, u32 flags, const char *full_name, const char *old_password, const char *new_password);
 void ui_clipboard_set(Ui *ui, const char *text);
 const char *ui_user_name(Ui *ui);
 
