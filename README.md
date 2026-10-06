@@ -1,39 +1,114 @@
 # Zurbax
 
-An operating system built from scratch — kernel aside — in C.
+A desktop operating system written from scratch in C. The Linux kernel is
+the only outside code.
 
-Zurbax is a desktop Linux system with its own runtime, graphics engine,
-display server, toolkit, shell and applications. Nothing from existing
-desktop stacks is used: no glibc, no Wayland or X11, no GTK or Qt, no
-GNOME or KDE. The only outside component is the Linux kernel itself.
+There's no glibc, no X11 or Wayland, no GTK or Qt, no GRUB and no
+distribution underneath. Zurbax has its own pieces for everything:
+- the C runtime,
+- graphics engine and font,
+- display server and desktop,
+- toolkit,
+- init system,
+- network stack with TLS,
+- sound server and decoders,
+- installer and disk tools,
+- every app.
 
-The look is calm and modern — a clean top bar, a dock, rounded panels and
-unobtrusive animation — taking cues from the tidy, native feel of
-elementary OS rather than copying any existing system.
+The look takes its cues from elementary OS: a calm top bar, a dock, rounded
+windows with header bars and readable text. The focus is on games and on
+making the desktop your own.
+
+## What it does
+
+**Boot.** The firmware's own logo (the ASUS logo on an ASUS PC) stays on
+screen from power-on to the desktop, with a spinner under it. The kernel
+has the whole system inside it, and the firmware starts it directly, with no
+boot loader in between.
+
+**Desktop.** A top bar with an applications menu, clock, quick settings
+(Wi-Fi/network, sound, brightness, night light, Do Not Disturb) and power
+menu. A dock with running indicators that hides out of the way, plus
+notifications with sounds, a lock screen and screenshots (Print Screen).
+Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
+French, Spanish) are built in.
+
+**First start.** The Welcome assistant covers keyboard, time zone, an
+account and a look. Every step can be skipped. When started from the USB
+stick, it offers to try Zurbax or install it.
+
+**Installing.** The Installer either erases a disk or installs into its
+free space next to Windows, and adds a "Zurbax" entry to the firmware's
+boot menu. It takes about a minute.
+
+**Apps**
+
+| App | What it is |
+|-----|------------|
+| Arcade | Blocks, Snake, 2048, Mines and Breakout, with best scores |
+| Music | Albums, songs and artists from your Music folder (FLAC, Ogg Vorbis, WAV) |
+| Weather | Live forecasts with an hourly strip, the week and details |
+| Photos | Viewer for PNG, JPEG and BMP |
+| Vault | Files, with thumbnails |
+| Forge | Terminal running the Flint shell, with `sudo` |
+| Writer | Text editor |
+| Notes, Calendar, Clock, Calculator | The everyday tools |
+| Screen Time | Daily app usage, limits, break reminders and downtime |
+| Pulse | System monitor |
+| Screenshot | Capture the screen, a window or an area |
+| Settings | Appearance, wallpaper, display, sound, network, keyboard, mouse, power, users, about |
+| Welcome, Installer | Setup and installation |
+
+**Under the hood**
+- **TLS 1.3** with certificate checks against Mozilla's root list.
+- **HTTP** downloads, and the `fetch` command.
+- **DHCP networking** on wired connections.
+- **A sound mixer** that drives the sound card directly.
+
+## Building
+
+```sh
+make            # everything: libraries, system programs, apps
+make test       # the test suites (runtime, graphics, toolkit, TLS/crypto, audio)
+make image      # the kernel with the system inside, and build/zurbax.img
+make run        # boot build/zurbax.img in QEMU with UEFI firmware
+```
+
+A C compiler and `make` are enough for the system itself. Building the
+kernel also needs the usual kernel build tools (`bc`, `flex`, `bison`,
+`libelf`, `libssl` headers). `kernel/build.sh` downloads Linux on first use.
+
+To try it on a real PC, write `build/zurbax.img` to a USB stick and boot
+from it in UEFI mode. On ASUS machines, press F8 or Esc for the boot menu.
+GitHub Actions builds the image on every push (see the `zurbax-image`
+artifact).
 
 ## Layout
 
 | Path | What it is |
 |------|------------|
-| `kernel/` | Config and build script for the Linux kernel (drivers built in, direct EFI boot) |
-| `libzr/`  | The runtime: syscalls, memory, strings, files, time, processes, events |
-| `libzg/`  | The graphics engine: rasterizer, images, text (planned next) |
-| `libzui/` | The application toolkit (planned) |
-| `system/` | Display server, shell, init, services (planned) |
-| `apps/`   | Settings, files, browser, terminal and the rest (planned) |
-| `tests/`  | Test suites (`make test`) |
+| `libzr/` | The runtime: syscalls, memory, strings, files, time zones, processes, events, JSON, SHA-256 |
+| `libzg/` | Graphics: rasterizer, gradients, blur, PNG/JPEG/BMP, SVG icons, the font |
+| `libzui/` | The toolkit: widgets, layout, text editing, dialogs, sound client |
+| `libzn/` | Networking: crypto, X.509, TLS 1.3, DNS, HTTP |
+| `libza/` | Audio files: WAV, FLAC, Ogg Vorbis, tags and cover art |
+| `libzd/` | Disks: GPT, FAT32, ext4, cpio |
+| `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, the Flint shell, sudo, fetch, play |
+| `apps/` | The apps |
+| `kernel/` | Kernel configuration and build script |
+| `tools/` | Image builder, QEMU test drivers, development helpers |
+| `data/` | Icons, wallpaper, trusted root certificates |
+| `tests/` | Test suites and fixtures |
 
-## Building
+## Not there yet
 
-```sh
-make test          # build the libraries and run the test suite
-kernel/build.sh     # build the Zurbax kernel
-```
-
-A C compiler is all that is needed; the code is freestanding and links no
-system libraries.
-
-## Status
-
-Early. The runtime (`libzr`) is complete and tested, and the kernel builds
-into a bootable image. Graphics, the shell and the apps come next.
+- **Wi-Fi.** Wired networking works, but Wi-Fi needs the WPA2 handshake
+  and the chips' firmware files.
+- **Web browser, Mail and app store.** Drift, Mail and Harbor are next.
+- **MP3 and AAC playback.** These need the formats' large fixed tables;
+  FLAC, Ogg Vorbis and WAV play.
+- **Camera, Dashboard and Help** aren't written yet.
+- **3D graphics.** The desktop is drawn in software and works on any GPU
+  through the firmware's framebuffer. Hardware-accelerated 3D for big
+  games would need GPU drivers in user space, which Zurbax doesn't have.
+- **Windows programs.** `.exe` files don't run.
