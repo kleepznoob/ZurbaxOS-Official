@@ -66,7 +66,8 @@ class Qmp:
         time.sleep(0.05)
 
 
-QCODES = {" ": "spc", "-": "minus", ".": "dot", ",": "comma", "/": "slash", "@": ("2", True), "!": ("1", True)}
+QCODES = {" ": "spc", "-": "minus", ".": "dot", ",": "comma", "/": "slash", "@": ("2", True), "!": ("1", True),
+          ":": ("semicolon", True), ";": "semicolon", "=": "equal", "_": ("minus", True), "?": ("slash", True), "&": ("7", True)}
 
 
 def main():
@@ -98,7 +99,8 @@ def main():
            "-drive", f"if=pflash,format=raw,file={vars_file}",
            "-device", "virtio-vga", "-device", "qemu-xhci,id=xhci", "-device", "usb-tablet", "-device", "usb-kbd",
            "-display", "none", "-serial", "file:" + os.path.join(out, "serial.log"),
-           "-qmp", f"unix:{qmp_path},server,nowait", "-no-reboot"]
+           "-qmp", f"unix:{qmp_path},server,nowait", "-no-reboot",
+           "-nic", "user,model=virtio-net-pci"]
     if stick:
         cmd += ["-drive", f"if=none,id=stick,format=raw,file={stick},snapshot=on",
                 "-device", "usb-storage,bus=xhci.0,drive=stick,removable=on,bootindex=1"]

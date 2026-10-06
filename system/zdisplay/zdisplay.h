@@ -239,7 +239,8 @@ typedef struct {
 	int brightness;             /* 0..100, -1 unavailable */
 	int battery;                /* 0..100, -1 none */
 	bool charging;
-	bool wifi_connected;
+	bool wifi_connected;        /* any network, wired or not */
+	bool net_wired;
 	char wifi_name[64];
 	int wifi_strength;
 	bool shutting_down;

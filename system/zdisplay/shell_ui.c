@@ -203,8 +203,9 @@ void panel_draw(Ui *ui)
 	STATUS_ICON(S.muted || S.volume == 0 ? "audio-volume-muted" : S.volume < 34 ? "audio-volume-low" :
 						   S.volume < 67 ? "audio-volume-medium" : "audio-volume-high");
 	x -= 12;
-	STATUS_ICON(S.wifi_connected ? (S.wifi_strength > 66 ? "network-wireless" : S.wifi_strength > 33 ? "network-wireless-good" : "network-wireless-weak")
-				     : "network-wireless-none");
+	STATUS_ICON(S.wifi_connected && S.net_wired ? "network-wired"
+		    : S.wifi_connected ? (S.wifi_strength > 66 ? "network-wireless" : S.wifi_strength > 33 ? "network-wireless-good" : "network-wireless-weak")
+				       : "network-wireless-none");
 	if (S.set.do_not_disturb) {
 		x -= 12;
 		STATUS_ICON("notifications-disabled");
@@ -713,7 +714,8 @@ void controlcenter_draw(Ui *ui)
 	Rect row = cut_top(&body, 52);
 	Rect a = cut_left(&row, (row.w - 10) / 2);
 	cut_left(&row, 10);
-	if (quick_toggle(ui, a, "network-wireless", "Wi-Fi", S.wifi_connected ? S.wifi_name : "Not connected", S.wifi_connected))
+	if (quick_toggle(ui, a, S.net_wired ? "network-wired" : "network-wireless", S.net_wired ? "Network" : "Wi-Fi",
+			 S.wifi_connected ? S.wifi_name : "Not connected", S.wifi_connected))
 		shell_launch("settings", "wifi");
 	if (quick_toggle(ui, row, "dark-mode", "Dark Style", S.set.dark ? "On" : "Off", S.set.dark)) {
 		S.set.dark = !S.set.dark;

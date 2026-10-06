@@ -156,6 +156,7 @@ void system_status_poll(void)
 	/* Network state as reported by the network service. */
 	Conf *net = conf_load("/run/zurbax/network.status");
 	S.wifi_connected = str_eq(conf_get(net, "state", ""), "connected");
+	S.net_wired = str_eq(conf_get(net, "kind", ""), "ethernet");
 	str_copy(S.wifi_name, conf_get(net, "name", ""), sizeof S.wifi_name);
 	S.wifi_strength = (int)conf_get_int(net, "strength", 0);
 	conf_free(net);
