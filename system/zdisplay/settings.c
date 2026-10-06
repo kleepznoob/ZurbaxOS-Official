@@ -172,6 +172,9 @@ void set_volume(int v)
 	char buf[32];
 	fmt(buf, sizeof buf, "%d\n", S.volume);
 	file_write_str("/run/zurbax/volume", buf);
+	/* A soft tick at the new level, so you hear how loud it is. */
+	if (S.set.alert_sounds && !S.gaming)
+		sound_play("pop");
 	shell_osd(S.volume == 0 ? "audio-volume-muted" : S.volume < 34 ? "audio-volume-low" : S.volume < 67 ? "audio-volume-medium" : "audio-volume-high",
 		  (f32)S.volume / 100);
 }

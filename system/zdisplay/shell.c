@@ -212,6 +212,9 @@ void shell_notify(const char *app, const char *icon, const char *title, const ch
 	str_copy(n->body, body, sizeof n->body);
 	n->time = time_unix();
 	n->shown_at = now_s();
+	/* A chime, unless sounds are off or a game is running full screen. */
+	if (S.set.alert_sounds && !S.gaming && !str_eq(app, "system"))
+		sound_play("notify");
 	/* While a game runs full screen, keep it in the notification center only. */
 	if (S.gaming)
 		n->dismissed = true;
@@ -856,6 +859,8 @@ static void save_to_pictures(const Canvas *img)
 	civil_local(time_unix(), &c);
 	char path[256];
 	fmt(path, sizeof path, "%s/Screenshot %04d-%02d-%02d %02d.%02d.%02d.png", S.screenshot_dir, c.year, c.month, c.day, c.hour, c.min, c.sec);
+	if (S.set.alert_sounds)
+		sound_play("camera");
 	if (png_save(img, path)) {
 		sys_chown(path, S.set.uid, S.set.gid);
 		shell_notify("system", "screenshot", "Screenshot saved", path_base(path));
