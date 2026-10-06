@@ -10,7 +10,8 @@ set -eu
 KVER=6.18.55
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SRC=${ZURBAX_KSRC:-$ROOT/build/linux-$KVER}
-OUT=$ROOT/build/kernel
+# ZURBAX_KOUT and ZURBAX_KEXTRA (a config fragment) build test kernels elsewhere.
+OUT=${ZURBAX_KOUT:-$ROOT/build/kernel}
 JOBS=${JOBS:-$(nproc)}
 
 if [ ! -f "$SRC/Makefile" ]; then
@@ -24,7 +25,7 @@ mkdir -p "$OUT"
 if [ ! -f "$OUT/.config" ] || [ "$ROOT/kernel/zurbax.config" -nt "$OUT/.config" ]; then
 	echo ">> configuring"
 	make -s -C "$SRC" O="$OUT" x86_64_defconfig
-	"$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "$ROOT/kernel/zurbax.config" >"$OUT/merge.log"
+	"$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} >"$OUT/merge.log"
 	make -s -C "$SRC" O="$OUT" olddefconfig
 	# Report any requested option that Kconfig refused (missing dependency, renamed symbol).
 	grep -E '^(CONFIG_[A-Z0-9_]+=|# CONFIG_[A-Z0-9_]+ is not set)' "$ROOT/kernel/zurbax.config" |
