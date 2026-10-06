@@ -267,8 +267,12 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	mount_kernel_filesystems();
-	/* Keep kernel messages off the screen: the boot splash owns it. */
-	file_write_str("/proc/sys/kernel/printk", "1 4 1 3");
+	/* Keep kernel messages off the screen: the boot splash owns it.
+	 * Booting with "zurbax.debug" keeps them, for the serial console. */
+	char *cmdline = file_read("/proc/cmdline", NULL);
+	if (!cmdline || !str_find(cmdline, "zurbax.debug"))
+		file_write_str("/proc/sys/kernel/printk", "1 4 1 3");
+	mem_free(cmdline);
 	sys_sethostname("zurbax", 6);
 	sys_reboot(REBOOT_CMD_CAD_OFF);
 	dir_make("/run/zurbax", 0755);

@@ -1,0 +1,42 @@
+# Builds Zurbax, runs the tests and produces the bootable USB image.
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc make bc flex bison libelf-dev libssl-dev cpio xz-utils
+
+      - name: Cache the kernel source and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/linux-*
+            build/kernel
+          key: kernel-${{ hashFiles('kernel/build.sh', 'kernel/zurbax.config') }}
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Test
+        run: make test
+
+      - name: Build the bootable image
+        run: make image
+
+      - name: Upload the image
+        uses: actions/upload-artifact@v4
+        with:
+          name: zurbax-image
+          path: build/zurbax.img
+          compression-level: 9

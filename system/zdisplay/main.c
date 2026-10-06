@@ -129,8 +129,14 @@ int main(int argc, char **argv)
 
 	settings_apply();
 	compose_init();
-	if (!S.headless && !no_splash)
+	/* The splash goes up first: the firmware logo stays put and the spinner
+	 * appears while the wallpaper and the shell are still loading. */
+	if (!S.headless && !no_splash) {
 		splash_start();
+		compose_splash_frame(rect(0, 0, 0, 0));
+		splash_thread_start();
+	}
+	wallpaper_reload();
 	server_init();
 	if (!S.headless)
 		input_init();
@@ -141,6 +147,7 @@ int main(int argc, char **argv)
 		loop_add_fd(S.loop, S.out->fd, EPOLLIN, on_output_fd, NULL);
 	system_status_poll();
 	loop_timer(S.loop, 2000, 2000, on_status_timer, NULL);
+	splash_thread_stop();
 	damage_all();
 
 	f64 last = now_s();

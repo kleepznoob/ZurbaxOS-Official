@@ -278,6 +278,7 @@ Rect work_area(void);
 /* compose.c */
 void compose_frame(void);
 void compose_init(void);
+void compose_splash_frame(Rect area);
 void wallpaper_reload(void);
 void cursor_update(void);
 
@@ -371,6 +372,8 @@ void screentime_flush(void);
 
 /* splash.c */
 void splash_start(void);
+void splash_thread_start(void);
+void splash_thread_stop(void);
 void splash_draw(Canvas *frame);
 void splash_tick(void);
 void splash_finish(void);

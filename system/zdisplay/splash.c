@@ -15,7 +15,7 @@
 static Canvas *logo;
 static int logo_x, logo_y;
 static f32 spin_cx, spin_cy, dot_r, ring_r;
-static f64 started, fade_t0;
+static f64 started, fade_t0, wait_from;
 static bool fading;
 
 static bool read_int_file(const char *path, i64 *out)
@@ -85,7 +85,7 @@ void splash_start(void)
 	spin_cy = clampf(spin_cy, below + ring_r + 40 * s, sh - ring_r - 40 * s);
 	S.splash = true;
 	S.splash_k = 1;
-	started = now_s();
+	started = wait_from = now_s();
 	/* The splash stays up at least this long so the spinner is seen spinning
 	 * rather than flashing; the desktop is usually ready well before. */
 	S.splash_until = started + 1.1;
@@ -106,6 +106,54 @@ static Rect spinner_rect(void)
 	return rect(spin_cx - m, spin_cy - m, 2 * m, 2 * m);
 }
 
+/* ---- Startup thread ---------------------------------------------------------------------
+ * Loading the wallpaper and the shell takes a moment, longer on slow disks
+ * or the first boot. A thread keeps the spinner turning meanwhile, so the
+ * boot never stutters; it owns the screen until the main loop takes over. */
+
+enum { THREAD_NONE, THREAD_RUNNING, THREAD_STOPPING, THREAD_DONE };
+static int thread_state;
+
+static void splash_thread(void *arg)
+{
+	UNUSED(arg);
+	while (atomic_load(&thread_state) == THREAD_RUNNING) {
+		if (S.out->flip_pending) {
+			struct pollfd p = { S.out->fd, POLLIN, 0 };
+			if (S.out->fd >= 0 && sys_poll(&p, 1, 20) > 0 && S.out->on_fd)
+				S.out->on_fd(S.out);
+			continue;
+		}
+		compose_splash_frame(spinner_rect());
+		sleep_ms(14);
+	}
+	atomic_store(&thread_state, THREAD_DONE);
+	futex_wake(&thread_state, 1);
+}
+
+void splash_thread_start(void)
+{
+	if (!S.splash)
+		return;
+	thread_state = THREAD_RUNNING;
+	if (thread_spawn(splash_thread, NULL) < 0)
+		thread_state = THREAD_NONE;
+}
+
+void splash_thread_stop(void)
+{
+	if (thread_state == THREAD_NONE)
+		return;
+	atomic_store(&thread_state, THREAD_STOPPING);
+	int st;
+	while ((st = atomic_load(&thread_state)) != THREAD_DONE)
+		futex_wait(&thread_state, st, 100);
+	thread_state = THREAD_NONE;
+	/* Give the first window its usual time to appear from here. */
+	wait_from = now_s();
+	damage_all();
+}
+
 /* Called every frame while the splash is up. */
 void splash_tick(void)
 {
@@ -115,7 +163,10 @@ void splash_tick(void)
 	if (!fading && t >= S.splash_until) {
 		/* Ready once the desktop has something to show: a window if one is
 		 * being started (the setup assistant on first boot), else at once. */
-		bool waiting = S.splash_wait_window && S.nwin == 0 && t - started < 6.0;
+		bool shown = false;
+		for (int i = 0; i < S.nwin; i++)
+			shown |= S.windows[i]->mapped;
+		bool waiting = S.splash_wait_window && !shown && t - wait_from < 10.0;
 		if (!waiting)
 			splash_finish();
 	}

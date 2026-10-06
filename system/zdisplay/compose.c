@@ -258,7 +258,19 @@ void compose_init(void)
 	S.hw_cursor = S.out->cursor_set && S.out->cursor_set(S.out, S.cursor_img[0], cursor_hot[0][0], cursor_hot[0][1]);
 	if (S.hw_cursor)
 		cursor_drawn_shape = 0;
-	wallpaper_reload();
+}
+
+/* Splash frames shown while the wallpaper and the shell load, before the
+ * main loop runs: the whole screen first, then just `area`. */
+void compose_splash_frame(Rect area)
+{
+	Rect full = rect(0, 0, (f32)S.frame->width, (f32)S.frame->height);
+	if (rect_empty(area))
+		area = full;
+	canvas_clip(S.frame, area);
+	splash_draw(S.frame);
+	canvas_clip(S.frame, full);
+	S.out->present(S.out, S.frame, &area, 1);
 }
 
 static void draw_window(Canvas *frame, Window *w)

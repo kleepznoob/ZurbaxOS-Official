@@ -37,7 +37,7 @@ enum { LED_NUML = 0, LED_CAPSL = 1 };
 
 /* ---- Devices ------------------------------------------------------------------------ */
 
-enum { DEV_KEYBOARD = 1, DEV_MOUSE = 2, DEV_TOUCHPAD = 4, DEV_TOUCHSCREEN = 8, DEV_SWITCH = 16 };
+enum { DEV_KEYBOARD = 1, DEV_MOUSE = 2, DEV_TOUCHPAD = 4, DEV_TOUCHSCREEN = 8, DEV_SWITCH = 16, DEV_TABLET = 32 };
 
 #define MAX_SLOTS 5
 
@@ -321,7 +321,7 @@ static void handle_abs(Device *d, u32 code, i32 value)
 		}
 		return;
 	}
-	if (d->kind & DEV_TOUCHSCREEN) {
+	if (d->kind & (DEV_TOUCHSCREEN | DEV_TABLET)) {
 		if (code == ABS_X || code == ABS_MT_POSITION_X)
 			d->slots[0].x = (f32)value, d->abs_dirty = true;
 		else if (code == ABS_Y || code == ABS_MT_POSITION_Y)
@@ -352,6 +352,13 @@ static void handle_syn(Device *d)
 		bool down = (S.buttons >> BUTTON_LEFT) & 1;
 		if (down != d->touch_down)
 			input_button(BUTTON_LEFT, d->touch_down);
+	}
+	/* Tablets and virtual machines' pointers: absolute position, mouse buttons. */
+	if ((d->kind & DEV_TABLET) && d->abs_dirty) {
+		d->abs_dirty = false;
+		f32 fx = (d->slots[0].x - d->ax.minimum) / (f32)MAX(1, d->ax.maximum - d->ax.minimum);
+		f32 fy = (d->slots[0].y - d->ay.minimum) / (f32)MAX(1, d->ay.maximum - d->ay.minimum);
+		input_pointer_abs(fx * S.sw, fy * S.sh);
 	}
 }
 
@@ -443,11 +450,13 @@ static void device_open(const char *path)
 		d->kind |= DEV_TOUCHSCREEN;
 	else if (mt && test_bit(keybits, BTN_TOOL_FINGER_CODE))
 		d->kind |= DEV_TOUCHPAD;
+	else if (abs_xy && test_bit(absbits, ABS_Y) && test_bit(keybits, BTN_LEFT_CODE))
+		d->kind |= DEV_TABLET;
 	if (test_bit(evbits, EV_SW) && test_bit(swbits, SW_LID))
 		d->kind |= DEV_SWITCH;
 	d->clickpad = test_bit(props, INPUT_PROP_BUTTONPAD);
 
-	if (d->kind & (DEV_TOUCHPAD | DEV_TOUCHSCREEN)) {
+	if (d->kind & (DEV_TOUCHPAD | DEV_TOUCHSCREEN | DEV_TABLET)) {
 		u32 cx = mt ? ABS_MT_POSITION_X : ABS_X, cy = mt ? ABS_MT_POSITION_Y : ABS_Y;
 		sys_ioctl(fd, EVIOCGABS(cx), &d->ax);
 		sys_ioctl(fd, EVIOCGABS(cy), &d->ay);
