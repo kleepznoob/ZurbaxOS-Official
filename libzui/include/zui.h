@@ -93,6 +93,7 @@ typedef struct Ui {
 	UiKey keys[256];
 	int nkeys;
 	u32 mods;
+	bool held[256];         /* keys down right now, by code (games) */
 	bool window_focused;
 	char *drop_paths;       /* newline-separated files dropped this frame, or NULL */
 
@@ -177,6 +178,7 @@ f32 ui_fade(Ui *ui, UiId id, bool on, f32 seconds);
 bool ui_mouse_in(Ui *ui, Rect r);
 UiInteract ui_interact(Ui *ui, UiId id, Rect r);
 bool ui_key_pressed(Ui *ui, u32 code, u32 mods); /* consumes the key */
+bool ui_key_down(Ui *ui, u32 code);              /* held down right now */
 void ui_set_cursor(Ui *ui, u32 shape);
 void ui_request_frame(Ui *ui);
 

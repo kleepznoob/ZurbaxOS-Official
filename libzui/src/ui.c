@@ -700,11 +700,20 @@ void ui_input_scroll(Ui *ui, f32 dx, f32 dy, u32 source, u32 phase)
 	ui->redraw = true;
 }
 
+bool ui_key_down(Ui *ui, u32 code)
+{
+	return code < ARRAY_LEN(ui->held) && ui->held[code];
+}
+
 void ui_input_key(Ui *ui, u32 code, u32 state, u32 mods, const char *text)
 {
 	ui->mods = mods;
-	if (state == KEY_RELEASED)
+	if (code < ARRAY_LEN(ui->held))
+		ui->held[code] = state != KEY_RELEASED;
+	if (state == KEY_RELEASED) {
+		ui->redraw = true;
 		return;
+	}
 	if (ui->nkeys < (int)ARRAY_LEN(ui->keys)) {
 		UiKey *k = &ui->keys[ui->nkeys++];
 		k->code = code;
@@ -719,9 +728,11 @@ void ui_input_key(Ui *ui, u32 code, u32 state, u32 mods, const char *text)
 void ui_input_focus(Ui *ui, bool focused)
 {
 	ui->window_focused = focused;
-	if (!focused)
+	if (!focused) {
 		for (usize i = 0; i < ARRAY_LEN(ui->down); i++)
 			ui->down[i] = false;
+		memset(ui->held, 0, sizeof ui->held);
+	}
 	ui->redraw = true;
 }
 
