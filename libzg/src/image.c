@@ -69,6 +69,8 @@ Canvas *image_decode(const void *data, usize len)
 		return jpeg_decode(d, len, 1);
 	if (len >= 2 && d[0] == 'B' && d[1] == 'M')
 		return bmp_decode(d, len);
+	if (len >= 6 && memcmp(d, "GIF8", 4) == 0)
+		return gif_decode(d, len);
 	return NULL;
 }
 

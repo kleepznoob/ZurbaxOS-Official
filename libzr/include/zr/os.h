@@ -59,7 +59,12 @@ typedef struct {
 	bool controlling_tty;               /* make stdin (a terminal) the controlling terminal */
 	u32 uid, gid;                       /* used when drop_privileges is set */
 	bool drop_privileges;
+	const u32 *groups;                  /* supplementary groups after dropping */
+	int ngroups;
 } SpawnOpts;
+
+/* Groups that own devices the person at the computer may use. */
+enum { GID_AUDIO = 29, GID_VIDEO = 44, GID_INPUT = 97 };
 
 /* Starts `path` with argv/envp. envp NULL = inherit. Returns pid or -errno. */
 int proc_spawn(const char *path, char *const argv[], char *const envp[], const SpawnOpts *opts);

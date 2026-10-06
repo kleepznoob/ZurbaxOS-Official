@@ -158,10 +158,13 @@ void shell_launch(const char *app_id, const char *arg)
 		argv[n++] = (char *)arg;
 	argv[n] = NULL;
 	SpawnOpts o = { .stdin_fd = -1, .stdout_fd = -1, .stderr_fd = -1, .new_session = true };
+	static const u32 groups[] = { GID_AUDIO, GID_VIDEO, GID_INPUT };
 	if (S.set.uid && sys_getuid() == 0) {
 		o.drop_privileges = true;
 		o.uid = S.set.uid;
 		o.gid = S.set.gid;
+		o.groups = groups;
+		o.ngroups = (int)ARRAY_LEN(groups);
 	}
 	/* Apps get the user's home, name, time zone and the display socket. */
 	usize nenv = 0;

@@ -57,7 +57,7 @@ int proc_spawn(const char *path, char *const argv[], char *const envp[], const S
 		if (o->cwd)
 			sys_chdir(o->cwd);
 		if (o->drop_privileges) {
-			sys_setgroups(0, NULL);
+			sys_setgroups(o->groups ? o->ngroups : 0, o->groups);
 			if (sys_setresgid(o->gid, o->gid, o->gid) < 0 || sys_setresuid(o->uid, o->uid, o->uid) < 0)
 				syscall1(SYS_exit, 126);
 		}

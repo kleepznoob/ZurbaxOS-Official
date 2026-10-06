@@ -74,7 +74,7 @@ QCODES = {" ": "spc", "-": "minus", ".": "dot", ",": "comma", "/": "slash", "@":
 def main():
     args = sys.argv[1:]
     out = args.pop(0)
-    stick = disk = vars_file = audio_wav = None
+    stick = disk = vars_file = audio_wav = kernel = None
     debug = False
     while args and args[0].startswith("--"):
         opt = args.pop(0)
@@ -88,6 +88,8 @@ def main():
             debug = True
         elif opt == "--audio-wav":
             audio_wav = args.pop(0)
+        elif opt == "--kernel":
+            kernel = args.pop(0)
     os.makedirs(out, exist_ok=True)
     if not vars_file:
         vars_file = os.path.join(out, "vars.fd")
@@ -111,8 +113,8 @@ def main():
         cmd += ["-drive", f"if=none,id=disk,format=raw,file={disk}", "-device", "virtio-blk-pci,drive=disk,bootindex=2"]
     if audio_wav:
         cmd += ["-audiodev", f"wav,id=snd,path={audio_wav}", "-device", "intel-hda", "-device", "hda-duplex,audiodev=snd"]
-    if debug:
-        cmd += ["-kernel", "build/kernel/arch/x86/boot/bzImage", "-append", "console=ttyS0 loglevel=7 zurbax.debug"]
+    if debug or kernel:
+        cmd += ["-kernel", kernel or "build/kernel/arch/x86/boot/bzImage", "-append", "console=ttyS0 loglevel=7 zurbax.debug"]
     proc = subprocess.Popen(cmd)
     q = Qmp(qmp_path)
     try:

@@ -153,21 +153,67 @@ static void parse_def(Glyph *g, const char *s)
 	}
 }
 
+/* Glyphs are parsed on first use; text can be measured from several threads. */
+static Mutex glyph_lock;
+
+static Glyph *get_glyph_locked(u32 cp);
+
 static Glyph *get_glyph(u32 cp)
 {
 	init_table();
 	Glyph *g = find_glyph(cp);
 	if (!g)
 		return NULL;
+	if (__atomic_load_n(&g->parsed, __ATOMIC_ACQUIRE))
+		return g->valid ? g : NULL;
+	mutex_lock(&glyph_lock);
+	g = get_glyph_locked(cp);
+	mutex_unlock(&glyph_lock);
+	return g;
+}
+
+static Glyph *mono_glyphs;
+
+/* The monospaced override for a letter, if it has one. */
+static Glyph *get_mono_glyph(u32 cp)
+{
+	if (cp > 127)
+		return NULL;
+	if (!__atomic_load_n(&mono_glyphs, __ATOMIC_ACQUIRE)) {
+		mutex_lock(&glyph_lock);
+		if (!mono_glyphs) {
+			Glyph *list = NEW_ARRAY(Glyph, 128);
+			for (const GlyphDef *d = ZURBAX_MONO; d->def; d++) {
+				Glyph *g = &list[d->cp];
+				g->cp = d->cp;
+				parse_def(g, d->def);
+				compute_ink(g);
+				g->valid = true;
+				g->parsed = true;
+			}
+			__atomic_store_n(&mono_glyphs, list, __ATOMIC_RELEASE);
+		}
+		mutex_unlock(&glyph_lock);
+	}
+	Glyph *g = &mono_glyphs[cp];
+	return g->parsed ? g : NULL;
+}
+
+static Glyph *get_glyph_locked(u32 cp)
+{
+	Glyph *g = find_glyph(cp);
+	if (!g)
+		return NULL;
 	if (g->parsed)
 		return g->valid ? g : NULL;
-	g->parsed = true;
 	if (g->def) {
 		parse_def(g, g->def);
 	} else {
-		Glyph *base = get_glyph(g->comp_base), *mark = get_glyph(g->comp_mark);
-		if (!base || !mark)
+		Glyph *base = get_glyph_locked(g->comp_base), *mark = get_glyph_locked(g->comp_mark);
+		if (!base || !mark) {
+			__atomic_store_n(&g->parsed, true, __ATOMIC_RELEASE);
 			return NULL;
+		}
 		g->advance = base->advance;
 		merge_glyph(g, base, 0, 0);
 		/* Marks sit over the base's ink centre; raise them for capitals. */
@@ -180,6 +226,7 @@ static Glyph *get_glyph(u32 cp)
 	}
 	compute_ink(g);
 	g->valid = true;
+	__atomic_store_n(&g->parsed, true, __ATOMIC_RELEASE);
 	return g;
 }
 
@@ -330,7 +377,9 @@ static const Mask *glyph_mask(Font f, u32 cp, int phase)
 		font_cache_clear();
 		i = (usize)(hash_bytes(&key, sizeof key) & (CACHE_SIZE - 1));
 	}
-	Glyph *g = get_glyph(cp);
+	Glyph *g = f.mono ? get_mono_glyph(cp) : NULL;
+	if (!g)
+		g = get_glyph(cp);
 	if (!g)
 		g = get_glyph('?');
 	cache[i].key = key;

@@ -53,6 +53,32 @@ static void test_png_roundtrip(void)
 	canvas_free(d);
 }
 
+/* GIFs decode to the same pixels ImageMagick gets. */
+static void test_gif(void)
+{
+	static const char *const names[] = { "grad", "plasma-interlaced" };
+	for (usize k = 0; k < ARRAY_LEN(names); k++) {
+		char gif[128], png[128];
+		fmt(gif, sizeof gif, "tests/data/zg/%s.gif", names[k]);
+		fmt(png, sizeof png, "tests/data/zg/%s.png", names[k]);
+		Canvas *a = image_load(gif), *b = image_load(png);
+		CHECK(a && b);
+		if (!a || !b)
+			continue;
+		CHECK(a->width == b->width && a->height == b->height);
+		bool same = a->width == b->width && a->height == b->height;
+		for (int y = 0; same && y < a->height; y++)
+			for (int x = 0; x < a->width; x++)
+				if (canvas_row(a, y)[x] != canvas_row(b, y)[x]) {
+					same = false;
+					break;
+				}
+		CHECK(same);
+		canvas_free(a);
+		canvas_free(b);
+	}
+}
+
 static void test_raster(void)
 {
 	/* A half-covered pixel should get ~50% coverage. */
@@ -208,6 +234,7 @@ int main(void)
 {
 	test_deflate();
 	test_png_roundtrip();
+	test_gif();
 	test_raster();
 	test_text_layout();
 	u64 t0 = time_mono_ns();

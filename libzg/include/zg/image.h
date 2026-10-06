@@ -12,6 +12,7 @@ Canvas *image_load_thumb(const char *path, int max_size);
 Canvas *png_decode(const u8 *data, usize len);
 Canvas *jpeg_decode(const u8 *data, usize len, int scale_down /* 1, 2, 4 or 8 */);
 Canvas *bmp_decode(const u8 *data, usize len);
+Canvas *gif_decode(const u8 *data, usize len);   /* the first frame */
 
 /* Encodes as PNG; returns an allocated buffer. */
 u8 *png_encode(const Canvas *c, usize *out_len);

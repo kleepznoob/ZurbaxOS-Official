@@ -259,6 +259,78 @@ static void on_control(Loop *l, int fd, u32 events, void *data)
 
 /* ---- Main ------------------------------------------------------------------------------- */
 
+/* ---- Device permissions -------------------------------------------------------------------- */
+
+/* Cameras belong to the video group and game controllers to input; the
+ * desktop gives its user those groups. Nodes appear at boot and on hotplug. */
+static void device_perms(const char *name)
+{
+	u32 gid = 0;
+	if (str_starts(name, "video") || str_starts(name, "media") || str_starts(name, "v4l-subdev"))
+		gid = GID_VIDEO;
+	else if (str_starts(name, "input/js") || str_starts(name, "input/event") || str_starts(name, "hidraw") || str_starts(name, "uinput"))
+		gid = GID_INPUT;
+	if (!gid)
+		return;
+	char path[128];
+	fmt(path, sizeof path, "/dev/%s", name);
+	sys_chown(path, 0, gid);
+	sys_chmod(path, 0660);
+}
+
+static void coldplug(void)
+{
+	static const char *const dirs[] = { "/dev", "/dev/input" };
+	for (usize d = 0; d < ARRAY_LEN(dirs); d++) {
+		DirList dl = { 0 };
+		if (!dir_list(dirs[d], &dl, false))
+			continue;
+		vec_each(&dl, e)
+		{
+			char name[96];
+			fmt(name, sizeof name, "%s%s", d ? "input/" : "", e->name);
+			device_perms(name);
+		}
+		dir_list_free(&dl);
+	}
+}
+
+static void on_uevent(Loop *l, int fd, u32 events, void *data)
+{
+	UNUSED(l), UNUSED(events), UNUSED(data);
+	char buf[4096];
+	for (;;) {
+		long n = sys_recvfrom(fd, buf, sizeof buf - 1, MSG_DONTWAIT, NULL, NULL);
+		if (n <= 0)
+			return;
+		buf[n] = 0;
+		/* "add@/devices/...\0ACTION=add\0DEVNAME=video0\0..." */
+		bool add = false;
+		const char *devname = NULL;
+		for (char *p = buf; p < buf + n; p += strlen(p) + 1) {
+			if (str_eq(p, "ACTION=add") || str_eq(p, "ACTION=change"))
+				add = true;
+			else if (str_starts(p, "DEVNAME="))
+				devname = p + 8;
+		}
+		if (add && devname)
+			device_perms(devname);
+	}
+}
+
+static void watch_devices(void)
+{
+	int fd = (int)sys_socket(AF_NETLINK, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 15 /* NETLINK_KOBJECT_UEVENT */);
+	if (fd < 0)
+		return;
+	struct { u16 family, pad; u32 pid, groups; } sa = { AF_NETLINK, 0, 0, 1 };
+	if (sys_bind(fd, &sa, sizeof sa) < 0) {
+		sys_close(fd);
+		return;
+	}
+	loop_add_fd(loop, fd, EPOLLIN, on_uevent, NULL);
+}
+
 int main(int argc, char **argv)
 {
 	UNUSED(argc), UNUSED(argv);
@@ -289,6 +361,8 @@ int main(int argc, char **argv)
 	int ctl = unix_listen(CONTROL_SOCKET, SOCK_SEQPACKET);
 	if (ctl >= 0)
 		loop_add_fd(loop, ctl, EPOLLIN, on_control, NULL);
+	watch_devices();
+	coldplug();
 
 	for (usize i = 0; i < ARRAY_LEN(services); i++)
 		service_start(&services[i]);

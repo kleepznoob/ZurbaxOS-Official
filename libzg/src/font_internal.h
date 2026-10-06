@@ -18,5 +18,6 @@ typedef struct {
 } GlyphKern;
 
 extern const GlyphDef ZURBAX_SANS[];
+extern const GlyphDef ZURBAX_MONO[];
 extern const GlyphComposite ZURBAX_COMPOSITES[];
 extern const GlyphKern ZURBAX_KERNING[];

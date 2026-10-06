@@ -19,6 +19,16 @@
  */
 #include "font_internal.h"
 
+/* Monospaced versions of the narrowest letters: serifs and feet fill the
+ * cell, so "il" and "rim" read evenly in the terminal and in code. */
+const GlyphDef ZURBAX_MONO[] = {
+	{ 'i', "w 600 M 150 478 L 310 478 L 310 42 M 130 42 L 490 42 D 310 640 52" },
+	{ 'l', "w 600 M 130 698 L 310 698 L 310 42 M 130 42 L 490 42" },
+	{ 'j', "w 600 M 170 478 L 370 478 L 370 -60 A 270 -60 100 108 0 -120 D 370 640 52" },
+	{ 'r', "w 600 M 80 478 L 180 478 L 180 42 M 180 280 A 390 280 210 198 180 85 M 80 42 L 330 42" },
+	{ 0, NULL },
+};
+
 const GlyphDef ZURBAX_SANS[] = {
 	{ ' ', "w 250" },
 	{ 0xa0, "w 250" },
