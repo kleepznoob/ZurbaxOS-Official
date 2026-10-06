@@ -922,6 +922,28 @@ static void run_load(Job *j)
 	}
 	if (!d->root || atomic_load(&d->cancelled))
 		goto out;
+	{
+		/* Theme switchers normally put "light" or "dark" on <html> from a
+		 * script; without scripts, say light so only one theme's parts show. */
+		Node *html_el = node_find(d->root, "html");
+		if (html_el && !node_has_class(html_el, "dark") && !node_has_class(html_el, "light")) {
+			const char *cls = node_attr(html_el, "class");
+			char *v = str_fmt("%s%slight", cls ? cls : "", cls && *cls ? " " : "");
+			bool set = false;
+			for (int i = 0; i < html_el->nattrs; i++)
+				if (str_eq(html_el->attrs[i * 2], "class")) {
+					mem_free(html_el->attrs[i * 2 + 1]);
+					html_el->attrs[i * 2 + 1] = v;
+					set = true;
+				}
+			if (!set) {
+				html_el->attrs = mem_realloc(html_el->attrs, sizeof(char *) * (usize)(html_el->nattrs + 1) * 2);
+				html_el->attrs[html_el->nattrs * 2] = str_dup("class");
+				html_el->attrs[html_el->nattrs * 2 + 1] = v;
+				html_el->nattrs++;
+			}
+		}
+	}
 	collect_title(d);
 	{
 		Node *b = node_find(d->root, "base");

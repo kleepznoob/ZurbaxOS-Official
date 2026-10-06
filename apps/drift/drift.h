@@ -95,6 +95,7 @@ struct Style {
 	u8 justify, align_items, align_self;
 	f32 flex_grow, flex_shrink;
 	Length flex_basis;
+	i16 order;
 	f32 row_gap, col_gap;
 	char *grid_cols;         /* grid-template-columns as written */
 	char *grid_areas;        /* grid-template-areas */

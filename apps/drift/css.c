@@ -16,7 +16,7 @@ enum {
 	P_BORDER_RADIUS, P_WIDTH, P_HEIGHT, P_MIN_WIDTH, P_MAX_WIDTH, P_MIN_HEIGHT, P_MAX_HEIGHT, P_FLEX, P_FLEX_DIRECTION,
 	P_FLEX_WRAP, P_FLEX_FLOW, P_FLEX_GROW, P_FLEX_SHRINK, P_FLEX_BASIS, P_JUSTIFY_CONTENT, P_ALIGN_ITEMS, P_ALIGN_SELF,
 	P_GAP, P_ROW_GAP, P_COLUMN_GAP, P_GRID_TEMPLATE_COLUMNS, P_BORDER_SPACING, P_BORDER_COLLAPSE, P_PLACE_ITEMS,
-	P_GRID_TEMPLATE_AREAS, P_GRID_TEMPLATE, P_GRID_AREA, P_GRID_COLUMN, P_GRID_ROW, P_MASK_IMAGE,
+	P_GRID_TEMPLATE_AREAS, P_GRID_TEMPLATE, P_GRID_AREA, P_GRID_COLUMN, P_GRID_ROW, P_MASK_IMAGE, P_ORDER,
 	P_CUSTOM
 };
 
@@ -69,7 +69,7 @@ static const struct {
 	{ "grid-template-areas", P_GRID_TEMPLATE_AREAS, 0 }, { "grid-template", P_GRID_TEMPLATE, 0 }, { "grid-area", P_GRID_AREA, 0 },
 	{ "grid-column", P_GRID_COLUMN, 0 }, { "grid-row", P_GRID_ROW, 0 }, { "grid-column-start", P_GRID_COLUMN, 0 },
 	{ "grid-row-start", P_GRID_ROW, 0 }, { "mask-image", P_MASK_IMAGE, 0 }, { "-webkit-mask-image", P_MASK_IMAGE, 0 },
-	{ "mask", P_MASK_IMAGE, 0 }, { "-webkit-mask", P_MASK_IMAGE, 0 },
+	{ "mask", P_MASK_IMAGE, 0 }, { "-webkit-mask", P_MASK_IMAGE, 0 }, { "order", P_ORDER, 0 },
 };
 
 static Map prop_map;
@@ -171,6 +171,10 @@ static const char *skip_block(const char *p)
 {
 	int depth = 1;
 	while (*p) {
+		if (*p == '\\' && p[1]) {
+			p += 2;
+			continue;
+		}
 		if (*p == '"' || *p == '\'') {
 			p = skip_string(p);
 			continue;
@@ -732,6 +736,10 @@ static int parse_decls(const char *s, Decl **out)
 		int depth = 0;
 		bool nested = false;
 		while (*p && !(depth == 0 && *p == ';')) {
+			if (*p == '\\' && p[1]) {
+				p += 2;
+				continue;
+			}
 			if (*p == '"' || *p == '\'') {
 				p = skip_string(p);
 				continue;
@@ -1005,7 +1013,9 @@ static void parse_rules(Sheet *sh, const char **pp, const char *media, bool nest
 		}
 		const char *s = p;
 		while (*p && *p != '{' && *p != '}') {
-			if (*p == '"' || *p == '\'')
+			if (*p == '\\' && p[1])
+				p += 2;
+			else if (*p == '"' || *p == '\'')
 				p = skip_string(p);
 			else
 				p++;
@@ -2464,6 +2474,9 @@ static void apply(Style *s, const Style *ps, u8 prop, u8 sides, const char *v, c
 	case P_GRID_ROW:
 		mem_free(s->grid_row);
 		s->grid_row = str_eq(v, "auto") ? NULL : str_dup(v);
+		break;
+	case P_ORDER:
+		s->order = (i16)CLAMP(str_to_int(v, NULL), -9999, 9999);
 		break;
 	case P_MASK_IMAGE: {
 		mem_free(s->mask_image);

@@ -1916,6 +1916,11 @@ static f32 layout_anon_text(Layout *L, Node *text, const Style *s, f32 x, f32 y,
 	return h;
 }
 
+static int item_order(const FlexItem *it)
+{
+	return it->n->type == NODE_ELEMENT ? it->n->style->order : 0;
+}
+
 static int flex_items(Layout *L, Node *n, f32 cw, FlexItem **out)
 {
 	VEC(FlexItem) v = { 0 };
@@ -1973,6 +1978,13 @@ static int flex_items(Layout *L, Node *n, f32 cw, FlexItem **out)
 			it.mn = s->border_box ? minw : minw + edge_h(&e);
 		vec_push(&v, it);
 	}
+	/* order: a stable sort keeps document order among equals */
+	for (usize i = 1; i < v.len; i++)
+		for (usize j = i; j > 0 && item_order(&v.data[j - 1]) > item_order(&v.data[j]); j--) {
+			FlexItem t = v.data[j];
+			v.data[j] = v.data[j - 1];
+			v.data[j - 1] = t;
+		}
 	*out = v.data;
 	return (int)v.len;
 }
@@ -2013,34 +2025,58 @@ static f32 layout_flex_row(Layout *L, Node *n, f32 cx, f32 cy, f32 cw)
 			sum += outer;
 			j++;
 		}
-		f32 free = cw - sum;
-		for (int k = i; k < j; k++)
-			items[k].w = maxf(items[k].basis, items[k].mn);
-		if (free > 0) {
-			f32 grow = 0;
-			for (int k = i; k < j; k++)
-				grow += items[k].grow;
-			if (grow > 0) {
-				for (int k = i; k < j; k++)
-					items[k].w += free * items[k].grow / maxf(grow, 1);
-				free = grow >= 1 ? 0 : free * (1 - grow);
-			}
-		} else if (free < 0) {
-			f32 total = 0;
-			for (int k = i; k < j; k++)
-				total += items[k].shrink * items[k].basis;
-			if (total > 0) {
-				for (int k = i; k < j; k++) {
-					f32 cut = -free * items[k].shrink * items[k].basis / total;
-					items[k].w = maxf(items[k].mn, items[k].w - cut);
-				}
-			}
-			free = cw - gap * (f32)(j - i - 1);
-			for (int k = i; k < j; k++)
-				free -= items[k].w + items[k].m[1] + items[k].m[3];
-			if (free < 0)
-				free = 0;
+		/* Resolve flexible lengths: grow or shrink, freezing items that hit
+		 * their limits and sharing the rest among the others. */
+		f32 gaps = gap * (f32)(j - i - 1);
+		bool frozen[256] = { 0 };
+		int nk0 = MIN(j - i, 256);
+		for (int k = 0; k < nk0; k++) {
+			FlexItem *it = &items[i + k];
+			it->w = maxf(it->basis, it->mn);
 		}
+		f32 used = gaps;
+		for (int k = 0; k < nk0; k++)
+			used += items[i + k].w + items[i + k].m[1] + items[i + k].m[3];
+		bool growing = used < cw;
+		for (int k = 0; k < nk0; k++) {
+			FlexItem *it = &items[i + k];
+			if ((growing && it->grow <= 0) || (!growing && it->shrink <= 0))
+				frozen[k] = true;
+		}
+		for (int iter = 0; iter < 10; iter++) {
+			f32 space = cw - gaps, factor = 0;
+			for (int k = 0; k < nk0; k++) {
+				FlexItem *it = &items[i + k];
+				space -= it->m[1] + it->m[3] + (frozen[k] ? it->w : it->basis);
+				if (!frozen[k])
+					factor += growing ? it->grow : it->shrink * it->basis;
+			}
+			if (factor <= 0)
+				break;
+			if (growing && factor < 1)
+				space *= factor;   /* grow factors below 1 take only part */
+			bool changed = false;
+			for (int k = 0; k < nk0; k++) {
+				FlexItem *it = &items[i + k];
+				if (frozen[k])
+					continue;
+				f32 share = growing ? it->grow / factor : it->shrink * it->basis / factor;
+				f32 w = it->basis + space * share;
+				if (!growing && w < it->mn) {
+					w = it->mn;
+					frozen[k] = true;
+					changed = true;
+				}
+				it->w = maxf(0, w);
+			}
+			if (!changed)
+				break;
+		}
+		f32 free = cw - gaps;
+		for (int k = i; k < j; k++)
+			free -= items[k].w + items[k].m[1] + items[k].m[3];
+		if (free < 0)
+			free = 0;
 		/* Auto margins take the free space first, then justify-content. */
 		int autos = 0;
 		for (int k = i; k < j; k++)
@@ -2062,6 +2098,13 @@ static f32 layout_flex_row(Layout *L, Node *n, f32 cx, f32 cy, f32 cw)
 		case JC_END: x += free; break;
 		case JC_BETWEEN: if (nk > 1) between += free / (f32)(nk - 1); break;
 		case JC_AROUND: between += free / (f32)nk; x += free / (f32)nk / 2; break;
+		}
+		if (L->debug) {
+			eprint("flex %s.%.40s cw %.0f free %.0f\n", n->tag, node_attr(n, "class") ? node_attr(n, "class") : "", (double)cw, (double)free);
+			for (int k = i; k < j; k++)
+				eprint("   %s.%.30s basis %.0f mn %.0f mx %.0f grow %.1f shrink %.1f w %.0f\n", items[k].n->tag,
+				       items[k].n->type == NODE_ELEMENT && node_attr(items[k].n, "class") ? node_attr(items[k].n, "class") : "",
+				       (double)items[k].basis, (double)items[k].mn, (double)items[k].mx, (double)items[k].grow, (double)items[k].shrink, (double)items[k].w);
 		}
 		f32 line_h = 0;
 		for (int k = i; k < j; k++) {
