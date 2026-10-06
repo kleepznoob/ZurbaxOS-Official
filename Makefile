@@ -48,6 +48,7 @@ LINK_LIBS := $(foreach l,zui zd zn za zg zr,$(if $(filter $(l),$(LIBNAMES)),$(OU
 SYSTEM := $(notdir $(wildcard system/*))
 APPS   := $(notdir $(wildcard apps/*))
 TOOLS  := $(patsubst tools/%/,%,$(wildcard tools/*/))
+STORE  := $(notdir $(wildcard store/*))
 
 define PROGRAM
 $(2)_SRC := $$(wildcard $(1)/$(2)/*.c)
@@ -61,6 +62,17 @@ endef
 $(foreach p,$(SYSTEM),$(eval $(call PROGRAM,system,$(p),$(OUT)/bin/$(p))))
 $(foreach p,$(APPS),$(eval $(call PROGRAM,apps,$(p),$(OUT)/apps/$(p)/$(p))))
 $(foreach p,$(TOOLS),$(eval $(call PROGRAM,tools,$(p),$(OUT)/tools/$(p))))
+$(foreach p,$(STORE),$(eval $(call PROGRAM,store,$(p),$(OUT)/store/$(p)/$(p))))
+
+# ---- Harbor's built-in source: apps in store/ become packages ---------------------
+# Each store app also renders its first screen to a picture for the store page.
+REPO_DEPS := $(foreach p,$(STORE),$(OUT)/store/$(p)/$(p) $(wildcard store/$(p)/*.conf store/$(p)/*.svg))
+$(OUT)/repo/index: $(REPO_DEPS) $(OUT)/tools/mkimage
+	@echo "  REPO  $(OUT)/repo"
+	@$(MAKE) --no-print-directory devroot-links
+	@for p in $(STORE); do ZURBAX_ROOT=$(CURDIR)/$(OUT)/root/system HOME=/nonexistent \
+		ZUI_SNAPSHOT=$(OUT)/store/$$p/screenshot.png $(OUT)/store/$$p/$$p >/dev/null 2>&1 || true; done
+	@rm -rf $(OUT)/repo && $(OUT)/tools/mkimage repo $(OUT)/repo >/dev/null
 
 # ---- Tests -----------------------------------------------------------------------
 TESTS := $(patsubst tests/%.c,$(OUT)/tests/%,$(wildcard tests/*.c))
@@ -69,14 +81,16 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: all test clean devroot image run
+.PHONY: all test clean devroot devroot-links image run
 .SECONDARY:
-all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS)
+all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(if $(STORE),$(OUT)/repo/index)
 
 # A development root that mirrors /system, so programs find their data files.
 DEVROOT := $(OUT)/root/system
-devroot: all
+devroot: all devroot-links
+devroot-links:
 	@mkdir -p $(DEVROOT)/share $(DEVROOT)/bin
+	@ln -sfn $(CURDIR)/$(OUT)/repo $(DEVROOT)/share/harbor-repo
 	@ln -sfn $(CURDIR)/data/icons $(DEVROOT)/share/icons
 	@for f in $(CURDIR)/data/*; do case $$f in */icons) ;; *) ln -sfn $$f $(DEVROOT)/share/$$(basename $$f);; esac; done
 	@for p in $(SYSTEM); do ln -sfn $(CURDIR)/$(OUT)/bin/$$p $(DEVROOT)/bin/$$p; done
@@ -110,6 +124,6 @@ run:
 		-nic user,model=virtio-net-pci -audiodev none,id=snd -device intel-hda -device hda-output,audiodev=snd
 
 clean:
-	rm -rf $(OUT)/obj $(OUT)/lib $(OUT)/bin $(OUT)/apps $(OUT)/tests $(OUT)/tools
+	rm -rf $(OUT)/obj $(OUT)/lib $(OUT)/bin $(OUT)/apps $(OUT)/tests $(OUT)/tools $(OUT)/store $(OUT)/repo
 
 -include $(shell find $(OUT)/obj -name '*.d' 2>/dev/null)

@@ -1,0 +1,4 @@
+Trusted Harbor publishers: one *.pub file each, holding the hex of an
+uncompressed P-256 public key (65 bytes: 04 || X || Y). Web sources must be
+signed by one of these. tools/harbor-publish.sh creates a key and prints
+the .pub line for it.

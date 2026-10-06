@@ -129,6 +129,11 @@ void shell_launch(const char *app_id, const char *arg)
 		app_id = h->id;
 	}
 	const AppInfo *a = shell_app(app_id);
+	if (!a) {
+		/* maybe just installed from Harbor */
+		shell_reload_apps();
+		a = shell_app(app_id);
+	}
 	char path[280];
 	if (a) {
 		str_copy(path, a->exec, sizeof path);
@@ -562,6 +567,8 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 		super_alone = false;
 		if (tap) {
 			S.launcher_open = !S.launcher_open;
+			if (S.launcher_open)
+				shell_reload_apps();
 			shell_mark_dirty();
 			return true;
 		}
@@ -574,6 +581,8 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 		}
 		if ((mods & MOD_SUPER) && code == KEY_SPACE) {
 			S.launcher_open = !S.launcher_open;
+			if (S.launcher_open)
+				shell_reload_apps();
 			shell_mark_dirty();
 			return true;
 		}

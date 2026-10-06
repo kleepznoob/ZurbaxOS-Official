@@ -138,6 +138,8 @@ void panel_draw(Ui *ui)
 	panel_apps_btn = rect(4, 0, aw, PANEL_HEIGHT);
 	if (panel_button(ui, panel_apps_btn, "panel-apps", S.launcher_open)) {
 		S.launcher_open = !S.launcher_open;
+		if (S.launcher_open)
+			shell_reload_apps();   /* Harbor may have added apps */
 		S.notifications_open = S.session_menu_open = false;
 	}
 	f32 iy = (PANEL_HEIGHT - 16) / 2;

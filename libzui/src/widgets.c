@@ -51,7 +51,7 @@ static void button_frame(Ui *ui, Rect r, ButtonKind kind, UiInteract it, f32 hov
 
 static bool button_impl(Ui *ui, Rect r, const char *label, const char *icon, ButtonKind kind)
 {
-	UiId id = ui_id(ui, label && *label ? label : icon);
+	UiId id = ui_id(ui, label && *label ? label : icon ? icon : "__button");
 	UiInteract it = ui_interact(ui, id, r);
 	f32 hover = ui_fade(ui, id, it.hovered, 0.12f);
 	if (it.hovered)
