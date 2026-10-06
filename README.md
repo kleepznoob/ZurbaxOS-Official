@@ -47,6 +47,7 @@ boot menu. It takes about a minute.
 |-----|------------|
 | Drift | Web browser with its own HTML and CSS engine: tabs, bookmarks, history, search, forms, find, zoom |
 | Harbor | App store: install, update and remove apps from the built-in source or signed web sources |
+| Mail | Email for Gmail, Outlook, iCloud, Yahoo or any IMAP account: HTML mail, attachments, search, drafts, undo |
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
 | Help | A searchable guide to Zurbax |
@@ -67,6 +68,13 @@ boot menu. It takes about a minute.
 **In Harbor** (installed when you want them): Chess, with a computer
 opponent from Easy to Expert; Sudoku, with fresh puzzles that each have one
 solution; and Paint, for sketching and marking up pictures.
+
+**Mail** blocks pictures from the web until you ask for them, since loading
+them tells the sender you opened the message. It shows HTML mail with
+Drift's engine but never runs scripts or loads outside style sheets. It
+won't send your password over a connection that isn't encrypted. Gmail
+needs an app password (Mail explains how when you type a Gmail address).
+`tools/mailtest.py` runs a pretend mail server for trying it out.
 
 **Under the hood**
 - **TLS 1.3** with certificate checks against Mozilla's root list.
@@ -114,7 +122,6 @@ artifact).
 
 - **Wi-Fi.** Wired networking works, but Wi-Fi needs the WPA2 handshake
   and the chips' firmware files.
-- **Mail.** It's next.
 - **JavaScript.** Drift shows pages as their HTML and CSS describe them;
   sites that only work through scripts (web apps, most video sites) don't.
   WebP pictures don't show yet.

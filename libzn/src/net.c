@@ -555,22 +555,6 @@ static bool open_conn(Conn *c, const Url *u, int timeout, char *err, usize errca
 	return true;
 }
 
-static void load_extra_roots(void)
-{
-	static bool done;
-	if (done)
-		return;
-	done = true;
-	const char *extra = env_get("ZURBAX_CA_FILE");
-	if (extra) {
-		usize len;
-		char *pem = file_read(extra, &len);
-		if (pem)
-			cert_trust_add_pem(pem, len);
-		mem_free(pem);
-	}
-}
-
 HttpResponse *http_request(const char *url, const HttpOptions *opts)
 {
 	HttpOptions o = opts ? *opts : (HttpOptions){ 0 };
@@ -582,7 +566,6 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 		o.max_body = 64u << 20;
 	if (!o.max_redirects)
 		o.max_redirects = 5;
-	load_extra_roots();
 	HttpResponse *r = NEW(HttpResponse);
 	str_copy(r->final_url, url, sizeof r->final_url);
 	for (int hop = 0; hop <= o.max_redirects; hop++) {

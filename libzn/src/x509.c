@@ -351,7 +351,7 @@ static bool signed_by(const Cert *child, const Cert *issuer)
 /* The trusted roots. */
 static Cert *roots;
 static int nroots, roots_cap;
-static bool roots_loaded;
+static int roots_loaded;      /* atomic */
 
 bool cert_trust_add_pem(const char *pem, usize len)
 {
@@ -384,20 +384,36 @@ bool cert_trust_add_pem(const char *pem, usize len)
 	return any;
 }
 
-static void load_roots(void)
+static Mutex roots_lock;
+
+static void add_roots_file(const char *path)
 {
-	if (roots_loaded)
-		return;
-	roots_loaded = true;
-	const char *root = env_get("ZURBAX_ROOT");
-	char *path = str_fmt("%s/share/certs/roots.pem", root ? root : "/system");
 	usize len;
 	char *pem = file_read(path, &len);
-	mem_free(path);
 	if (pem) {
 		cert_trust_add_pem(pem, len); /* the parsed certificates point into their own DER copies */
 		mem_free(pem);
 	}
+}
+
+/* The system's roots, plus $ZURBAX_CA_FILE (for development servers). Several
+ * threads may make their first connection at once, hence the lock. */
+static void load_roots(void)
+{
+	if (atomic_load(&roots_loaded))
+		return;
+	mutex_lock(&roots_lock);
+	if (!roots_loaded) {
+		const char *root = env_get("ZURBAX_ROOT");
+		char *path = str_fmt("%s/share/certs/roots.pem", root ? root : "/system");
+		add_roots_file(path);
+		mem_free(path);
+		const char *extra = env_get("ZURBAX_CA_FILE");
+		if (extra)
+			add_roots_file(extra);
+		atomic_store(&roots_loaded, 1);
+	}
+	mutex_unlock(&roots_lock);
 }
 
 const char *cert_chain_verify(Cert *chain, int n, const char *host, i64 now)

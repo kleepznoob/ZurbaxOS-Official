@@ -219,7 +219,7 @@ static Glyph *get_glyph_locked(u32 cp)
 		/* Marks sit over the base's ink centre; raise them for capitals. */
 		f32 cx = (base->ink_x0 + base->ink_x1) / 2;
 		bool above = mark->ink_y1 > 300;
-		f32 dy = (above && base->ink_y1 > 600) ? 180 : 0;
+		f32 dy = (above && base->ink_y1 > 600) ? 235 : 0;
 		if (g->comp_base == 0x131 || g->comp_base == 'I')
 			cx = (base->ink_x0 + base->ink_x1) / 2;
 		merge_glyph(g, mark, cx, dy);
