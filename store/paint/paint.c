@@ -486,6 +486,34 @@ static void frame(Ui *ui)
 
 static char *open_arg;
 
+/* For the store's screenshot: a little landscape, made with the tools. */
+static void demo_picture(void)
+{
+	Canvas *c = P.img;
+	fill_rect(c, rect(0, 0, (f32)c->width, 520), 0xff9fd3f2);
+	fill_rect(c, rect(0, 520, (f32)c->width, (f32)c->height - 520), 0xff7cc576);
+	fill_circle(c, 1040, 150, 70, 0xffffd54f);
+	ellipse(c, rect(-200, 420, 900, 320), 0xff5fae5a, true, 0);
+	ellipse(c, rect(500, 450, 1000, 300), 0xff4f9d4c, true, 0);
+	fill_rect(c, rect(300, 400, 220, 170), 0xfff2e3c6);
+	stroke_round_rect(c, rect(300, 400, 220, 170), 0, 6, 0xff6d4c41);
+	draw_line(c, 280, 410, 410, 300, 8, 0xffc62828);
+	draw_line(c, 410, 300, 540, 410, 8, 0xffc62828);
+	fill_rect(c, rect(390, 480, 50, 90), 0xff8d6e63);
+	fill_rect(c, rect(330, 430, 46, 40), 0xff90caf9);
+	fill_rect(c, rect(450, 430, 46, 40), 0xff90caf9);
+	P.size = 6;
+	P.color = 0xffffffff;
+	P.tool = T_BRUSH;
+	for (int i = 0; i < 3; i++) {
+		f32 x = 160 + (f32)i * 260, y = 120 + (f32)(i % 2) * 40;
+		ellipse(c, rect(x, y, 140, 50), 0xffffffff, true, 0);
+		ellipse(c, rect(x + 40, y - 25, 90, 60), 0xffffffff, true, 0);
+	}
+	P.color = PALETTE[12];
+	P.modified = false;
+}
+
 static void init(Ui *ui)
 {
 	UNUSED(ui);
@@ -497,6 +525,8 @@ static void init(Ui *ui)
 		set_picture(c, open_arg);
 	else
 		new_picture(1280, 800);
+	if (!c && env_get("ZUI_SNAPSHOT"))
+		demo_picture();
 }
 
 int main(int argc, char **argv)
