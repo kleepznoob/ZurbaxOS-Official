@@ -55,6 +55,7 @@ enum {
 	MSG_POPUP_DONE,
 	MSG_DROP_FILES,
 	MSG_REPLY,          /* result of a request such as MSG_ACCOUNT */
+	MSG_SCREENSHOT_DATA,/* + memfd with the pixels */
 };
 
 typedef struct {
@@ -176,6 +177,13 @@ typedef struct {
 	MsgHeader h;
 	u32 action;
 } MsgSession;
+
+enum { SCREENSHOT_SCREEN = 0, SCREENSHOT_WINDOW = 1, SCREENSHOT_AREA = 2 };
+
+typedef struct {
+	MsgHeader h;
+	u32 mode;              /* SCREENSHOT_* */
+} MsgScreenshot;
 
 enum { ACCOUNT_SET_NAME = 1, ACCOUNT_SET_PASSWORD = 2, ACCOUNT_REMOVE_PASSWORD = 4 };
 
@@ -303,3 +311,9 @@ typedef struct {
 	i32 status;            /* 0 = done, negative = failed */
 	char message[128];
 } MsgReply;
+
+typedef struct {
+	MsgHeader h;
+	i32 status;            /* 0 = pixels attached, negative = cancelled or failed */
+	u32 width, height;     /* device pixels, premultiplied ARGB, rows packed */
+} MsgScreenshotData;

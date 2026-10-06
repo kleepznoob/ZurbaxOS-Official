@@ -142,7 +142,8 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		break;
 	case MSG_CLIPBOARD_DATA: {
 		const MsgClipboard *m = (const MsgClipboard *)buf;
-		if (nfds > 0 && m->size < (64u << 20)) {
+		/* Only text can be pasted into text fields. */
+		if (nfds > 0 && m->size < (64u << 20) && (str_starts(m->mime, "text/") || !m->mime[0])) {
 			char *text = mem_alloc(m->size + 1);
 			long n = sys_pread(fds[0], text, m->size, 0);
 			text[n > 0 ? n : 0] = 0;
@@ -150,6 +151,23 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 			mem_free(text);
 			c->dirty = true;
 		}
+		break;
+	}
+	case MSG_SCREENSHOT_DATA: {
+		const MsgScreenshotData *m = (const MsgScreenshotData *)buf;
+		canvas_free(ui->screenshot);
+		ui->screenshot = NULL;
+		ui->screenshot_status = m->status;
+		if (m->status == 0 && nfds > 0 && m->width && m->height && m->width <= 16384 && m->height <= 16384) {
+			Canvas *img = canvas_new((int)m->width, (int)m->height);
+			for (u32 y = 0; y < m->height; y++)
+				sys_pread(fds[0], canvas_row(img, (int)y), (usize)m->width * 4, (i64)((u64)y * m->width * 4));
+			ui->screenshot = img;
+		} else if (m->status == 0) {
+			ui->screenshot_status = -1;
+		}
+		ui->screenshot_ready = true;
+		c->dirty = true;
 		break;
 	}
 	case MSG_REPLY: {
@@ -383,20 +401,33 @@ void ui_session(Ui *ui, u32 action)
 	send_msg(c, &m, MSG_SESSION, sizeof m, NULL, 0);
 }
 
-void ui_clipboard_set(Ui *ui, const char *text)
+void ui_clipboard_set_data(Ui *ui, const char *mime, const void *data, usize n)
 {
 	Client *c = ui->driver;
 	if (!c)
 		return;
-	usize n = strlen(text);
 	int fd = (int)sys_memfd_create("zui-clipboard", MFD_CLOEXEC);
 	if (fd < 0)
 		return;
-	write_all(fd, text, n);
+	write_all(fd, data, n);
 	MsgClipboard m = { .size = (u32)n };
-	str_copy(m.mime, "text/plain", sizeof m.mime);
+	str_copy(m.mime, mime, sizeof m.mime);
 	send_msg(c, &m, MSG_CLIPBOARD_SET, sizeof m, &fd, 1);
 	sys_close(fd);
+}
+
+void ui_clipboard_set(Ui *ui, const char *text)
+{
+	ui_clipboard_set_data(ui, "text/plain", text, strlen(text));
+}
+
+void ui_screenshot_request(Ui *ui, u32 mode)
+{
+	Client *c = ui->driver;
+	if (!c)
+		return;
+	MsgScreenshot m = { .mode = mode };
+	send_msg(c, &m, MSG_SCREENSHOT, sizeof m, NULL, 0);
 }
 
 const char *ui_user_name(Ui *ui)

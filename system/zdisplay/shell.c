@@ -9,9 +9,6 @@
  */
 #include "zdisplay.h"
 
-#define DOCK_ICON 44
-#define DOCK_GAP 10
-#define DOCK_PAD 10
 
 static Ui *ui;              /* the shell's own toolkit context */
 static Canvas *overlay;     /* logical-size, redrawn each shell frame */
@@ -104,6 +101,16 @@ static const AppInfo *app_for_file(const char *path)
 	return NULL;
 }
 
+static bool force_new_instance;
+
+/* Starts another copy of an app even if one is already open. */
+void shell_launch_new(const char *app_id)
+{
+	force_new_instance = true;
+	shell_launch(app_id, NULL);
+	force_new_instance = false;
+}
+
 void shell_launch(const char *app_id, const char *arg)
 {
 	if ((!app_id || !*app_id) && arg && *arg) {
@@ -130,7 +137,7 @@ void shell_launch(const char *app_id, const char *arg)
 			return;
 	}
 	/* Already running and no argument? Just focus it. */
-	if (!arg || !*arg) {
+	if ((!arg || !*arg) && !force_new_instance) {
 		for (int i = S.nwin - 1; i >= 0; i--) {
 			Window *w = S.windows[i];
 			if (str_eq(w->app_id, app_id) && !w->closing && !(w->flags & WIN_POPUP)) {
@@ -226,21 +233,25 @@ f32 shell_panel_height(void)
 	return PANEL_HEIGHT;
 }
 
-static int dock_apps(char ids[][48], int max)
+/* ---- Dock geometry -------------------------------------------------------------------
+ * elementary style: a short shelf along the bottom edge with rounded top corners;
+ * the icons stand on it and rise above it. */
+
+int shell_dock_items(char ids[][48], int max)
 {
 	int n = 0;
 	usize count;
 	char **parts = str_split(S.set.dock_apps, ',', &count);
 	for (usize i = 0; i < count && n < max; i++) {
 		char *id = str_trim(parts[i]);
-		if (*id)
+		if (*id && shell_app(id))
 			str_copy(ids[n++], id, 48);
 	}
 	str_split_free(parts, count);
-	/* Append running apps that aren't pinned. */
+	/* Running apps that aren't pinned follow the pinned ones. */
 	for (int i = 0; i < S.nwin && n < max; i++) {
 		Window *w = S.windows[i];
-		if (w->closing || (w->flags & WIN_POPUP))
+		if (w->closing || (w->flags & WIN_POPUP) || !w->app_id[0])
 			continue;
 		bool have = false;
 		for (int k = 0; k < n; k++)
@@ -252,32 +263,46 @@ static int dock_apps(char ids[][48], int max)
 	return n;
 }
 
+Rect shell_dock_bar(int n)
+{
+	f32 w = (f32)n * DOCK_ICON + (f32)MAX(n - 1, 0) * DOCK_SPACING + 2 * DOCK_PAD;
+	return rect(roundf((S.sw - w) / 2), S.sh - DOCK_SHELF, w, DOCK_SHELF);
+}
+
+Rect shell_dock_slot(int n, int i)
+{
+	Rect bar = shell_dock_bar(n);
+	return rect(bar.x + DOCK_PAD + (f32)i * (DOCK_ICON + DOCK_SPACING), S.sh - DOCK_BOTTOM - DOCK_ICON, DOCK_ICON, DOCK_ICON);
+}
+
+/* Everything the dock covers: the shelf and the icons rising above it. */
 static Rect dock_rect(int *out_n)
 {
 	char ids[32][48];
-	int n = dock_apps(ids, 32);
+	int n = shell_dock_items(ids, 32);
 	if (out_n)
 		*out_n = n;
-	f32 w = (f32)n * DOCK_ICON + (f32)(n - 1) * DOCK_GAP + 2 * DOCK_PAD;
-	f32 h = DOCK_ICON + 2 * DOCK_PAD;
-	return rect((S.sw - w) / 2, S.sh - h - 8, w, h);
+	if (n == 0)
+		return rect(S.sw / 2, S.sh, 0, 0);
+	Rect bar = shell_dock_bar(n);
+	f32 top = S.sh - DOCK_BOTTOM - DOCK_ICON - 4;
+	return rect(bar.x, top, bar.w, S.sh - top);
 }
 
 f32 shell_dock_height(void)
 {
-	return DOCK_ICON + 2 * DOCK_PAD + 16;
+	return DOCK_BOTTOM + DOCK_ICON + 10;
 }
 
 Rect shell_dock_icon_rect(const char *app_id)
 {
 	char ids[32][48];
-	int n = dock_apps(ids, 32);
-	Rect d = dock_rect(NULL);
+	int n = shell_dock_items(ids, 32);
 	for (int i = 0; i < n; i++)
 		if (str_eq(ids[i], app_id))
-			return rect(d.x + DOCK_PAD + (f32)i * (DOCK_ICON + DOCK_GAP), d.y + DOCK_PAD, DOCK_ICON, DOCK_ICON);
-	/* Not in the dock: shrink toward the launcher button at the left. */
-	return rect(d.x, d.y + d.h, DOCK_ICON, DOCK_ICON);
+			return shell_dock_slot(n, i);
+	Rect bar = shell_dock_bar(MAX(n, 1));
+	return rect(bar.x, S.sh, DOCK_ICON, DOCK_ICON);
 }
 
 /* ---- Drawing dispatch (in zui frame) ------------------------------------------------- */
@@ -292,6 +317,8 @@ void lockscreen_draw(Ui *ui);
 void osd_draw(Ui *ui);
 bool launcher_key(Ui *ui, u32 code, u32 mods, const char *text);
 bool lockscreen_key(Ui *ui, u32 code, u32 mods, const char *text);
+
+static void area_select_draw(Ui *ui);
 
 static void shell_frame(Ui *ui)
 {
@@ -308,6 +335,8 @@ static void shell_frame(Ui *ui)
 			switcher_draw(ui);
 	}
 	osd_draw(ui);
+	if (S.selecting_area)
+		area_select_draw(ui);
 	if (S.set.show_fps) {
 		char f[16];
 		fmt(f, sizeof f, "%d FPS", (int)roundf(S.fps));
@@ -400,18 +429,69 @@ static bool shell_wants_pointer(void)
 {
 	/* The shell consumes pointer input when it owns a full-screen or docked
 	 * surface the pointer is over, or an overlay is open. */
-	if (S.locked || S.launcher_open || S.notifications_open || S.session_menu_open || S.switcher_open)
+	if (S.locked || S.launcher_open || S.notifications_open || S.session_menu_open || S.switcher_open || S.selecting_area ||
+	    S.dock_menu[0])
 		return true;
 	if (S.py < shell_panel_height())
 		return true;
 	Rect d = dock_rect(NULL);
-	if (rect_contains(rect_inset(d, -4, -4), S.px, S.py))
+	if (S.dock_hide_k < 0.5f && rect_contains(rect_inset(d, -4, -4), S.px, S.py))
 		return true;
 	return false;
 }
 
+/* Intellihide: the dock steps aside when a window needs the space (or always,
+ * with auto-hide on) and comes back when the pointer touches the bottom edge. */
+static bool dock_should_hide(void)
+{
+	if (S.launcher_open || S.switcher_open || S.locked || S.dock_menu[0])
+		return false;
+	Rect d = dock_rect(NULL);
+	Rect zone = rect_inset(d, -16, -20);
+	if (S.py >= S.sh - 3)
+		S.dock_revealed = true;
+	else if (S.dock_revealed && !rect_contains(rect(zone.x, zone.y, zone.w, S.sh - zone.y), S.px, S.py))
+		S.dock_revealed = false;
+	if (S.focus && (S.focus->states & STATE_FULLSCREEN) && !S.focus->minimized)
+		return !S.dock_revealed;
+	if (S.dock_revealed)
+		return false;
+	if (S.set.dock_autohide)
+		return true;
+	for (int i = 0; i < S.nwin; i++) {
+		Window *w = S.windows[i];
+		if (!w->mapped || w->closing || w->minimized || (w->flags & WIN_POPUP))
+			continue;
+		if (!rect_empty(rect_intersect(window_visual_rect(w), rect_inset(d, -6, -6))))
+			return true;
+	}
+	return false;
+}
+
+static void finish_area(bool cancel);
+static Rect selection_rect(void);
+
 bool shell_pointer(u32 kind, u32 button)
 {
+	if (S.selecting_area) {
+		if (kind == POINTER_DOWN && button == BUTTON_LEFT) {
+			S.sel_dragging = true;
+			S.sel_x0 = S.sel_x1 = S.px;
+			S.sel_y0 = S.sel_y1 = S.py;
+		} else if (kind == POINTER_MOTION && S.sel_dragging) {
+			S.sel_x1 = S.px;
+			S.sel_y1 = S.py;
+		} else if (kind == POINTER_UP && S.sel_dragging) {
+			S.sel_x1 = S.px;
+			S.sel_y1 = S.py;
+			finish_area(false);
+		} else if (kind == POINTER_DOWN && button == BUTTON_RIGHT) {
+			finish_area(true);
+		}
+		shell_mark_dirty();
+		damage_all();
+		return true;
+	}
 	bool want = shell_wants_pointer() || pointer_on_shell;
 	ui_input_pointer(ui, kind == POINTER_DOWN ? POINTER_DOWN : kind == POINTER_UP ? POINTER_UP : POINTER_MOTION,
 			 S.px, S.py, button, S.mods);
@@ -436,6 +516,11 @@ bool shell_scroll(f32 dx, f32 dy, u32 source, u32 phase)
 
 bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 {
+	if (S.selecting_area) {
+		if (code == KEY_ESC && state == KEY_PRESSED)
+			finish_area(true);
+		return true;
+	}
 	if (S.locked) {
 		if (state != KEY_RELEASED)
 			lockscreen_key(ui, code, mods, text);
@@ -611,6 +696,18 @@ void shell_tick(void)
 	}
 	game_mode_update();
 	screentime_tick();
+	/* Slide the dock in or out. */
+	static f64 last_dock_tick;
+	f32 dock_dt = minf((f32)(S.now - last_dock_tick), 0.05f);
+	last_dock_tick = S.now;
+	bool hide = dock_should_hide();
+	f32 target = hide ? 1.0f : 0.0f;
+	if (S.dock_hide_k != target) {
+		f32 step = dock_dt * (S.set.reduce_motion ? 20 : 5);
+		S.dock_hide_k = target > S.dock_hide_k ? minf(target, S.dock_hide_k + step) : maxf(target, S.dock_hide_k - step);
+		shell_mark_dirty();
+	}
+	S.dock_hide = hide;
 	/* The fade to black finished: carry out the action. */
 	static bool done;
 	if (S.shutting_down && S.shutdown_k >= 0.999f && !done) {
@@ -627,6 +724,8 @@ void shell_tick(void)
 
 bool shell_animating(void)
 {
+	if (S.dock_hide_k != (S.dock_hide ? 1.0f : 0.0f))
+		return true;
 	if (S.launcher_k != (S.launcher_open ? 1.0f : 0.0f))
 		return true;
 	if (S.lock_k != (S.locked ? 1.0f : 0.0f))
@@ -711,16 +810,166 @@ bool shell_check_password(const char *pw)
 	return password_check(pw, S.set.password_hash);
 }
 
-void shell_screenshot(void)
+/* Composes the screen without the pointer and copies a logical area of it. */
+static Canvas *capture(Rect area)
 {
-	dir_make(S.screenshot_dir, 0755);
+	S.capturing = true;
+	damage_all();
+	compose_frame();
+	S.capturing = false;
+	damage_all();
+	request_frame();
+	Rect p = rect_intersect(rect(area.x * S.scale, area.y * S.scale, area.w * S.scale, area.h * S.scale),
+				rect(0, 0, (f32)S.frame->width, (f32)S.frame->height));
+	int w = (int)p.w, h = (int)p.h;
+	if (w <= 0 || h <= 0)
+		return NULL;
+	Canvas *c = canvas_new(w, h);
+	copy_pixels(c, S.frame, (int)p.x, (int)p.y, 0, 0, w, h);
+	return c;
+}
+
+static void save_to_pictures(const Canvas *img)
+{
+	if (!dir_exists(S.screenshot_dir)) {
+		dir_make(S.screenshot_dir, 0755);
+		sys_chown(S.screenshot_dir, S.set.uid, S.set.gid);
+	}
 	Civil c;
 	civil_local(time_unix(), &c);
 	char path[256];
-	fmt(path, sizeof path, "%s/Screenshot %04d-%02d-%02d %02d.%02d.%02d.png", S.screenshot_dir,
-	    c.year, c.month, c.day, c.hour, c.min, c.sec);
-	/* Capture the composited screen without the cursor. */
-	compose_frame();
-	if (png_save(S.frame, path))
+	fmt(path, sizeof path, "%s/Screenshot %04d-%02d-%02d %02d.%02d.%02d.png", S.screenshot_dir, c.year, c.month, c.day, c.hour, c.min, c.sec);
+	if (png_save(img, path)) {
+		sys_chown(path, S.set.uid, S.set.gid);
 		shell_notify("system", "screenshot", "Screenshot saved", path_base(path));
+	}
+}
+
+void shell_screenshot(void)
+{
+	Canvas *img = capture(rect(0, 0, S.sw, S.sh));
+	if (img) {
+		save_to_pictures(img);
+		canvas_free(img);
+	}
+}
+
+static void send_shot(Client *c, u32 win, Canvas *img)
+{
+	MsgScreenshotData m = { .status = img ? 0 : -1 };
+	if (!img || !c || c->fd < 0) {
+		if (c && c->fd >= 0)
+			server_send(c, &m, MSG_SCREENSHOT_DATA, sizeof m, win, NULL, 0);
+		return;
+	}
+	m.width = (u32)img->width;
+	m.height = (u32)img->height;
+	int fd = (int)sys_memfd_create("screenshot", MFD_CLOEXEC);
+	if (fd < 0) {
+		m.status = -1;
+		server_send(c, &m, MSG_SCREENSHOT_DATA, sizeof m, win, NULL, 0);
+		return;
+	}
+	for (int y = 0; y < img->height; y++)
+		write_all(fd, canvas_row(img, y), (usize)img->width * 4);
+	server_send(c, &m, MSG_SCREENSHOT_DATA, sizeof m, win, &fd, 1);
+	sys_close(fd);
+}
+
+void screenshot_request(Client *c, u32 win, u32 mode)
+{
+	if (mode == SCREENSHOT_AREA) {
+		/* Let the user drag out the area; finished in shell_pointer. */
+		S.selecting_area = true;
+		S.sel_dragging = false;
+		S.shot_client = c;
+		S.shot_win = win;
+		S.cursor = CURSOR_CROSSHAIR;
+		cursor_update();
+		shell_mark_dirty();
+		damage_all();
+		return;
+	}
+	Rect area = rect(0, 0, S.sw, S.sh);
+	if (mode == SCREENSHOT_WINDOW) {
+		/* The frontmost window that isn't the one asking. */
+		for (int i = S.nwin - 1; i >= 0; i--) {
+			Window *w = S.windows[i];
+			if (w->client != c && w->mapped && !w->closing && !w->minimized && !(w->flags & WIN_POPUP)) {
+				area = w->rect;
+				break;
+			}
+		}
+	}
+	Canvas *img = capture(area);
+	send_shot(c, win, img);
+	canvas_free(img);
+}
+
+void screenshot_client_gone(Client *c)
+{
+	if (S.shot_client == c) {
+		S.shot_client = NULL;
+		S.selecting_area = false;
+		shell_mark_dirty();
+	}
+}
+
+static Rect selection_rect(void)
+{
+	f32 x0 = minf(S.sel_x0, S.sel_x1), y0 = minf(S.sel_y0, S.sel_y1);
+	return rect(x0, y0, fabsf(S.sel_x1 - S.sel_x0), fabsf(S.sel_y1 - S.sel_y0));
+}
+
+static void finish_area(bool cancel)
+{
+	S.selecting_area = false;
+	S.sel_dragging = false;
+	S.cursor = CURSOR_DEFAULT;
+	cursor_update();
+	shell_mark_dirty();
+	Rect r = selection_rect();
+	Canvas *img = NULL;
+	if (!cancel && r.w >= 2 && r.h >= 2) {
+		/* Draw once more without the selection overlay before capturing. */
+		shell_prepare();
+		img = capture(r);
+	}
+	if (S.shot_client)
+		send_shot(S.shot_client, S.shot_win, img);
+	else if (img)
+		save_to_pictures(img);
+	canvas_free(img);
+	S.shot_client = NULL;
+	damage_all();
+}
+
+/* The dimmed screen with a clear window where the area is. */
+static void area_select_draw(Ui *ui)
+{
+	Color dim = color_hex("#00000070");
+	if (!S.sel_dragging) {
+		ui_fill(ui, rect(0, 0, S.sw, S.sh), dim);
+		const char *hint = "Drag to choose an area · Esc to cancel";
+		Font f = ui_font(ui, 14, 600);
+		f32 w = ui_text_width(ui, f, hint) + 36;
+		Rect b = rect((S.sw - w) / 2, S.sh / 2 - 22, w, 44);
+		ui_round(ui, b, 22, color_hex("#000000b0"));
+		ui_text_in(ui, f, b, hint, COLOR_WHITE, ALIGN_CENTER);
+	} else {
+		Rect r = selection_rect();
+		ui_fill(ui, rect(0, 0, S.sw, r.y), dim);
+		ui_fill(ui, rect(0, r.y + r.h, S.sw, S.sh - r.y - r.h), dim);
+		ui_fill(ui, rect(0, r.y, r.x, r.h), dim);
+		ui_fill(ui, rect(r.x + r.w, r.y, S.sw - r.x - r.w, r.h), dim);
+		ui_border(ui, rect_inset(r, -1, -1), 0, 1.5f, COLOR_WHITE);
+		char sz[32];
+		fmt(sz, sizeof sz, "%d × %d", (int)(r.w * S.scale), (int)(r.h * S.scale));
+		Font f = ui_font(ui, 12, 700);
+		f32 w = ui_text_width(ui, f, sz) + 16;
+		Rect lb = rect(r.x, r.y + r.h + 6 + 22 > S.sh ? r.y - 28 : r.y + r.h + 6, w, 22);
+		ui_round(ui, lb, 6, color_hex("#000000c0"));
+		ui_text_in(ui, f, lb, sz, COLOR_WHITE, ALIGN_CENTER);
+	}
+	shell_surface(rect(0, 0, S.sw, S.sh));
 }

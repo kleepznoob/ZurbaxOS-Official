@@ -12,9 +12,6 @@
  */
 #include "zdisplay.h"
 
-#define DOCK_ICON 44
-#define DOCK_GAP 10
-#define DOCK_PAD 10
 
 /* ---- Helpers ---------------------------------------------------------------------- */
 
@@ -226,30 +223,6 @@ void panel_draw(Ui *ui)
 
 /* ---- Dock -------------------------------------------------------------------------- */
 
-static int dock_ids(char ids[][48], int max)
-{
-	int n = 0;
-	usize count;
-	char **parts = str_split(S.set.dock_apps, ',', &count);
-	for (usize i = 0; i < count && n < max; i++) {
-		char *id = str_trim(parts[i]);
-		if (*id && shell_app(id))
-			str_copy(ids[n++], id, 48);
-	}
-	str_split_free(parts, count);
-	for (int i = 0; i < S.nwin && n < max; i++) {
-		Window *w = S.windows[i];
-		if (w->closing || (w->flags & WIN_POPUP))
-			continue;
-		bool have = false;
-		for (int k = 0; k < n; k++)
-			have |= str_eq(ids[k], w->app_id);
-		if (!have)
-			str_copy(ids[n++], w->app_id, 48);
-	}
-	return n;
-}
-
 static int app_window_count(const char *id, Window **first)
 {
 	int n = 0;
@@ -270,56 +243,183 @@ static struct {
 	f64 started;
 } bouncing;
 
+/* The shelf: rounded on top, flush with the bottom edge of the screen. */
+static void dock_shelf(Ui *ui, Rect bar)
+{
+	Theme *t = &ui->theme;
+	f32 s = ui->scale;
+	Rect d = ui_to_device(ui, bar);
+	Path p = { 0 };
+	path_round_rect4(&p, rect(d.x, d.y, d.w, d.h + 8 * s), 8 * s, 8 * s, 0, 0);
+	/* A soft shadow above, so it sits on the wallpaper. */
+	ui_shadow(ui, rect(bar.x + 4, bar.y + 2, bar.w - 8, bar.h), 8, 10, -1, color_hex("#00000030"));
+	Paint fill = t->dark ? paint_linear(0, d.y, 0, d.y + d.h, color_hex("#3a3b40e0"), color_hex("#26272be8"))
+			     : paint_linear(0, d.y, 0, d.y + d.h, color_hex("#fbfbfcd0"), color_hex("#e9eaeee0"));
+	fill_path(ui->canvas, &p, mat_identity(), &fill, FILL_NONZERO);
+	Paint edge = paint_solid(t->dark ? color_hex("#000000a0") : color_hex("#00000052"));
+	StrokeStyle st = { 1 * s, CAP_BUTT, JOIN_ROUND, 4 };
+	stroke_path(ui->canvas, &p, mat_identity(), &edge, &st);
+	path_free(&p);
+	/* A bright line just inside the top edge, like light catching glass. */
+	Path hl = { 0 };
+	path_round_rect4(&hl, rect(d.x + 1 * s, d.y + 1 * s, d.w - 2 * s, d.h + 8 * s), 7 * s, 7 * s, 0, 0);
+	Paint hi = paint_solid(t->dark ? color_hex("#ffffff1a") : color_hex("#ffffffc0"));
+	stroke_path(ui->canvas, &hl, mat_identity(), &hi, &st);
+	path_free(&hl);
+}
+
+static u64 dock_menu_opened_frame;
+
+static void dock_menu_draw(Ui *ui, Rect anchor)
+{
+	Theme *t = &ui->theme;
+	const AppInfo *a = shell_app(S.dock_menu);
+	Window *first;
+	int count = app_window_count(S.dock_menu, &first);
+	bool pinned = false;
+	{
+		usize n;
+		char **parts = str_split(S.set.dock_apps, ',', &n);
+		for (usize i = 0; i < n; i++)
+			pinned |= str_eq(str_trim(parts[i]), S.dock_menu);
+		str_split_free(parts, n);
+	}
+	int items = 2 + (count > 0);
+	f32 w = 236, h = 16 + 34 * (f32)items + 30;
+	Rect r = rect(clampf(anchor.x + anchor.w / 2 - w / 2, 6, S.sw - w - 6), anchor.y - h - 14, w, h);
+	Color bg = t->dark ? color_hex("#2e2f34") : color_hex("#fbfbfc");
+	ui_shadow(ui, r, 10, 16, 5, color_hex("#00000050"));
+	ui_round(ui, r, 10, bg);
+	Path arrow = { 0 };
+	f32 ax = anchor.x + anchor.w / 2;
+	path_move(&arrow, ax - 9, r.y + r.h - 1);
+	path_line(&arrow, ax, r.y + r.h + 8);
+	path_line(&arrow, ax + 9, r.y + r.h - 1);
+	path_close(&arrow);
+	ui_path_fill(ui, &arrow, bg);
+	path_free(&arrow);
+	ui_border(ui, r, 10, 1, t->border_strong);
+	shell_surface(rect_inset(r, 0, -12));
+	Rect c = pad(r, 8);
+	ui_text(ui, ui_font(ui, 12, 700), c.x + 8, c.y + 16, a ? a->name : S.dock_menu, t->text_dim);
+	cut_top(&c, 26);
+	bool close = false;
+	if (ui_menu_item(ui, cut_top(&c, 34), "tab-new", count ? "New Window" : "Open", NULL)) {
+		shell_launch_new(S.dock_menu);
+		close = true;
+	}
+	if (ui_menu_item(ui, cut_top(&c, 34), "pin", pinned ? "Remove from Dock" : "Keep in Dock", NULL)) {
+		/* Rebuild the pinned list with or without this app. */
+		StrBuf sb = { 0 };
+		usize n;
+		char **parts = str_split(S.set.dock_apps, ',', &n);
+		for (usize i = 0; i < n; i++) {
+			char *id = str_trim(parts[i]);
+			if (!*id || str_eq(id, S.dock_menu))
+				continue;
+			if (sb.len)
+				sb_addc(&sb, ',');
+			sb_adds(&sb, id);
+		}
+		str_split_free(parts, n);
+		if (!pinned) {
+			if (sb.len)
+				sb_addc(&sb, ',');
+			sb_adds(&sb, S.dock_menu);
+		}
+		str_copy(S.set.dock_apps, sb_str(&sb), sizeof S.set.dock_apps);
+		sb_free(&sb);
+		settings_save();
+		close = true;
+	}
+	if (count && ui_menu_item(ui, cut_top(&c, 34), "window-close", count > 1 ? "Quit All Windows" : "Quit", NULL)) {
+		for (int i = S.nwin - 1; i >= 0; i--)
+			if (str_eq(S.windows[i]->app_id, S.dock_menu) && !S.windows[i]->closing)
+				window_close_request(S.windows[i]);
+		close = true;
+	}
+	/* The click that opened the menu mustn't close it again. */
+	bool fresh = ui->frame_no == dock_menu_opened_frame;
+	if (close || ui_key_pressed(ui, KEY_ESC, 0) ||
+	    (!fresh && (ui->pressed[BUTTON_LEFT] || ui->pressed[BUTTON_RIGHT]) && !rect_contains(rect_inset(r, -2, -2), ui->mx, ui->my)))
+		S.dock_menu[0] = 0;
+}
+
 void dock_draw(Ui *ui)
 {
+	Theme *t = &ui->theme;
 	char ids[32][48];
-	int n = dock_ids(ids, 32);
+	int n = shell_dock_items(ids, 32);
 	if (n == 0)
 		return;
-	f32 w = (f32)n * DOCK_ICON + (f32)(n - 1) * DOCK_GAP + 2 * DOCK_PAD;
-	f32 h = DOCK_ICON + 2 * DOCK_PAD;
-	Rect r = rect((S.sw - w) / 2, S.sh - h - 8, w, h);
-	shell_surface(rect(r.x - 40, r.y - 60, r.w + 80, r.h + 70));
-	Theme *t = &ui->theme;
-	/* A soft glass shelf. */
-	ui_shadow(ui, r, 16, 16, 6, color_hex("#00000045"));
-	ui_gradient(ui, r, 16, t->dark ? color_hex("#3a3b40d8") : color_hex("#fdfdfde0"), t->dark ? color_hex("#26272cd8") : color_hex("#e9eaeee0"));
-	ui_border(ui, r, 16, 1, t->dark ? color_hex("#00000080") : color_hex("#ffffffb0"));
-	ui_border(ui, rect_inset(r, -1, -1), 17, 1, color_hex("#00000022"));
+	f32 k = S.dock_hide_k * S.dock_hide_k * (3 - 2 * S.dock_hide_k);
+	f32 drop = roundf(k * (DOCK_ICON + DOCK_BOTTOM + 14));
+	Rect bar = shell_dock_bar(n);
+	shell_surface(rect(bar.x - 120, S.sh - DOCK_ICON - DOCK_BOTTOM - 70, bar.w + 240, DOCK_ICON + DOCK_BOTTOM + 70));
+	if (S.dock_hide_k >= 0.999f && !S.dock_menu[0])
+		return;
+	bar.y += drop;
+	dock_shelf(ui, bar);
 
 	const char *hover_name = NULL;
-	Rect hover_rect = { 0 };
+	Rect hover_rect = { 0 }, menu_anchor = { 0 };
 	for (int i = 0; i < n; i++) {
-		Rect cell = rect(r.x + DOCK_PAD + (f32)i * (DOCK_ICON + DOCK_GAP), r.y + DOCK_PAD, DOCK_ICON, DOCK_ICON);
+		Rect slot = shell_dock_slot(n, i);
+		slot.y += drop;
 		ui_push_id_str(ui, ids[i]);
 		UiId id = ui_id(ui, "dock");
-		UiInteract it = ui_interact(ui, id, rect_inset(cell, -DOCK_GAP / 2, -DOCK_PAD));
-		f32 lift = ui_anim(ui, id, it.hovered ? 1.0f : 0.0f, 16);
+		Rect hit = rect(slot.x - DOCK_SPACING / 2.0f, slot.y - 4, slot.w + DOCK_SPACING, S.sh - slot.y + 4);
+		UiInteract it = ui_interact(ui, id, hit);
+		f32 hover = ui_fade(ui, id, it.hovered && !S.dock_menu[0], 0.15f);
+		/* A launching app bounces until its window appears (or a moment passes). */
 		f32 bounce = 0;
 		if (str_eq(bouncing.id, ids[i])) {
 			f64 bt = S.now - bouncing.started;
 			Window *fw;
-			if (bt > 2.4 || app_window_count(ids[i], &fw) > 0)
+			if (bt > 3.0 || app_window_count(ids[i], &fw) > 0)
 				bouncing.id[0] = 0;
 			else {
-				bounce = fabsf(sinf((f32)bt * 6.0f)) * 14 * maxf(0, 1 - (f32)bt / 2.4f);
+				f32 phase = fmodf((f32)bt, 0.6f) / 0.6f;
+				bounce = sinf(phase * PI_F) * 16;
 				ui->redraw = true;
 			}
 		}
-		Rect ir = rect(cell.x - lift * 2, cell.y - lift * 6 - bounce, cell.w + lift * 4, cell.h + lift * 4);
+		/* Optional magnification as the pointer passes. */
+		f32 grow = 0;
+		if (S.set.dock_magnify && ui_mouse_in(ui, rect(bar.x - 40, slot.y - 30, bar.w + 80, S.sh - slot.y + 30))) {
+			f32 dx = fabsf(ui->mx - (slot.x + slot.w / 2)) / (DOCK_ICON * 2.2f);
+			grow = maxf(0, 1 - dx * dx) * 18;
+			ui->redraw = true;
+		}
+		Rect ir = rect(slot.x - grow / 2, slot.y - grow - bounce + (it.held ? 1 : 0), slot.w + grow, slot.h + grow);
+		/* Hover: a soft light on the shelf under the icon. */
+		if (hover > 0) {
+			Rect d = ui_to_device(ui, rect(slot.x - 6, bar.y, slot.w + 12, bar.h));
+			Paint glow = paint_radial(d.x + d.w / 2, d.y + d.h, d.w * 0.75f,
+						  color_scale_alpha(t->dark ? color_hex("#ffffff40") : color_hex("#ffffffff"), hover),
+						  color_hex("#ffffff00"));
+			fill_rect_paint(ui->canvas, d, &glow);
+		}
 		const AppInfo *a = shell_app(ids[i]);
 		ui_app_icon(ui, ir, a ? a->icon : ids[i]);
+		/* Running indicators: one dot per window, up to three. */
 		Window *first;
 		int count = app_window_count(ids[i], &first);
-		for (int k = 0; k < MIN(count, 3); k++) {
-			f32 dx = ((f32)k - (f32)(MIN(count, 3) - 1) / 2) * 7;
-			ui_circle(ui, cell.x + cell.w / 2 + dx, r.y + r.h - 4, 2.2f, t->dark ? COLOR_WHITE : color_hex("#3d3f45"));
+		bool focused = first && S.focus && str_eq(S.focus->app_id, ids[i]);
+		for (int w = 0; w < MIN(count, 3); w++) {
+			f32 dx = ((f32)w - (f32)(MIN(count, 3) - 1) / 2) * 7;
+			f32 cx = slot.x + slot.w / 2 + dx, cy = S.sh - 3.5f + drop;
+			Color core = focused ? t->accent : (t->dark ? color_hex("#e8e8ea") : color_hex("#3b3d42"));
+			ui_circle(ui, cx, cy, 3.6f, t->dark ? color_hex("#00000060") : color_hex("#ffffffb0"));
+			ui_circle(ui, cx, cy, 2.1f, core);
 		}
-		if (it.hovered) {
+		if (it.hovered && !S.dock_menu[0]) {
 			hover_name = a ? a->name : ids[i];
-			hover_rect = cell;
+			hover_rect = ir;
 		}
-		if (it.clicked) {
+		if (str_eq(S.dock_menu, ids[i]))
+			menu_anchor = slot;
+		if (it.clicked && !S.dock_menu[0]) {
 			if (count == 0) {
 				str_copy(bouncing.id, ids[i], sizeof bouncing.id);
 				bouncing.started = S.now;
@@ -333,14 +433,26 @@ void dock_draw(Ui *ui)
 			}
 			S.launcher_open = false;
 		}
+		if (it.right_clicked && !S.dock_menu[0]) {
+			str_copy(S.dock_menu, ids[i], sizeof S.dock_menu);
+			menu_anchor = slot;
+			dock_menu_opened_frame = ui->frame_no;
+		}
 		ui_pop_id(ui);
 	}
+	if (S.dock_menu[0]) {
+		if (menu_anchor.w == 0)
+			S.dock_menu[0] = 0;
+		else
+			dock_menu_draw(ui, menu_anchor);
+	}
 	if (hover_name) {
-		Font f = ui_font(ui, 12, 600);
-		f32 tw = ui_text_width(ui, f, hover_name) + 20;
-		Rect tip = rect(hover_rect.x + hover_rect.w / 2 - tw / 2, r.y - 40, tw, 26);
-		ui_shadow(ui, tip, 8, 6, 2, color_hex("#00000040"));
-		ui_round(ui, tip, 8, color_hex("#25262bec"));
+		Font f = ui_font(ui, 13, 600);
+		f32 tw = ui_text_width(ui, f, hover_name) + 22;
+		Rect tip = rect(roundf(hover_rect.x + hover_rect.w / 2 - tw / 2), hover_rect.y - 38, tw, 28);
+		ui_shadow(ui, tip, 6, 8, 2, color_hex("#00000040"));
+		ui_round(ui, tip, 6, color_hex("#1e1f22e8"));
+		ui_border(ui, tip, 6, 1, color_hex("#ffffff14"));
 		ui_text_in(ui, f, tip, hover_name, COLOR_WHITE, ALIGN_CENTER);
 	}
 }

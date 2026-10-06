@@ -239,7 +239,7 @@ void cursor_update(void)
 static void draw_software_cursor(Canvas *frame)
 {
 	u32 shape = S.cursor < 16 ? S.cursor : CURSOR_DEFAULT;
-	if (S.cursor == CURSOR_HIDDEN || S.splash)
+	if (S.cursor == CURSOR_HIDDEN || S.splash || S.capturing)
 		return;
 	int x = (int)(S.px * S.scale) - cursor_hot[shape][0], y = (int)(S.py * S.scale) - cursor_hot[shape][1];
 	blit(frame, S.cursor_img[shape], x, y, 1);

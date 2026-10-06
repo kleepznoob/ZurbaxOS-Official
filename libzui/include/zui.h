@@ -140,6 +140,11 @@ typedef struct Ui {
 	char *paste_in;         /* clipboard text that arrived for the focused field */
 	bool quit;
 
+	/* a screenshot that arrived (ui_screenshot_request); the app takes ownership */
+	Canvas *screenshot;
+	bool screenshot_ready;
+	i32 screenshot_status;
+
 	/* replies to requests (ui_account_update) */
 	u32 reply_seq;
 	i32 reply_status;
@@ -340,6 +345,10 @@ void ui_session(Ui *ui, u32 action);
 /* Asks the desktop to change the account; the answer arrives in ui->reply_* with the returned seq. */
 u32 ui_account_update(Ui *ui, u32 flags, const char *full_name, const char *old_password, const char *new_password);
 void ui_clipboard_set(Ui *ui, const char *text);
+void ui_clipboard_set_data(Ui *ui, const char *mime, const void *data, usize len);
+/* Asks the desktop for a screenshot (SCREENSHOT_SCREEN, _WINDOW or _AREA). When it
+ * arrives, ui->screenshot_ready is set and ui->screenshot holds the picture (or NULL). */
+void ui_screenshot_request(Ui *ui, u32 mode);
 const char *ui_user_name(Ui *ui);
 
 /* Renders a frame offscreen (for tests, previews and screenshots). */

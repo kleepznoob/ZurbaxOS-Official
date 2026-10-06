@@ -17,6 +17,13 @@
 #define PANEL_HEIGHT 30
 #define RESIZE_MARGIN 8
 
+/* Dock: icon size, gap between icons, shelf padding and height, icon distance from the bottom edge. */
+#define DOCK_ICON 48
+#define DOCK_SPACING 6
+#define DOCK_PAD 10
+#define DOCK_SHELF 38
+#define DOCK_BOTTOM 8
+
 /* ---- Output backends ---------------------------------------------------------- */
 
 typedef struct Output Output;
@@ -242,6 +249,18 @@ typedef struct {
 	u32 frames_composed;         /* for the frame rate counter */
 	f32 fps;
 	bool gaming;                 /* game mode active: a full-screen window has focus */
+	/* screenshots */
+	bool capturing;              /* composing a frame for a screenshot: no cursor */
+	bool selecting_area;         /* the user is dragging out an area to capture */
+	bool sel_dragging;
+	f32 sel_x0, sel_y0, sel_x1, sel_y1;
+	Client *shot_client;
+	u32 shot_win;
+	/* dock intellihide */
+	bool dock_hide;              /* target: the dock slides away */
+	bool dock_revealed;          /* the pointer touched the bottom edge */
+	f32 dock_hide_k;             /* 0 shown .. 1 hidden */
+	char dock_menu[48];          /* app whose dock menu is open */
 } Server;
 
 extern Server S;
@@ -320,12 +339,18 @@ void shell_notify(const char *app, const char *icon, const char *title, const ch
 void shell_osd(const char *icon, f32 value);
 void shell_lock(void);
 void shell_launch(const char *app_id, const char *arg);
+void shell_launch_new(const char *app_id);
 const AppInfo *shell_app(const char *id);
 Rect shell_dock_icon_rect(const char *app_id);
+int shell_dock_items(char ids[][48], int max);
+Rect shell_dock_bar(int n);
+Rect shell_dock_slot(int n, int i);
 f32 shell_panel_height(void);
 f32 shell_dock_height(void);
 void shell_session_action(u32 action);
 void shell_screenshot(void);
+void screenshot_request(Client *c, u32 win, u32 mode);
+void screenshot_client_gone(Client *c);
 bool shell_check_password(const char *pw);
 
 /* settings.c */

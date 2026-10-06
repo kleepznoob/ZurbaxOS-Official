@@ -167,6 +167,8 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 			}
 			break;
 		case ACTION_RAISE:
+			if (w->minimized)
+				window_minimize(w, false);
 			window_raise(w);
 			window_focus(w);
 			break;
@@ -254,6 +256,10 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 			window_configure(w);
 		}
 		break;
+	case MSG_SCREENSHOT:
+		if (len >= sizeof(MsgScreenshot))
+			screenshot_request(c, h->win, ((const MsgScreenshot *)buf)->mode);
+		break;
 	case MSG_ACCOUNT:
 		if (len >= sizeof(MsgAccount)) {
 			MsgReply r = { .seq = ((const MsgAccount *)buf)->seq };
@@ -274,6 +280,7 @@ done:
 
 void client_disconnect(Client *c)
 {
+	screenshot_client_gone(c);
 	for (int i = S.nwin - 1; i >= 0; i--)
 		if (S.windows[i]->client == c && !S.windows[i]->closing)
 			window_destroy(S.windows[i], true);
