@@ -185,7 +185,7 @@ typedef struct {
 	u32 mode;              /* SCREENSHOT_* */
 } MsgScreenshot;
 
-enum { ACCOUNT_SET_NAME = 1, ACCOUNT_SET_PASSWORD = 2, ACCOUNT_REMOVE_PASSWORD = 4 };
+enum { ACCOUNT_SET_NAME = 1, ACCOUNT_SET_PASSWORD = 2, ACCOUNT_REMOVE_PASSWORD = 4, ACCOUNT_FINISH_SETUP = 8 };
 
 typedef struct {
 	MsgHeader h;

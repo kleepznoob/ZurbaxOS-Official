@@ -324,8 +324,10 @@ static void shell_frame(Ui *ui)
 {
 	if (S.locked || S.lock_k > 0)
 		lockscreen_draw(ui);
-	if (!S.locked) {
-		panel_draw(ui);
+	bool fullscreen = S.focus && (S.focus->states & STATE_FULLSCREEN) && !S.focus->minimized && !S.focus->closing;
+	if (!S.locked && !S.setup_mode) {
+		if (!fullscreen)
+			panel_draw(ui);
 		dock_draw(ui);
 		if (S.launcher_open || S.launcher_k > 0)
 			launcher_draw(ui);
@@ -368,6 +370,16 @@ void shell_init(void)
 	S.brightness = -1;
 	S.battery = -1;
 	S.volume = S.volume ? S.volume : 60;
+	if (!S.set.setup_done) {
+		/* First boot: the setup assistant, full screen, before anything else. */
+		S.setup_mode = true;
+		S.splash_wait_window = true;
+		shell_launch("welcome", "--setup");
+	} else if (S.set.has_password) {
+		/* The lock screen doubles as the login screen. */
+		S.locked = true;
+		S.lock_k = 1;
+	}
 }
 
 /* ---- Rendering --------------------------------------------------------------------
@@ -429,8 +441,11 @@ static bool shell_wants_pointer(void)
 {
 	/* The shell consumes pointer input when it owns a full-screen or docked
 	 * surface the pointer is over, or an overlay is open. */
-	if (S.locked || S.launcher_open || S.notifications_open || S.session_menu_open || S.switcher_open || S.selecting_area ||
-	    S.dock_menu[0])
+	if (S.selecting_area)
+		return true;
+	if (S.setup_mode)
+		return false;
+	if (S.locked || S.launcher_open || S.notifications_open || S.session_menu_open || S.switcher_open || S.dock_menu[0])
 		return true;
 	if (S.py < shell_panel_height())
 		return true;
@@ -529,6 +544,8 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 		return true;
 	}
 	bool pressed = state != KEY_RELEASED;
+	if (S.setup_mode)
+		return false; /* everything goes to the setup assistant */
 	/* Global shortcuts. */
 	if (pressed) {
 		if (code == KEY_LEFTMETA || code == KEY_RIGHTMETA) {

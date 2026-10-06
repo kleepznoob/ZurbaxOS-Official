@@ -158,6 +158,7 @@ typedef struct {
 	bool show_fps;
 	bool mouse_accel;
 	bool alert_sounds;
+	bool setup_done;            /* the first-boot assistant has finished */
 } Settings;
 
 /* ---- Global server state --------------------------------------------------------------- */
@@ -261,6 +262,7 @@ typedef struct {
 	bool dock_revealed;          /* the pointer touched the bottom edge */
 	f32 dock_hide_k;             /* 0 shown .. 1 hidden */
 	char dock_menu[48];          /* app whose dock menu is open */
+	bool setup_mode;             /* first boot: only the setup assistant, no panel or dock */
 } Server;
 
 extern Server S;

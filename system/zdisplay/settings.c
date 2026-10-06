@@ -14,6 +14,7 @@ static void load_account(void)
 	str_copy(S.set.user_name, conf_get(u, "user", "user"), sizeof S.set.user_name);
 	str_copy(S.set.full_name, conf_get(u, "full_name", "Zurbax User"), sizeof S.set.full_name);
 	S.set.uid = (u32)conf_get_int(u, "uid", 1000);
+	S.set.setup_done = conf_get_bool(u, "setup_done", false);
 	S.set.gid = (u32)conf_get_int(u, "gid", 1000);
 	/* The password hash lives apart, readable by root only. */
 	char *spath = str_fmt("%s/system/shadow", zurbax_data());
@@ -198,7 +199,8 @@ int account_update(const MsgAccount *m, char *msg, usize cap)
 {
 	static f64 last_failure;
 	bool pw_change = m->flags & (ACCOUNT_SET_PASSWORD | ACCOUNT_REMOVE_PASSWORD);
-	if (pw_change && S.set.has_password) {
+	/* During first-boot setup there is no password yet to confirm. */
+	if (pw_change && S.set.has_password && S.set.setup_done) {
 		if (now_s() - last_failure < 2.0) {
 			str_copy(msg, "Please wait a moment before trying again.", cap);
 			return -1;
@@ -240,6 +242,12 @@ int account_update(const MsgAccount *m, char *msg, usize cap)
 		S.set.password_hash[0] = 0;
 		S.set.has_password = false;
 	}
+	if (m->flags & ACCOUNT_FINISH_SETUP) {
+		S.set.setup_done = true;
+		S.setup_mode = false;
+		damage_all();
+	}
+	conf_set_bool(c, "setup_done", S.set.setup_done);
 	conf_unset(c, "password");
 	conf_set_bool(c, "has_password", S.set.has_password);
 	conf_set(c, "user", S.set.user_name);
