@@ -462,26 +462,42 @@ static bool mix(i16 *out, u32 out_rate)
 
 /* ---- Main ------------------------------------------------------------------------------------------- */
 
-int main(void)
+int main(int argc, char **argv)
 {
+	/* --null: no sound card, just keep time (testing, or machines without sound). */
+	bool null_out = argc > 1 && str_eq(argv[1], "--null");
+	const char *sock = env_get("ZURBAX_AUDIO_SOCKET");
+	if (!sock)
+		sock = AUDIO_SOCKET;
 	sig_ignore(SIGPIPE);
 	dir_make("/run/zurbax", 0755);
-	sys_unlink(AUDIO_SOCKET);
-	int ls = unix_listen(AUDIO_SOCKET, SOCK_SEQPACKET);
+	sys_unlink(sock);
+	int ls = unix_listen(sock, SOCK_SEQPACKET);
 	if (ls < 0) {
-		log_msg("cannot listen on %s", AUDIO_SOCKET);
+		log_msg("cannot listen on %s", sock);
 		return 1;
 	}
-	sys_chmod(AUDIO_SOCKET, 0666);
+	sys_chmod(sock, 0666);
 	fd_set_nonblock(ls, true);
 	Pcm pcm = { .fd = -1 };
-	u64 next_try = 0, idle_since = 0;
+	u64 next_try = 0, idle_since = 0, null_next = 0;
 	i16 period[PERIOD * 2];
 	for (;;) {
 		u64 now = time_mono_ms();
-		if (pcm.fd < 0 && now >= next_try) {
+		if (!null_out && pcm.fd < 0 && now >= next_try) {
 			if (!pcm_open(&pcm))
 				next_try = now + 5000;
+		}
+		/* No card (or --null): keep time anyway, so players move on rather than hang. */
+		bool keep_time = null_out || pcm.fd < 0;
+		if (keep_time) {
+			/* A pretend card: one period every 10 ms. */
+			if (now >= null_next) {
+				mix(period, AUDIO_RATE);
+				null_next = (null_next ? null_next : now) + 10;
+				if (null_next < now)
+					null_next = now + 10;
+			}
 		}
 		struct pollfd pfd[MAX_CLIENTS + 2];
 		int np = 0;
@@ -512,7 +528,10 @@ int main(void)
 		int first_client = np;
 		for (int i = 0; i < nclients; i++)
 			pfd[np++] = (struct pollfd){ clients[i]->fd, (short)(room(clients[i]) >= 8192 || !clients[i]->ring ? POLLIN : 0), 0 };
-		sys_poll(pfd, (usize)np, pcm.fd < 0 ? 1000 : want_pcm ? 50 : 1000);
+		int wait = pcm.fd < 0 ? 1000 : want_pcm ? 50 : 1000;
+		if (keep_time)
+			wait = (int)MIN(wait, MAX(1, (i64)null_next - (i64)now));
+		sys_poll(pfd, (usize)np, wait);
 		now = time_mono_ms();
 		if (pfd[0].revents & POLLIN) {
 			for (;;) {
