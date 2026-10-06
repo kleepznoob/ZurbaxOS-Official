@@ -216,6 +216,7 @@ typedef struct {
 	const char *find;        /* highlight matches of this text */
 	int find_current;
 	f32 zoom;
+	int sel_a, sel_ao, sel_b, sel_bo;   /* selected text: items and byte offsets, a <= b; sel_a < 0 = none */
 	/* out */
 	int matches;
 	f32 find_y;              /* where the current match is */
@@ -228,3 +229,7 @@ void paint_page(Ui *ui, Page *p, Rect view, f32 scroll, PaintOpts *o);
 Control *page_control(Node *n);
 int select_options(Node *sel, Node **out, int max);
 const Item *page_hit(const Page *p, f32 x, f32 y);
+/* The text item and byte offset nearest a point, for selecting. */
+bool page_text_at(const Page *p, f32 x, f32 y, int *item, int *offset);
+/* The selected text, with line breaks where lines change. */
+char *page_selection(const Page *p, int a, int ao, int b, int bo);

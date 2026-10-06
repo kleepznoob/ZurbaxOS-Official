@@ -303,6 +303,13 @@ void paint_page(Ui *ui, Page *p, Rect view, f32 scroll, PaintOpts *o)
 				if (!visible)
 					break;
 			}
+			if (o->sel_a >= 0 && i >= o->sel_a && i <= o->sel_b) {
+				u32 s0 = i == o->sel_a ? (u32)o->sel_ao : 0, s1 = i == o->sel_b ? (u32)o->sel_bo : it->len;
+				if (s1 > s0) {
+					f32 x0 = text_width(it->font, s, s0), x1 = text_width(it->font, s, s1);
+					ui_fill(ui, rect(r.x + x0 * z, r.y, (x1 - x0) * z, r.h), color_with_alpha(ui->theme.accent, 0x50));
+				}
+			}
 			Font f = it->font;
 			f.size *= z;
 			f32 bl = view.y + (it->baseline - scroll) * z;
@@ -351,4 +358,60 @@ const Item *page_hit(const Page *p, f32 x, f32 y)
 			return it;
 	}
 	return NULL;
+}
+
+bool page_text_at(const Page *p, f32 x, f32 y, int *item, int *offset)
+{
+	int best = -1, above = -1;
+	f32 best_dx = 1e9f, above_y = -1e9f;
+	for (int i = 0; i < p->nitems; i++) {
+		const Item *it = &p->items[i];
+		if (it->kind != ITEM_TEXT)
+			continue;
+		if (y >= it->r.y && y < it->r.y + it->r.h) {
+			f32 dx = x < it->r.x ? it->r.x - x : x > it->r.x + it->r.w ? x - (it->r.x + it->r.w) : 0;
+			if (dx < best_dx) {
+				best_dx = dx;
+				best = i;
+			}
+		} else if (it->r.y + it->r.h <= y && it->r.y >= above_y) {
+			above_y = it->r.y;
+			above = i;
+		}
+	}
+	if (best >= 0) {
+		const Item *it = &p->items[best];
+		*item = best;
+		*offset = (int)text_hit(it->font, p->text + it->text, it->len, x - it->r.x);
+		return true;
+	}
+	if (above >= 0) {
+		*item = above;
+		*offset = (int)p->items[above].len;
+		return true;
+	}
+	return false;
+}
+
+char *page_selection(const Page *p, int a, int ao, int b, int bo)
+{
+	StrBuf sb = { 0 };
+	const Item *prev = NULL;
+	for (int i = a; i <= b && i < p->nitems; i++) {
+		const Item *it = &p->items[i];
+		if (it->kind != ITEM_TEXT)
+			continue;
+		u32 s0 = i == a ? (u32)ao : 0, s1 = i == b ? (u32)bo : it->len;
+		if (s1 <= s0)
+			continue;
+		if (prev) {
+			if (it->r.y >= prev->r.y + prev->r.h * 0.6f || it->r.y + it->r.h <= prev->r.y)
+				sb_addc(&sb, '\n');
+			else if (it->r.x > prev->r.x + prev->r.w + 1)
+				sb_addc(&sb, ' ');
+		}
+		sb_add(&sb, p->text + it->text + s0, s1 - s0);
+		prev = it;
+	}
+	return sb_take(&sb);
 }

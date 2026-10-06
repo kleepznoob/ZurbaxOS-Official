@@ -1041,6 +1041,26 @@ typedef struct {
 
 typedef VEC(Mark) MarkList;
 
+/* Text selection on the current page. */
+static struct {
+	bool on, dragging;
+	int ai, ao, bi, bo;      /* anchor and focus, in page order */
+	f32 px, py;              /* where the press was */
+	const Page *page;
+} SEL;
+
+static void sel_clear(void)
+{
+	SEL.on = SEL.dragging = false;
+}
+
+static void sel_range(int *a, int *ao, int *b, int *bo)
+{
+	bool fwd = SEL.ai < SEL.bi || (SEL.ai == SEL.bi && SEL.ao <= SEL.bo);
+	*a = fwd ? SEL.ai : SEL.bi, *ao = fwd ? SEL.ao : SEL.bo;
+	*b = fwd ? SEL.bi : SEL.ai, *bo = fwd ? SEL.bo : SEL.ao;
+}
+
 static struct {
 	VEC(Tab *) tabs;
 	int cur;
@@ -2085,7 +2105,63 @@ static void draw_page(Ui *ui, Tab *t, Rect view)
 			mem_free(u);
 		}
 	}
-	PaintOpts o = { .hover_link = link, .zoom = z, .find = B.find_open && B.find.len ? sb_str(&B.find) : NULL, .find_current = B.find_cur };
+	/* Selecting text: press and drag (a plain click still follows links). */
+	if (SEL.page != p)
+		sel_clear(), SEL.page = p;
+	if (in.pressed_now) {
+		SEL.px = ui->mx, SEL.py = ui->my;
+		SEL.dragging = false;
+		int it, off;
+		if (ui->click_count >= 2 && page_text_at(p, px, py, &it, &off)) {
+			/* a double click takes the word */
+			const char *s = p->text + p->items[it].text;
+			int len = (int)p->items[it].len, a = off, b = off;
+			while (a > 0 && (is_alnum(s[a - 1]) || (u8)s[a - 1] >= 0x80 || s[a - 1] == '\'' || s[a - 1] == '-'))
+				a--;
+			while (b < len && (is_alnum(s[b]) || (u8)s[b] >= 0x80 || s[b] == '\'' || s[b] == '-'))
+				b++;
+			SEL.on = b > a;
+			SEL.ai = SEL.bi = it, SEL.ao = a, SEL.bo = b;
+		} else {
+			sel_clear();
+		}
+	}
+	if (in.held && !SEL.dragging && ui->click_count < 2 && (fabsf(ui->mx - SEL.px) > 4 || fabsf(ui->my - SEL.py) > 4)) {
+		int it, off;
+		if (page_text_at(p, (SEL.px - view.x) / z, (SEL.py - view.y) / z + t->scroll, &it, &off)) {
+			SEL.dragging = SEL.on = true;
+			SEL.ai = SEL.bi = it, SEL.ao = SEL.bo = off;
+		}
+	}
+	if (SEL.dragging && in.held) {
+		int it, off;
+		if (page_text_at(p, px, py, &it, &off))
+			SEL.bi = it, SEL.bo = off;
+		/* drag past the edges to scroll */
+		if (ui->my > view.y + view.h - 20)
+			t->scroll = t->target = minf(maxs, t->scroll + 12 / z), ui->redraw = true;
+		else if (ui->my < view.y + 20)
+			t->scroll = t->target = maxf(0, t->scroll - 12 / z), ui->redraw = true;
+		ui_set_cursor(ui, CURSOR_TEXT);
+	}
+	bool was_drag = SEL.dragging;
+	if (!in.held)
+		SEL.dragging = false;
+	if ((ui_key_pressed(ui, KEY_A, MOD_CTRL)) && !ui->focus) {
+		SEL.on = true;
+		SEL.ai = 0, SEL.ao = 0, SEL.bi = p->nitems - 1, SEL.bo = p->nitems ? (int)p->items[p->nitems - 1].len : 0;
+	}
+	if (SEL.on && ui_key_pressed(ui, KEY_C, MOD_CTRL)) {
+		int a, ao, b, bo;
+		sel_range(&a, &ao, &b, &bo);
+		char *text = page_selection(p, a, ao, b, bo);
+		if (*text)
+			ui_clipboard_set(ui, text);
+		mem_free(text);
+	}
+	PaintOpts o = { .hover_link = link, .zoom = z, .find = B.find_open && B.find.len ? sb_str(&B.find) : NULL, .find_current = B.find_cur, .sel_a = -1 };
+	if (SEL.on)
+		sel_range(&o.sel_a, &o.sel_ao, &o.sel_b, &o.sel_bo);
 	paint_page(ui, p, view, t->scroll, &o);
 	if (o.find && o.matches != B.find_matches) {
 		B.find_matches = o.matches;
@@ -2109,7 +2185,7 @@ static void draw_page(Ui *ui, Tab *t, Rect view)
 					   !str_eq_nocase(node_attr(o.submit, "type"), "search") ? o.submit : NULL, false);
 		return;
 	}
-	if (link && (in.clicked || (in.hovered && ui->released[BUTTON_MIDDLE]))) {
+	if (link && ((in.clicked && !was_drag && ui->click_count < 2) || (in.hovered && ui->released[BUTTON_MIDDLE]))) {
 		bool bg = ui->released[BUTTON_MIDDLE] || (ui->mods & MOD_CTRL);
 		follow(ui, t, link, bg);
 		return;

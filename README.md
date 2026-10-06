@@ -45,10 +45,14 @@ boot menu. It takes about a minute.
 
 | App | What it is |
 |-----|------------|
+| Drift | Web browser with its own HTML and CSS engine: tabs, bookmarks, history, search, forms, find, zoom |
+| Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
+| Camera | Photos from the webcam, with looks and a timer |
+| Help | A searchable guide to Zurbax |
 | Arcade | Blocks, Snake, 2048, Mines and Breakout, with best scores |
 | Music | Albums, songs and artists from your Music folder (FLAC, Ogg Vorbis, WAV) |
 | Weather | Live forecasts with an hourly strip, the week and details |
-| Photos | Viewer for PNG, JPEG and BMP |
+| Photos | Viewer for PNG, JPEG, GIF and BMP |
 | Vault | Files, with thumbnails |
 | Forge | Terminal running the Flint shell, with `sudo` |
 | Writer | Text editor |
@@ -104,10 +108,12 @@ artifact).
 
 - **Wi-Fi.** Wired networking works, but Wi-Fi needs the WPA2 handshake
   and the chips' firmware files.
-- **Web browser, Mail and app store.** Drift, Mail and Harbor are next.
+- **Mail and app store.** Mail and Harbor are next.
+- **JavaScript.** Drift shows pages as their HTML and CSS describe them;
+  sites that only work through scripts (web apps, most video sites) don't.
+  WebP pictures don't show yet.
 - **MP3 and AAC playback.** These need the formats' large fixed tables;
   FLAC, Ogg Vorbis and WAV play.
-- **Camera, Dashboard and Help** aren't written yet.
 - **3D graphics.** The desktop is drawn in software and works on any GPU
   through the firmware's framebuffer. Hardware-accelerated 3D for big
   games would need GPU drivers in user space, which Zurbax doesn't have.
