@@ -249,7 +249,7 @@ __asm__(".text\n"
 
 int thread_spawn(void (*fn)(void *), void *arg)
 {
-	const usize size = 512 * 1024;
+	const usize size = 8u << 20; /* reserved, not committed: deep recursion is fine */
 	u8 *stack = sys_mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
 	if ((unsigned long)stack > -4096ul)
 		return (int)(long)stack;

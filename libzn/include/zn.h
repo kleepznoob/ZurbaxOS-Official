@@ -180,6 +180,13 @@ typedef struct {
 	/* called as data arrives; total is 0 when unknown */
 	void (*progress)(void *user, usize got, usize total);
 	void *user;
+	/* For every hop, redirects included: extra request headers (allocated
+	 * "Name: value\r\n" lines, or NULL), and what came back. Browsers keep
+	 * cookies with these. */
+	char *(*hop_headers)(void *user, const char *url);
+	void (*hop_response)(void *user, const char *url, int status, const char *headers);
+	const char *user_agent;  /* default "Zurbax/1.0" */
+	const char *accept;      /* default any type */
 } HttpOptions;
 
 HttpResponse *http_request(const char *url, const HttpOptions *opts); /* never NULL */

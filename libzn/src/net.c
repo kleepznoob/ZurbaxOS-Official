@@ -599,7 +599,14 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 		sb_fmt(&req, "%s %s HTTP/1.1\r\nHost: %s", o.method, u.path, u.host);
 		if (!default_port)
 			sb_fmt(&req, ":%u", u.port);
-		sb_adds(&req, "\r\nUser-Agent: Zurbax/1.0\r\nAccept: */*\r\nAccept-Encoding: gzip\r\nConnection: close\r\n");
+		sb_fmt(&req, "\r\nUser-Agent: %s\r\nAccept: %s\r\nAccept-Encoding: gzip\r\nConnection: close\r\n",
+		       o.user_agent ? o.user_agent : "Zurbax/1.0", o.accept ? o.accept : "*/*");
+		if (o.hop_headers) {
+			char *extra = o.hop_headers(o.user, r->final_url);
+			if (extra)
+				sb_adds(&req, extra);
+			mem_free(extra);
+		}
 		if (o.body)
 			sb_fmt(&req, "Content-Length: %llu\r\n", (unsigned long long)o.body_len);
 		if (o.headers)
@@ -624,13 +631,15 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 		sb_free(&line);
 		mem_free(r->headers);
 		r->headers = headers.data ? sb_take(&headers) : str_dup("");
+		if (o.hop_response)
+			o.hop_response(o.user, r->final_url, status, r->headers);
 		char value[2048];
 		if (status >= 300 && status < 400 && status != 304 && http_header(r, "Location", value, sizeof value)) {
 			char *next = url_resolve(r->final_url, value);
 			str_copy(r->final_url, next, sizeof r->final_url);
 			mem_free(next);
 			conn_close(&c);
-			if (status == 303)
+			if (status == 303 || ((status == 301 || status == 302) && str_eq(o.method, "POST")))
 				o.method = "GET", o.body = NULL;
 			continue;
 		}
