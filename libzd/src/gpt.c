@@ -118,6 +118,16 @@ bool gpt_write(int fd, u64 disk_sectors, const GptPart *parts, int n, const u8 d
 {
 	if (n > ENTRIES || disk_sectors < 2 * (2 + ENTRY_SECTORS) + 64)
 		return false;
+	/* Explicit slots first, so automatic ones don't take them. */
+	GptPart *sorted = NEW_ARRAY(GptPart, MAX(n, 1));
+	int k = 0;
+	for (int i = 0; i < n; i++)
+		if (parts[i].slot)
+			sorted[k++] = parts[i];
+	for (int i = 0; i < n; i++)
+		if (!parts[i].slot)
+			sorted[k++] = parts[i];
+	parts = sorted;
 	/* Protective MBR: one partition of type EE covering the disk. */
 	u8 mbr[SECTOR] = { 0 };
 	u8 *pe = mbr + 446;
@@ -129,8 +139,18 @@ bool gpt_write(int fd, u64 disk_sectors, const GptPart *parts, int n, const u8 d
 	mbr[510] = 0x55, mbr[511] = 0xaa;
 	/* Partition entries. */
 	u8 *entries = mem_zalloc(ENTRIES * ENTRY_SIZE);
+	static const u8 unused[16];
 	for (int i = 0; i < n; i++) {
-		u8 *e = entries + i * ENTRY_SIZE;
+		int slot = (int)parts[i].slot - 1;
+		if (slot < 0)
+			for (slot = 0; slot < ENTRIES && memcmp(entries + slot * ENTRY_SIZE, unused, 16) != 0; slot++)
+				;
+		if (slot >= ENTRIES || memcmp(entries + slot * ENTRY_SIZE, unused, 16) != 0) {
+			mem_free(entries);
+			mem_free(sorted);
+			return false;
+		}
+		u8 *e = entries + slot * ENTRY_SIZE;
 		memcpy(e, parts[i].type, 16);
 		memcpy(e + 16, parts[i].guid, 16);
 		put64(e + 32, parts[i].first_lba);
@@ -147,6 +167,7 @@ bool gpt_write(int fd, u64 disk_sectors, const GptPart *parts, int n, const u8 d
 	bool ok = write_at(fd, 0, mbr, SECTOR) && write_at(fd, 1, primary, SECTOR) && write_at(fd, 2, entries, ENTRIES * ENTRY_SIZE) &&
 		  write_at(fd, last - ENTRY_SECTORS, entries, ENTRIES * ENTRY_SIZE) && write_at(fd, last, backup, SECTOR);
 	mem_free(entries);
+	mem_free(sorted);
 	return ok;
 }
 
@@ -181,6 +202,7 @@ int gpt_read(int fd, u64 disk_sectors, GptPart *parts, int max, u8 disk_guid[16]
 		if (memcmp(e, zero, 16) == 0)
 			continue;
 		GptPart *p = &parts[n++];
+		p->slot = i + 1;
 		memcpy(p->type, e, 16);
 		memcpy(p->guid, e + 16, 16);
 		p->first_lba = get64(e + 32);
@@ -192,4 +214,32 @@ int gpt_read(int fd, u64 disk_sectors, GptPart *parts, int max, u8 disk_guid[16]
 	}
 	mem_free(entries);
 	return n;
+}
+
+u64 gpt_largest_gap(u64 disk_sectors, const GptPart *parts, int n, u64 *first, u64 *last)
+{
+	const u64 align = 2048; /* 1 MiB */
+	u64 best = 0, lo = gpt_first_usable(), end = gpt_last_usable(disk_sectors);
+	/* Walk the free stretches in disk order. */
+	for (;;) {
+		u64 next = end + 1;
+		for (int i = 0; i < n; i++)
+			if (parts[i].first_lba >= lo && parts[i].first_lba < next)
+				next = parts[i].first_lba;
+		u64 a = (lo + align - 1) / align * align, b = next > 0 ? next - 1 : 0;
+		if (b >= a && b - a + 1 > best) {
+			best = b - a + 1;
+			*first = a;
+			*last = b;
+		}
+		if (next > end)
+			break;
+		/* Skip past every partition that starts here (and anything it overlaps). */
+		u64 after = next;
+		for (int i = 0; i < n; i++)
+			if (parts[i].first_lba <= after && parts[i].last_lba >= after)
+				after = parts[i].last_lba;
+		lo = after + 1;
+	}
+	return best;
 }

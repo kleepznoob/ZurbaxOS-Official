@@ -90,8 +90,8 @@ static int make_cpio(const char *out)
 	}
 	for (usize i = 0; i < bins.len; i++) {
 		char *s = path_join("build/bin", bins.data[i].name), *d = path_join("system/bin", bins.data[i].name);
-		/* sudo checks the password itself and needs to become root to run the command. */
-		add_host_file(s, d, str_eq(bins.data[i].name, "sudo") ? 04755 : 0755);
+		/* sudo checks the password itself; zinstall works only in the live session. */
+		add_host_file(s, d, (str_eq(bins.data[i].name, "sudo") || str_eq(bins.data[i].name, "zinstall")) ? 04755 : 0755);
 		mem_free(s);
 		mem_free(d);
 	}

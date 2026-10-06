@@ -18,6 +18,7 @@ typedef struct {
 	u64 first_lba, last_lba;  /* inclusive */
 	u64 attrs;
 	char name[37];             /* ASCII; stored as UTF-16 */
+	u32 slot;                  /* entry number in the table from 1, or 0 for the first free one */
 } GptPart;
 
 extern const u8 GPT_TYPE_ESP[16];
@@ -28,11 +29,14 @@ void guid_random(u8 out[16]);
 void guid_format(const u8 g[16], char out[37]);
 /* Writes a protective MBR, the primary and the backup GPT. */
 bool gpt_write(int fd, u64 disk_sectors, const GptPart *parts, int n, const u8 disk_guid[16]);
-/* Reads the primary GPT. Returns the number of partitions, or -1 if there is none. */
+/* Reads the primary GPT (each partition keeps its slot, so rewriting the
+ * table keeps partition numbers). Returns the number of partitions, or -1. */
 int gpt_read(int fd, u64 disk_sectors, GptPart *parts, int max, u8 disk_guid[16]);
 /* The first usable and last usable sector of a GPT disk. */
 u64 gpt_first_usable(void);
 u64 gpt_last_usable(u64 disk_sectors);
+/* The largest free, 1 MiB-aligned stretch of a GPT disk: [*first, *last]. Returns its size in sectors. */
+u64 gpt_largest_gap(u64 disk_sectors, const GptPart *parts, int n, u64 *first, u64 *last);
 
 /* ---- FAT32 -------------------------------------------------------------------------- */
 
