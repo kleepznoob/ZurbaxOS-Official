@@ -46,6 +46,7 @@ boot menu. It takes about a minute.
 | App | What it is |
 |-----|------------|
 | Drift | Web browser with its own HTML and CSS engine: tabs, bookmarks, history, search, forms, find, zoom |
+| Harbor | App store: install, update and remove apps from the built-in source or signed web sources |
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
 | Help | A searchable guide to Zurbax |
@@ -62,6 +63,10 @@ boot menu. It takes about a minute.
 | Screenshot | Capture the screen, a window or an area |
 | Settings | Appearance, wallpaper, display, sound, network, keyboard, mouse, power, users, about |
 | Welcome, Installer | Setup and installation |
+
+**In Harbor** (installed when you want them): Chess, with a computer
+opponent from Easy to Expert; Sudoku, with fresh puzzles that each have one
+solution; and Paint, for sketching and marking up pictures.
 
 **Under the hood**
 - **TLS 1.3** with certificate checks against Mozilla's root list.
@@ -92,23 +97,24 @@ artifact).
 | Path | What it is |
 |------|------------|
 | `libzr/` | The runtime: syscalls, memory, strings, files, time zones, processes, events, JSON, SHA-256 |
-| `libzg/` | Graphics: rasterizer, gradients, blur, PNG/JPEG/BMP, SVG icons, the font |
+| `libzg/` | Graphics: rasterizer, gradients, blur, PNG/JPEG/GIF/BMP, SVG icons, the font |
 | `libzui/` | The toolkit: widgets, layout, text editing, dialogs, sound client |
 | `libzn/` | Networking: crypto, X.509, TLS 1.3, DNS, HTTP |
 | `libza/` | Audio files: WAV, FLAC, Ogg Vorbis, tags and cover art |
 | `libzd/` | Disks: GPT, FAT32, ext4, cpio |
-| `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, the Flint shell, sudo, fetch, play |
+| `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, harborctl, the Flint shell, sudo, fetch, play |
 | `apps/` | The apps |
+| `store/` | Apps offered in Harbor, packaged by `mkimage repo` |
 | `kernel/` | Kernel configuration and build script |
 | `tools/` | Image builder, QEMU test drivers, development helpers |
-| `data/` | Icons, wallpaper, trusted root certificates |
+| `data/` | Icons, wallpaper, trusted root certificates, Harbor's trusted keys |
 | `tests/` | Test suites and fixtures |
 
 ## Not there yet
 
 - **Wi-Fi.** Wired networking works, but Wi-Fi needs the WPA2 handshake
   and the chips' firmware files.
-- **Mail and app store.** Mail and Harbor are next.
+- **Mail.** It's next.
 - **JavaScript.** Drift shows pages as their HTML and CSS describe them;
   sites that only work through scripts (web apps, most video sites) don't.
   WebP pictures don't show yet.

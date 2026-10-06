@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="pal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3d9a8"/>
+      <stop offset="1" stop-color="#d9b06d"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e2533d"/>
+      <stop offset="1" stop-color="#b8342a"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 14 C34 14 12 34 12 60 C12 86 32 104 54 104 C64 104 66 96 62 88 C58 80 64 74 72 76 L86 79 C104 82 116 72 116 56 C116 32 92 14 64 14 Z" fill="url(#pal)" stroke="#9c7637" stroke-width="2.5"/>
+  <circle cx="40" cy="44" r="9" fill="#2f7fd1"/>
+  <circle cx="64" cy="34" r="9" fill="#2fae6b"/>
+  <circle cx="88" cy="42" r="9" fill="#f2c31f"/>
+  <circle cx="34" cy="70" r="9" fill="#d1386b"/>
+  <circle cx="96" cy="60" r="6" fill="#ffffff" stroke="#9c7637" stroke-width="2"/>
+  <path d="M74 112 L98 64 L106 68 L82 116 Z" fill="url(#handle)" stroke="#7b2219" stroke-width="2"/>
+  <path d="M98 64 L108 44 Q111 38 116 42 Q118 46 114 52 L106 68 Z" fill="#cfd6de" stroke="#6b7480" stroke-width="2"/>
+  <path d="M112 41 Q116 32 121 34 Q122 40 115 46 Z" fill="#2f7fd1"/>
+</svg>
