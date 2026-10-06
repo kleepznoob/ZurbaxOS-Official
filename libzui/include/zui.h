@@ -16,6 +16,7 @@
 #include "zg.h"
 #include "zui/proto.h"
 #include "zui/keys.h"
+#include "zui/audio.h"
 
 /* ---- Theme -------------------------------------------------------------------- */
 

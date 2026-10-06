@@ -18,7 +18,7 @@ CFLAGS  := -std=gnu11 $(OPT) -g0 -Wall -Wextra -Wno-unused-parameter -Wno-missin
            -ffreestanding -fno-stack-protector -fno-pie -fno-plt -fno-math-errno \
            -fno-asynchronous-unwind-tables -fno-ident -ffunction-sections -fdata-sections \
            -march=x86-64-v2 -mtune=generic \
-           -Ilibzr/include -Ilibzg/include -Ilibzg/src -Ilibzui/include -Ilibzd/include -Ilibzn/include
+           -Ilibzr/include -Ilibzg/include -Ilibzg/src -Ilibzui/include -Ilibzd/include -Ilibzn/include -Ilibza/include
 LDFLAGS := -nostdlib -static -no-pie -Wl,--gc-sections -Wl,--build-id=none -s
 LDLIBS  := -lgcc
 
@@ -42,7 +42,7 @@ $(OUT)/obj/%.o: %.c
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 # Link order: higher-level libraries first.
-LINK_LIBS := $(foreach l,zui zd zn zg zr,$(if $(filter $(l),$(LIBNAMES)),$(OUT)/lib/lib$(l).a))
+LINK_LIBS := $(foreach l,zui zd zn za zg zr,$(if $(filter $(l),$(LIBNAMES)),$(OUT)/lib/lib$(l).a))
 
 # ---- Programs: system/<name>/, apps/<name>/ and tools/<name>/ ----------------
 SYSTEM := $(notdir $(wildcard system/*))

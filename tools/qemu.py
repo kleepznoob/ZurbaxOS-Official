@@ -14,6 +14,7 @@ SCRIPT steps:
 
 --stick attaches an image as a removable USB stick; --disk as an internal
 virtio disk. --vars keeps the firmware variables (boot entries) in FILE.
+--audio-wav FILE adds an Intel HDA sound card whose output is recorded to FILE.
 """
 import json, os, shutil, socket, subprocess, sys, time
 
@@ -73,7 +74,7 @@ QCODES = {" ": "spc", "-": "minus", ".": "dot", ",": "comma", "/": "slash", "@":
 def main():
     args = sys.argv[1:]
     out = args.pop(0)
-    stick = disk = vars_file = None
+    stick = disk = vars_file = audio_wav = None
     debug = False
     while args and args[0].startswith("--"):
         opt = args.pop(0)
@@ -85,6 +86,8 @@ def main():
             vars_file = args.pop(0)
         elif opt == "--debug":
             debug = True
+        elif opt == "--audio-wav":
+            audio_wav = args.pop(0)
     os.makedirs(out, exist_ok=True)
     if not vars_file:
         vars_file = os.path.join(out, "vars.fd")
@@ -106,6 +109,8 @@ def main():
                 "-device", "usb-storage,bus=xhci.0,drive=stick,removable=on,bootindex=1"]
     if disk:
         cmd += ["-drive", f"if=none,id=disk,format=raw,file={disk}", "-device", "virtio-blk-pci,drive=disk,bootindex=2"]
+    if audio_wav:
+        cmd += ["-audiodev", f"wav,id=snd,path={audio_wav}", "-device", "intel-hda", "-device", "hda-duplex,audiodev=snd"]
     if debug:
         cmd += ["-kernel", "build/kernel/arch/x86/boot/bzImage", "-append", "console=ttyS0 loglevel=7 zurbax.debug"]
     proc = subprocess.Popen(cmd)
