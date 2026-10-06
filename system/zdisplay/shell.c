@@ -57,6 +57,9 @@ void shell_reload_apps(void)
 			str_copy(a->opens, conf_get(c, "opens", ""), sizeof a->opens);
 			fmt(a->exec, sizeof a->exec, "%s/%s/%s", dirs[d], e->name, conf_get(c, "exec", e->name));
 			a->hidden = conf_get_bool(c, "hidden", false);
+			/* The installer only makes sense when running from the install stick. */
+			if (conf_get_bool(c, "live_only", false) && !file_exists("/run/zurbax-live"))
+				a->hidden = true;
 			conf_free(c);
 			if (!a->hidden)
 				S.napps++;
@@ -549,10 +552,22 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 	bool pressed = state != KEY_RELEASED;
 	if (S.setup_mode)
 		return false; /* everything goes to the setup assistant */
-	/* Global shortcuts. */
+	/* Global shortcuts. Tapping Super alone opens Applications, like elementary. */
+	static bool super_alone;
+	if (state == KEY_RELEASED && (code == KEY_LEFTMETA || code == KEY_RIGHTMETA)) {
+		bool tap = super_alone;
+		super_alone = false;
+		if (tap) {
+			S.launcher_open = !S.launcher_open;
+			shell_mark_dirty();
+			return true;
+		}
+	}
 	if (pressed) {
-		if (code == KEY_LEFTMETA || code == KEY_RIGHTMETA) {
-			/* Tap Super to toggle the launcher (handled on release elsewhere). */
+		super_alone = (code == KEY_LEFTMETA || code == KEY_RIGHTMETA) && state == KEY_PRESSED;
+		if ((mods & MOD_ALT) && code == KEY_F4 && S.focus) {
+			window_close_request(S.focus);
+			return true;
 		}
 		if ((mods & MOD_SUPER) && code == KEY_SPACE) {
 			S.launcher_open = !S.launcher_open;
