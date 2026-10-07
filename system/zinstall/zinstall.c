@@ -548,6 +548,46 @@ static void install_erase(Disk *d, int fd, const u8 *sys, usize sys_len)
 	add_boot_entry(1, parts[0].first_lba, parts[0].last_lba - parts[0].first_lba + 1, parts[0].guid);
 }
 
+/* Puts the system in the disk's existing EFI system partition (shared with
+ * Windows, often only 100 MB). Checked before anything on the disk changes:
+ * the space free plus an older ZOS being replaced must hold the new one. */
+static void copy_to_esp(Disk *d, u32 slot, const u8 *sys, usize sys_len)
+{
+	char espdev[48] = { 0 };
+	for (int i = 0; i < d->nparts; i++)
+		if (d->parts[i].number == slot)
+			fmt(espdev, sizeof espdev, "/dev/%s", d->parts[i].name);
+	if (!espdev[0])
+		fail("The EFI system partition couldn't be found.");
+	dir_make(WORK "/esp", 0700);
+	if (sys_mount(espdev, WORK "/esp", "vfat", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) < 0)
+		fail("The EFI system partition couldn't be opened.");
+	struct statfs fs;
+	u64 room = sys_statfs(WORK "/esp", &fs) == 0 ? fs.f_bavail * (u64)fs.f_bsize : 0;
+	struct stat old;
+	u64 old_size = sys_stat(WORK "/esp/EFI/ZURBAX/ZURBAX.EFI", &old) == 0 ? (u64)old.st_size : 0;
+	u64 need = (u64)sys_len + (1u << 20);
+	if (room + old_size < need) {
+		sys_umount(WORK "/esp", 0);
+		char msg[256];
+		fmt(msg, sizeof msg,
+		    "The EFI system partition has %llu MB free, and ZOS needs %llu MB there. "
+		    "Nothing on the disk was changed. Installing by erasing the disk gives ZOS its own.",
+		    (unsigned long long)((room + old_size) >> 20), (unsigned long long)(need >> 20));
+		fail(msg);
+	}
+	/* short of room for both copies at once: the old one goes first */
+	if (room < need)
+		sys_unlink(WORK "/esp/EFI/ZURBAX/ZURBAX.EFI");
+	dir_make(WORK "/esp/EFI/ZURBAX", 0755);
+	bool ok = file_write(WORK "/esp/EFI/ZURBAX/ZURBAX.EFI.new", sys, sys_len) &&
+		  sys_rename(WORK "/esp/EFI/ZURBAX/ZURBAX.EFI.new", WORK "/esp/EFI/ZURBAX/ZURBAX.EFI") == 0;
+	sys_sync();
+	sys_umount(WORK "/esp", 0);
+	if (!ok)
+		fail("There isn't enough room in the EFI system partition.");
+}
+
 static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 {
 	u64 sectors = d->bytes / SECTOR;
@@ -566,6 +606,8 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 	}
 	if (esp < 0)
 		fail("This disk has no EFI system partition to start ZOS from.");
+	step(0.12f, "Copying " OS_NAME);
+	copy_to_esp(d, parts[esp].slot, sys, sys_len);
 	if (data < 0) {
 		/* A new partition in the largest free space. */
 		u64 a, b;
@@ -580,31 +622,13 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 		p->last_lba = (b + 1) / 2048 * 2048 - 1;
 		str_copy(p->name, "ZURBAX-DATA", sizeof p->name);
 		data = n++;
-		step(0.15f, "Creating a partition");
+		step(0.45f, "Creating a partition");
 		if (!gpt_write(fd, sectors, parts, n, disk_guid))
 			fail("The partition table couldn't be written.");
 		sys_fsync(fd);
 		/* The kernel learns about the new partition; the others aren't in use. */
 		sys_ioctl(fd, BLKRRPART, NULL);
 	}
-
-	step(0.25f, "Copying " OS_NAME);
-	char espdev[48] = { 0 };
-	for (int i = 0; i < d->nparts; i++)
-		if (d->parts[i].number == parts[esp].slot)
-			fmt(espdev, sizeof espdev, "/dev/%s", d->parts[i].name);
-	if (!espdev[0])
-		fail("The EFI system partition couldn't be found.");
-	dir_make(WORK "/esp", 0700);
-	if (sys_mount(espdev, WORK "/esp", "vfat", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) < 0)
-		fail("The EFI system partition couldn't be opened.");
-	dir_make(WORK "/esp/EFI/ZURBAX", 0755);
-	bool ok = file_write(WORK "/esp/EFI/ZURBAX/ZURBAX.EFI.new", sys, sys_len) &&
-		  sys_rename(WORK "/esp/EFI/ZURBAX/ZURBAX.EFI.new", WORK "/esp/EFI/ZURBAX/ZURBAX.EFI") == 0;
-	sys_sync();
-	sys_umount(WORK "/esp", 0);
-	if (!ok)
-		fail("There isn't enough room in the EFI system partition.");
 
 	step(0.55f, "Preparing storage for your files");
 	u8 uuid[16];
