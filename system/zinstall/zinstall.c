@@ -257,32 +257,58 @@ static int cmd_disks(void)
 
 /* ---- The system image ------------------------------------------------------------------- */
 
-/* Reads the bootable EFI file from the install stick's partition. */
+/* Mounts dev read-only and reads the first of paths that exists; with a
+ * marker, only from a file system that has it. */
+static u8 *read_from(const char *dev, const char *fs, const char *marker, const char *const *paths, usize *len)
+{
+	dir_make(WORK "/medium", 0700);
+	long r = sys_mount(dev, WORK "/medium", fs, MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (r < 0)
+		return NULL;
+	u8 *data = NULL;
+	char *m = marker ? path_join(WORK "/medium", marker) : NULL;
+	if (!m || file_exists(m))
+		for (int i = 0; paths[i] && !data; i++) {
+			char *p = path_join(WORK "/medium", paths[i]);
+			data = (u8 *)file_read(p, len);
+			mem_free(p);
+		}
+	mem_free(m);
+	sys_umount(WORK "/medium", MNT_DETACH);
+	return data;
+}
+
+/* Reads the bootable EFI file from what ZOS started from: the install stick
+ * (or the ISO written to one), a disc, or a stick the ISO's files were
+ * copied onto. */
 static u8 *read_system(usize *len)
 {
+	static const char *const efi[] = { "EFI/BOOT/BOOTX64.EFI", NULL };
+	/* a disc shows its ISO 9660 names in lower case */
+	static const char *const disc[] = { "efi/boot/bootx64.efi", NULL };
 	DirList list = { 0 };
 	dir_list("/sys/class/block", &list, false);
-	char found[40] = { 0 };
-	for (usize i = 0; i < list.len && !found[0]; i++) {
-		char *f = str_fmt("/sys/class/block/%s/uevent", list.data[i].name);
-		char *ue = file_read(f, NULL);
-		mem_free(f);
-		char name[40];
-		if (ue && str_eq(uevent_value(ue, "PARTNAME", name, sizeof name), "ZURBAX-INSTALL"))
-			str_copy(found, list.data[i].name, sizeof found);
-		mem_free(ue);
-	}
+	u8 *data = NULL;
+	for (int pass = 0; pass < 3 && !data; pass++)
+		for (usize i = 0; i < list.len && !data; i++) {
+			const char *name = list.data[i].name;
+			char *f = str_fmt("/sys/class/block/%s/uevent", name);
+			char *ue = file_read(f, NULL);
+			mem_free(f);
+			char part[40] = "", type[16] = "";
+			uevent_value(ue, "PARTNAME", part, sizeof part);
+			uevent_value(ue, "DEVTYPE", type, sizeof type);
+			mem_free(ue);
+			char *dev = str_fmt("/dev/%s", name);
+			if (pass == 0 && str_eq(part, "ZURBAX-INSTALL"))
+				data = read_from(dev, "vfat", NULL, efi, len);
+			else if (pass == 1 && str_starts(name, "sr"))
+				data = read_from(dev, "iso9660", "zos.txt", disc, len); /* not some other system's disc */
+			else if (pass == 2 && str_eq(type, "partition"))
+				data = read_from(dev, "vfat", "ZOS.TXT", efi, len);
+			mem_free(dev);
+		}
 	dir_list_free(&list);
-	if (!found[0])
-		return NULL;
-	dir_make(WORK "/medium", 0700);
-	char *dev = str_fmt("/dev/%s", found);
-	long r = sys_mount(dev, WORK "/medium", "vfat", MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
-	mem_free(dev);
-	if (r < 0 && r != -EBUSY)
-		return NULL;
-	u8 *data = (u8 *)file_read(WORK "/medium/EFI/BOOT/BOOTX64.EFI", len);
-	sys_umount(WORK "/medium", MNT_DETACH);
 	return data;
 }
 
@@ -602,11 +628,11 @@ static int cmd_install(const char *name, const char *mode)
 		fail("That disk isn't connected any more.");
 	if (d.boot_medium)
 		fail("ZOS can't be installed on the stick it's running from.");
-	step(0.02f, "Reading the install stick");
+	step(0.02f, "Reading the install media");
 	usize sys_len;
 	u8 *sys = read_system(&sys_len);
 	if (!sys || sys_len < (1u << 20))
-		fail("The install stick couldn't be read. Make sure it's still plugged in.");
+		fail("The USB stick or disc " OS_NAME " started from couldn't be read. Make sure it's still there.");
 	/* Exclusive: fails if anything on the disk is in use. */
 	int fd = open_disk(&d, O_RDWR | O_EXCL);
 	if (fd < 0)
@@ -635,7 +661,7 @@ int main(int argc, char **argv)
 	/* Only in the live session, which only process 1 can mark. */
 	struct stat st;
 	if (sys_stat("/run/zurbax-live", &st) < 0 || st.st_uid != 0) {
-		say("error ZOS can only be installed while running from the install stick.");
+		say("error ZOS can only be installed while running from the install media.");
 		return 1;
 	}
 	if (sys_setresgid(0, 0, 0) < 0 || sys_setresuid(0, 0, 0) < 0) {

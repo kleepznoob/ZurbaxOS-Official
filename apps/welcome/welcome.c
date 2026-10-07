@@ -4,7 +4,7 @@
  * Keyboard, Wi-Fi (when there's no cable), time zone, an account and a look,
  * one page each, over the blurred wallpaper. Every step can be skipped: without an account Zurbax
  * simply starts with a user that has no password. Booted from the install
- * USB stick it offers to try Zurbax or install it.
+ * USB stick or disc it offers to try ZOS or install it.
  */
 #include "zui.h"
 
@@ -15,7 +15,7 @@ static const char *const LAYOUT_TITLES[] = { "English (US)", "English (UK)", "Ro
 
 typedef struct {
 	bool setup;           /* first boot, full screen */
-	bool live;            /* running from the install stick */
+	bool live;            /* running from the install stick or disc */
 	int page;
 	f64 changed_at;       /* when the page changed, for the slide */
 	int dir;
@@ -124,7 +124,7 @@ static void form_welcome(Ui *ui, Rect r)
 	Theme *t = &ui->theme;
 	Rect c = center_in(r, r.w, 200);
 	if (wl.live) {
-		ui_text_in(ui, ui_font(ui, 15, 600), cut_top(&c, 28), "You're running " OS_NAME " from the USB stick.", t->text, ALIGN_CENTER);
+		ui_text_in(ui, ui_font(ui, 15, 600), cut_top(&c, 28), "You're trying " OS_NAME " without installing it.", t->text, ALIGN_CENTER);
 		ui_text_in(ui, ui_font(ui, 13, 400), cut_top(&c, 24), "Try it as long as you like, or install it on this computer.", t->text_dim, ALIGN_CENTER);
 		cut_top(&c, 20);
 		Rect b = center_in(cut_top(&c, 44), 380, 44);

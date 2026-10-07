@@ -1,6 +1,6 @@
 /*
- * libzd — disks: GPT partition tables, FAT32 and ext4 file systems, and the
- * newc cpio archives that become the system's initramfs. Used by the
+ * libzd — disks: GPT partition tables, FAT32 and ext4 file systems, ISO 9660
+ * disc images, and the newc cpio archives that become the system's initramfs. Used by the
  * installer and by the image builder; everything writes through plain
  * file descriptors, so it works on a device or an image file alike.
  */
@@ -48,8 +48,31 @@ FatWriter *fat_format(int fd, u64 start_lba, u64 sectors, const char *label);
 bool fat_mkdir(FatWriter *w, const char *path);
 bool fat_add_file(FatWriter *w, const char *path, const void *data, usize len);
 bool fat_add_file_from(FatWriter *w, const char *path, const char *source); /* copies a host file */
+/* Where a file's data starts on the disk, in bytes (it's contiguous), or 0. */
+u64 fat_file_byte(FatWriter *w, const char *path);
 /* Writes the tables and directories; frees the writer. */
 bool fat_finish(FatWriter *w);
+
+/* ---- ISO 9660 (CD and DVD images) ------------------------------------------------------ */
+
+#define ISO_BLOCK 2048u
+
+typedef struct {
+	const char *path;   /* "/EFI/BOOT/BOOTX64.EFI": upper-case 8.3 names */
+	u64 byte, size;     /* where its data already is in the image (a multiple of ISO_BLOCK) */
+} IsoFile;
+
+typedef struct {
+	const char *system_id, *volume_id, *publisher, *app_id;
+	u64 boot_byte, boot_size;  /* the FAT image UEFI firmware boots from a disc */
+	u64 volume_bytes;          /* how much of the image the file system covers */
+} IsoVolume;
+
+/* Writes the descriptors, path tables, folders and El Torito boot catalog
+ * from sector 16 on, pointing at data already in the image. Leaves the
+ * first 32 KiB alone (for a partition table). Fails if the file data
+ * starts before the records end (a few sectors; 128 KiB is plenty). */
+bool iso_write(int fd, const IsoVolume *v, const IsoFile *files, int nfiles);
 
 /* ---- ext4 ------------------------------------------------------------------------------- */
 

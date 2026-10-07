@@ -1,5 +1,5 @@
 /*
- * Installer — puts ZOS on this computer, from the install stick.
+ * Installer — puts ZOS on this computer, from the install stick or disc.
  *
  * Four short steps: pick a disk, pick how (erase it, or use its free space
  * next to Windows), confirm, and watch it finish in about a minute. The work
@@ -261,7 +261,7 @@ static void start_install(Ui *ui)
 
 static void demo_tick(Ui *ui)
 {
-	static const char *const steps[] = { "Reading the install stick", "Preparing the disk", "Creating partitions", "Copying ZOS",
+	static const char *const steps[] = { "Reading the install media", "Preparing the disk", "Creating partitions", "Copying ZOS",
 					     "Preparing storage for your files", "Setting up startup" };
 	f32 t = (f32)(ui->now - in.demo_t0) / 6.0f;
 	in.fraction = minf(t, 1);
@@ -474,7 +474,7 @@ static void page_result(Ui *ui, Rect r, bool ok)
 	cut_top(&c, 18);
 	ui_text_in(ui, ui_font(ui, 20, 700), cut_top(&c, 30), ok ? "ZOS is installed" : "ZOS couldn't be installed", t->text, ALIGN_CENTER);
 	cut_top(&c, 6);
-	const char *msg = ok ? "Remove the USB stick, then restart to start using ZOS." : in.error;
+	const char *msg = ok ? "Remove the USB stick or disc, then restart to start using ZOS." : in.error;
 	f32 h = ui_text_height(ui, ui_font(ui, 14, 400), msg, c.w);
 	ui_text_wrapped(ui, ui_font(ui, 14, 400), cut_top(&c, h), msg, t->text_dim, ALIGN_CENTER);
 	cut_top(&c, 22);

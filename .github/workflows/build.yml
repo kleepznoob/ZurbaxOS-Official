@@ -40,9 +40,11 @@ jobs:
       - name: Build the bootable image
         run: make image
 
-      - name: Upload the image
+      - name: Upload the ISO and the USB image
         uses: actions/upload-artifact@v4
         with:
           name: zos-2.0-golden-rain
-          path: build/zos.img
+          path: |
+            build/zos.iso
+            build/zos.img
           compression-level: 9

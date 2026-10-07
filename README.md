@@ -112,8 +112,8 @@ needs an app password (Mail explains how when you type a Gmail address).
 
 ```sh
 make            # everything: libraries, system programs, apps
-make test       # the test suites (runtime, graphics, 3D, toolkit, TLS/crypto, audio, Wi-Fi)
-make image      # the kernel with the system inside, and build/zos.img
+make test       # the test suites (runtime, graphics, 3D, toolkit, TLS/crypto, audio, Wi-Fi, disks)
+make image      # the kernel with the system inside, build/zos.iso and build/zos.img
 make run        # boot build/zos.img in QEMU with UEFI firmware
 ```
 
@@ -121,10 +121,13 @@ A C compiler and `make` are enough for the system itself. Building the
 kernel also needs the usual kernel build tools (`bc`, `flex`, `bison`,
 `libelf`, `libssl` headers). `kernel/build.sh` downloads Linux on first use.
 
-To try it on a real PC, write `build/zos.img` to a USB stick and boot
-from it in UEFI mode. On ASUS machines, press F8 or Esc for the boot menu.
-GitHub Actions builds the image on every push (see the `zos-2.0-golden-rain`
-artifact).
+To try it on a real PC, burn `build/zos.iso` to a DVD, or write it to a
+USB stick with balenaEtcher, Rufus or `dd`, and boot from it in UEFI mode.
+On ASUS machines, press F8 or Esc for the boot menu. The ISO is a hybrid:
+a UEFI El Torito image for discs, and a GPT for USB sticks, sharing one
+copy of the kernel. `build/zos.img` is a plain USB stick image. GitHub
+Actions builds both on every push (see the `zos-2.0-golden-rain` artifact).
+The Installer finds the system on whichever one ZOS started from.
 
 ## Layout
 
@@ -135,7 +138,7 @@ artifact).
 | `libzui/` | The toolkit: widgets, layout, text editing, dialogs, sound client |
 | `libzn/` | Networking: crypto, X.509, TLS 1.3, DNS, HTTP |
 | `libza/` | Audio files: WAV, FLAC, Ogg Vorbis, tags and cover art |
-| `libzd/` | Disks: GPT, FAT32, ext4, cpio |
+| `libzd/` | Disks: GPT, FAT32, ext4, ISO 9660 with El Torito, cpio |
 | `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, harborctl, the Flint shell, sudo, fetch, play |
 | `apps/` | The apps |
 | `store/` | Apps offered in Harbor, packaged by `mkimage repo` |

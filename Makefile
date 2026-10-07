@@ -2,8 +2,9 @@
 #
 #   make            build every library, system program and app into build/
 #   make test       build and run the test suites
-#   make image      build the kernel with the system inside and a bootable
-#                   disk image: build/zos.img (write it to a USB stick)
+#   make image      build the kernel with the system inside and the install
+#                   media: build/zos.iso (a DVD, or write it to a USB stick)
+#                   and build/zos.img (a plain USB stick image)
 #   make run        boot build/zos.img in QEMU with UEFI firmware
 #
 # Every program is a static, freestanding binary: no C library, no outside code.
@@ -112,6 +113,7 @@ image: all
 	@$(OUT)/tools/mkimage cpio $(OUT)/system.cpio
 	@kernel/build.sh $(OUT)/system.cpio
 	@$(OUT)/tools/mkimage disk $(OUT)/zos.img $(EFI_FILE)
+	@$(OUT)/tools/mkimage iso $(OUT)/zos.iso $(EFI_FILE)
 
 OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd
 OVMF_VARS ?= /usr/share/OVMF/OVMF_VARS_4M.fd

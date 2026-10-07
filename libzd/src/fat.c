@@ -2,11 +2,12 @@
  * FAT32: the format UEFI firmware reads. The writer formats a partition,
  * stores files in contiguous clusters as they are added, and writes the
  * directories and both FAT copies at the end. Names are 8.3, which is all
- * an EFI system partition needs.
+ * an EFI system partition needs. File data starts on a 4 KiB boundary of
+ * the disk, so an ISO image can point at a file's bytes directly.
  */
 #include "zd.h"
 
-#define RESERVED 32
+#define MIN_RESERVED 32
 #define ATTR_DIR 0x10
 #define ATTR_ARCHIVE 0x20
 #define ATTR_VOLUME 0x08
@@ -23,6 +24,7 @@ struct FatWriter {
 	int fd;
 	u64 start;              /* partition start, sectors */
 	u64 sectors;
+	u32 reserved;           /* sectors before the first FAT */
 	u32 spc;                /* sectors per cluster */
 	u32 fat_sectors;
 	u64 data_start;         /* absolute sector of cluster 2 */
@@ -78,12 +80,14 @@ FatWriter *fat_format(int fd, u64 start_lba, u64 sectors, const char *label)
 		w->spc /= 2;
 	u32 fat = 1;
 	for (int i = 0; i < 8; i++) {
-		u64 clusters = (sectors - RESERVED - 2ull * fat) / w->spc;
+		u64 clusters = (sectors - MIN_RESERVED - 2ull * fat) / w->spc;
 		fat = (u32)(((clusters + 2) * 4 + SECTOR - 1) / SECTOR);
 	}
 	w->fat_sectors = fat;
-	w->data_start = start_lba + RESERVED + 2ull * fat;
-	w->clusters = (u32)((sectors - RESERVED - 2ull * fat) / w->spc);
+	/* a few more reserved sectors put the data area on a 4 KiB boundary */
+	w->reserved = MIN_RESERVED + (u32)((8 - (start_lba + MIN_RESERVED + 2ull * fat) % 8) % 8);
+	w->data_start = start_lba + w->reserved + 2ull * fat;
+	w->clusters = (u32)((sectors - w->reserved - 2ull * fat) / w->spc);
 	if (w->clusters < 65525) {
 		mem_free(w);
 		return NULL;
@@ -212,6 +216,19 @@ bool fat_add_file_from(FatWriter *w, const char *path, const char *source)
 	return ok;
 }
 
+u64 fat_file_byte(FatWriter *w, const char *path)
+{
+	FatNode *dir = &w->root;
+	usize n;
+	char **parts = str_split(path[0] == '/' ? path + 1 : path, '/', &n);
+	for (usize i = 0; i < n && dir; i++) {
+		char c[11];
+		dir = to_83(parts[i], c) ? find_child(dir, c) : NULL;
+	}
+	str_split_free(parts, n);
+	return dir && !dir->dir && dir->cluster ? cluster_byte(w, dir->cluster) : 0;
+}
+
 static u32 count_children(const FatNode *d)
 {
 	u32 n = 0;
@@ -298,7 +315,7 @@ bool fat_finish(FatWriter *w)
 	memcpy(bs + 3, "ZURBAX  ", 8);
 	put16(bs + 11, SECTOR);
 	bs[13] = (u8)w->spc;
-	put16(bs + 14, RESERVED);
+	put16(bs + 14, (u16)w->reserved);
 	bs[16] = 2;
 	bs[21] = 0xf8;
 	put16(bs + 24, 63);
@@ -325,8 +342,8 @@ bool fat_finish(FatWriter *w)
 	put32(fsinfo + 508, 0xaa550000);
 	u64 base = w->start * SECTOR;
 	/* Clear the reserved area first (old boot code, stale signatures). */
-	u8 *zero = mem_zalloc(RESERVED * SECTOR);
-	ok = ok && write_at(w->fd, base, zero, RESERVED * SECTOR);
+	u8 *zero = mem_zalloc((usize)w->reserved * SECTOR);
+	ok = ok && write_at(w->fd, base, zero, (usize)w->reserved * SECTOR);
 	mem_free(zero);
 	ok = ok && write_at(w->fd, base, bs, SECTOR) && write_at(w->fd, base + SECTOR, fsinfo, SECTOR) &&
 	     write_at(w->fd, base + 6 * SECTOR, bs, SECTOR) && write_at(w->fd, base + 7 * SECTOR, fsinfo, SECTOR);
@@ -336,7 +353,7 @@ bool fat_finish(FatWriter *w)
 	for (u32 i = 0; i < w->clusters + 2 && (usize)i * 4 + 4 <= fat_bytes; i++)
 		put32(fat + i * 4, w->fat[i]);
 	for (int copy = 0; copy < 2 && ok; copy++)
-		ok = write_at(w->fd, (w->start + RESERVED + (u64)copy * w->fat_sectors) * SECTOR, fat, fat_bytes);
+		ok = write_at(w->fd, (w->start + w->reserved + (u64)copy * w->fat_sectors) * SECTOR, fat, fat_bytes);
 	mem_free(fat);
 	free_nodes(&w->root);
 	mem_free(w->fat);

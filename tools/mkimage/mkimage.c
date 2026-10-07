@@ -10,6 +10,9 @@
  *   mkimage disk OUT.img EFI-FILE    a GPT disk image with one EFI system
  *                                    partition holding EFI/BOOT/BOOTX64.EFI;
  *                                    write it to a USB stick and boot it
+ *   mkimage iso OUT.iso EFI-FILE     the same as an ISO: it boots from a DVD
+ *                                    (El Torito, UEFI) and, written to a USB
+ *                                    stick as is, from the stick (GPT)
  *   mkimage ext4 OUT.img MIB         an empty ext4 image (for tests)
  *   mkimage repo OUTDIR              Harbor's built-in source: a package per
  *                                    store/<app>, its icon and screenshot,
@@ -158,6 +161,18 @@ static int open_image(const char *out, u64 bytes)
 	return fd;
 }
 
+/* On every install medium, for people who open it on another computer. The
+ * installer also looks for it to recognize a stick made by copying files. */
+static const char README[] =
+	OS_PRETTY_NAME "\r\n"
+	"\r\n"
+	"This is the " OS_NAME " installer. To start " OS_NAME ", restart the computer and\r\n"
+	"choose this USB stick or disc in its boot menu (F8 or Esc on most ASUS\r\n"
+	"computers, F12 on many others). " OS_NAME " starts in UEFI mode.\r\n"
+	"\r\n"
+	"You can try everything first. Nothing on the computer changes until you\r\n"
+	"choose Install " OS_NAME ".\r\n";
+
 static int make_disk(const char *out, const char *efi)
 {
 	i64 efi_size = file_size(efi);
@@ -186,6 +201,7 @@ static int make_disk(const char *out, const char *efi)
 		check(fat_mkdir(w, "/EFI"), "EFI folder");
 		check(fat_mkdir(w, "/EFI/BOOT"), "EFI/BOOT folder");
 		check(fat_add_file_from(w, "/EFI/BOOT/BOOTX64.EFI", efi), "BOOTX64.EFI");
+		check(fat_add_file(w, "/ZOS.TXT", README, sizeof README - 1), "ZOS.TXT");
 		check(fat_finish(w), "FAT32 tables");
 	}
 	sys_fsync(fd);
@@ -193,6 +209,69 @@ static int make_disk(const char *out, const char *efi)
 	if (failed)
 		return 1;
 	print("%s: %llu MiB, EFI system partition with %s\n", out, (unsigned long long)mib, path_base(efi));
+	return 0;
+}
+
+/*
+ * The ISO holds one FAT32 image with the kernel, which serves three ways:
+ *   - from a DVD, the El Torito catalog points UEFI firmware at it;
+ *   - written to a USB stick, a GPT in the first 32 KiB names it as the
+ *     EFI system partition (called ZURBAX-INSTALL, like the disk image's);
+ *   - read as a disc (or copied file by file to a stick), the ISO 9660
+ *     tree's EFI/BOOT/BOOTX64.EFI points at the kernel inside it, so the
+ *     kernel is stored once.
+ */
+static int make_iso(const char *out, const char *efi)
+{
+	i64 efi_size = file_size(efi);
+	if (efi_size <= 0) {
+		eprint("mkimage: cannot read %s\n", efi);
+		return 1;
+	}
+	const u64 readme_byte = 48 * ISO_BLOCK, fat_byte = 128 * 1024;
+	/* FAT32 needs 65525 clusters, so the image is at least about 34 MiB */
+	u64 fat_bytes = MAX(40ull, ((u64)efi_size + (4u << 20) + (1u << 20) - 1) >> 20) << 20;
+	u64 volume = fat_byte + fat_bytes;
+	/* room for the backup GPT after the file system, in whole disc sectors */
+	u64 total = (volume + 64 * SECTOR + ISO_BLOCK - 1) / ISO_BLOCK * ISO_BLOCK;
+	int fd = open_image(out, total);
+	if (fd < 0)
+		return 1;
+	GptPart esp = { 0 };
+	memcpy(esp.type, GPT_TYPE_ESP, 16);
+	guid_random(esp.guid);
+	esp.first_lba = fat_byte / SECTOR;
+	esp.last_lba = (fat_byte + fat_bytes) / SECTOR - 1;
+	str_copy(esp.name, "ZURBAX-INSTALL", sizeof esp.name);
+	check(esp.last_lba <= gpt_last_usable(total / SECTOR), "layout");
+	u8 disk[16];
+	guid_random(disk);
+	check(gpt_write(fd, total / SECTOR, &esp, 1, disk), "partition table");
+	u64 kernel_byte = 0;
+	FatWriter *w = fat_format(fd, esp.first_lba, fat_bytes / SECTOR, "ZOS");
+	check(w != NULL, "FAT32 format");
+	if (w) {
+		check(fat_mkdir(w, "/EFI"), "EFI folder");
+		check(fat_mkdir(w, "/EFI/BOOT"), "EFI/BOOT folder");
+		check(fat_add_file_from(w, "/EFI/BOOT/BOOTX64.EFI", efi), "BOOTX64.EFI");
+		check(fat_add_file(w, "/ZOS.TXT", README, sizeof README - 1), "ZOS.TXT");
+		kernel_byte = fat_file_byte(w, "/EFI/BOOT/BOOTX64.EFI");
+		check(kernel_byte && kernel_byte % ISO_BLOCK == 0, "kernel alignment");
+		check(fat_finish(w), "FAT32 tables");
+	}
+	check(sys_pwrite(fd, README, sizeof README - 1, (i64)readme_byte) == (long)sizeof README - 1, "readme");
+	IsoFile files[] = {
+		{ "/EFI/BOOT/BOOTX64.EFI", kernel_byte, (u64)efi_size },
+		{ "/ZOS.TXT", readme_byte, sizeof README - 1 },
+	};
+	IsoVolume v = { .system_id = OS_NAME, .volume_id = "ZOS_2_0_GOLDEN_RAIN", .publisher = OS_NAME, .app_id = OS_PRETTY_NAME,
+			.boot_byte = fat_byte, .boot_size = fat_bytes, .volume_bytes = volume };
+	check(!failed && iso_write(fd, &v, files, (int)ARRAY_LEN(files)), "ISO 9660 records");
+	sys_fsync(fd);
+	sys_close(fd);
+	if (failed)
+		return 1;
+	print("%s: %llu MiB, boots from a disc or a USB stick\n", out, (unsigned long long)(total >> 20));
 	return 0;
 }
 
@@ -318,10 +397,12 @@ int main(int argc, char **argv)
 		return make_cpio(argv[2], argv + 3, argc - 3);
 	if (argc == 4 && str_eq(argv[1], "disk"))
 		return make_disk(argv[2], argv[3]);
+	if (argc == 4 && str_eq(argv[1], "iso"))
+		return make_iso(argv[2], argv[3]);
 	if (argc == 4 && str_eq(argv[1], "ext4"))
 		return make_ext4(argv[2], argv[3]);
 	if (argc == 3 && str_eq(argv[1], "repo"))
 		return make_repo(argv[2]);
-	eprint("usage: mkimage cpio OUT.cpio | disk OUT.img EFI-FILE | ext4 OUT.img MIB\n");
+	eprint("usage: mkimage cpio OUT.cpio | disk OUT.img EFI-FILE | iso OUT.iso EFI-FILE | ext4 OUT.img MIB\n");
 	return 2;
 }

@@ -123,7 +123,7 @@ static const char GUIDE[] =
 	"- Turn off alert sounds in Settings, under Sound, if you prefer silence.\n"
 	"\n"
 	"# Installing ZOS|drive\n"
-	"When you start the computer from the ZOS USB stick, you can try everything first. Nothing on the computer changes until you install.\n"
+	"When you start the computer from the ZOS USB stick or DVD, you can try everything first. Nothing on the computer changes until you install.\n"
 	"## Two ways to install\n"
 	"- Erase the disk: the whole disk becomes ZOS. Everything that was on it is deleted.\n"
 	"- Next to Windows: ZOS uses free space on the disk and Windows stays as it is. Make the free space first in Windows, with Disk Management (shrink a partition by at least 16 GB).\n"

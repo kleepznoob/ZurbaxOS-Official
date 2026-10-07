@@ -2,7 +2,7 @@
 """Drives ZOS in QEMU for end-to-end tests: boots with UEFI firmware, takes
 screenshots, clicks and types through QMP.
 
-    tools/qemu.py OUTDIR [--stick IMG] [--disk IMG] [--vars FILE] [--debug] SCRIPT...
+    tools/qemu.py OUTDIR [--stick IMG] [--cdrom ISO] [--disk IMG] [--vars FILE] [--debug] SCRIPT...
 
 SCRIPT steps:
     wait N              sleep N seconds
@@ -12,8 +12,8 @@ SCRIPT steps:
     key NAME            press a key (QEMU qcode: ret, tab, esc...)
     waitoff N           wait up to N seconds for the machine to power off or reboot
 
---stick attaches an image as a removable USB stick; --disk as an internal
-virtio disk. --vars keeps the firmware variables (boot entries) in FILE.
+--stick attaches an image as a removable USB stick; --cdrom as a DVD in a
+SATA drive; --disk as an internal virtio disk. --vars keeps the firmware variables (boot entries) in FILE.
 --audio-wav FILE adds an Intel HDA sound card whose output is recorded to FILE.
 """
 import json, os, shutil, socket, subprocess, sys, time
@@ -74,7 +74,7 @@ QCODES = {" ": "spc", "-": "minus", ".": "dot", ",": "comma", "/": "slash", "@":
 def main():
     args = sys.argv[1:]
     out = args.pop(0)
-    stick = disk = vars_file = audio_wav = kernel = None
+    stick = cdrom = disk = vars_file = audio_wav = kernel = None
     debug = False
     extra_cmdline = ""
     nic = True
@@ -82,6 +82,8 @@ def main():
         opt = args.pop(0)
         if opt == "--stick":
             stick = args.pop(0)
+        elif opt == "--cdrom":
+            cdrom = args.pop(0)
         elif opt == "--disk":
             disk = args.pop(0)
         elif opt == "--vars":
@@ -115,6 +117,9 @@ def main():
     if stick:
         cmd += ["-drive", f"if=none,id=stick,format=raw,file={stick},snapshot=on",
                 "-device", "usb-storage,bus=xhci.0,drive=stick,removable=on,bootindex=1"]
+    if cdrom:
+        cmd += ["-drive", f"if=none,id=cd,format=raw,media=cdrom,readonly=on,file={cdrom}",
+                "-device", "ide-cd,drive=cd,bus=ide.1,bootindex=1"]
     if disk:
         cmd += ["-drive", f"if=none,id=disk,format=raw,file={disk}", "-device", "virtio-blk-pci,drive=disk,bootindex=2"]
     if audio_wav:
