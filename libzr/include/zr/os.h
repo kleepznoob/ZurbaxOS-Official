@@ -76,6 +76,7 @@ const char *find_program(const char *name);        /* searches PATH, returns sta
 /* ---- Signals ----------------------------------------------------------------------------- */
 
 void sig_handle(int sig, void (*fn)(int));
+void sig_handle_info(int sig, void (*fn)(int sig, void *info, void *context));
 void sig_ignore(int sig);
 void sig_default(int sig);
 void sig_block(int sig);

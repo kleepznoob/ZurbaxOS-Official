@@ -10,6 +10,7 @@ mkdir -p /tmp/zx/data/system
 mkdir -p /tmp/zx/home
 # the desktop and the apps it starts share /tmp/zx/home, like a real session
 HOME=/tmp/zx/home ZURBAX_HOME=/tmp/zx/home ZURBAX_ROOT=$PWD/build/root/system ZURBAX_DATA=/tmp/zx/data ZUI_SOCKET=/tmp/zx/display.sock \
+	ZOS_WAYLAND_SOCKET=/tmp/zx/wayland-0 \
 	timeout "$SECS" build/bin/zdisplay --headless "$SIZE" --control /tmp/zx/ctl.sock > /tmp/zx/zdisplay.log 2>&1 &
 echo $! > /tmp/zx/zdisplay.pid
 sleep 1

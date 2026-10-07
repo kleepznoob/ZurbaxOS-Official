@@ -6,14 +6,23 @@
 #define RECT_ANIM_SECONDS 0.22f
 #define MINIMIZE_SECONDS 0.28f
 
-static void damage_window(Window *w)
+/* Repaints where the window is now and where it was last drawn: an animation
+ * can move it further in one frame than the shadow margin covers. */
+void window_damage(Window *w)
 {
 	Rect v = window_visual_rect(w);
 	damage_rect(rect(v.x - 50, v.y - 40, v.w + 100, v.h + 100));
+	if (!rect_empty(w->shown))
+		damage_rect(rect(w->shown.x - 50, w->shown.y - 40, w->shown.w + 100, w->shown.h + 100));
 }
 
 void window_configure(Window *w)
 {
+	if (w->wl) {
+		wl_window_configure(w);
+		w->configured_once = true;
+		return;
+	}
 	if (!w->client)
 		return;
 	MsgConfigure m = { .width = (u32)roundf(w->rect.w), .height = (u32)roundf(w->rect.h), .scale = S.scale, .states = w->states };
@@ -106,6 +115,43 @@ Window *window_create(Client *c, const MsgWinCreate *m)
 	return w;
 }
 
+/* A window for a Wayland program's surface (wayland.c). Wayland dialogs use
+ * their parent only to be placed; popups stay attached to it. */
+Window *window_create_wl(void *surface, const char *title, const char *app_id, f32 width, f32 height, u32 flags, Window *parent, f32 x, f32 y)
+{
+	if (S.nwin >= MAX_WINDOWS)
+		return NULL;
+	Window *w = NEW(Window);
+	w->id = ++S.next_window_id;
+	w->wl = surface;
+	w->flags = flags;
+	w->front = -1;
+	w->release_after_frame = -1;
+	w->memfd = -1;
+	w->min_w = w->min_h = 32;
+	w->radius = 10;
+	str_copy(w->title, title, sizeof w->title);
+	str_copy(w->app_id, app_id, sizeof w->app_id);
+	w->parent = parent;
+	if ((flags & WIN_POPUP) && parent)
+		w->rect = rect(parent->rect.x + x, parent->rect.y + y, width, height);
+	else
+		w->rect = place_new(w, (u32)width, (u32)height);
+	if (!(flags & WIN_POPUP))
+		w->parent = NULL;
+	w->appear = S.set.reduce_motion ? 1 : 0;
+	w->mapped = true;
+	S.windows[S.nwin++] = w;
+	wl_window_attach(w);
+	if (!(flags & WIN_POPUP)) {
+		window_focus(w);
+		window_configure(w);
+	}
+	shell_mark_dirty();
+	window_damage(w);
+	return w;
+}
+
 static void free_window(Window *w)
 {
 	if (w->map)
@@ -121,7 +167,7 @@ void window_destroy(Window *w, bool animate)
 	shell_mark_dirty(); /* the dock and panel reflect window state */
 	if (w->closing)
 		return;
-	damage_window(w);
+	window_damage(w);
 	if (S.focus == w)
 		S.focus = NULL;
 	if (S.pointer_window == w)
@@ -136,12 +182,19 @@ void window_destroy(Window *w, bool animate)
 			window_destroy(S.windows[i], false);
 	if (w->client && w->client->main_window == w)
 		w->client->main_window = NULL;
-	bool can_animate = animate && !S.set.reduce_motion && w->mapped && w->front >= 0 && w->map && !w->minimized;
+	bool can_animate = animate && !S.set.reduce_motion && w->mapped && !w->minimized && (w->wl || (w->front >= 0 && w->map));
+	if (w->wl) {
+		/* a Wayland surface: keep its picture, then the surface lets go of the window */
+		w->last_frame = wl_window_gone(w, can_animate);
+		can_animate = w->last_frame != NULL;
+	}
 	if (can_animate) {
 		/* Keep a private copy of the last frame: the app may already be gone. */
-		Canvas src = canvas_wrap(w->map + (usize)w->front * w->slot_bytes, (int)w->bw, (int)w->bh, (int)w->stride);
-		w->last_frame = canvas_new((int)w->bw, (int)w->bh);
-		copy_pixels(w->last_frame, &src, 0, 0, 0, 0, (int)w->bw, (int)w->bh);
+		if (!w->last_frame) {
+			Canvas src = canvas_wrap(w->map + (usize)w->front * w->slot_bytes, (int)w->bw, (int)w->bh, (int)w->stride);
+			w->last_frame = canvas_new((int)w->bw, (int)w->bh);
+			copy_pixels(w->last_frame, &src, 0, 0, 0, 0, (int)w->bw, (int)w->bh);
+		}
 		w->closing = true;
 		w->client = NULL;
 	} else {
@@ -172,7 +225,7 @@ void window_raise(Window *w)
 			i--;
 		}
 	}
-	damage_window(w);
+	window_damage(w);
 }
 
 void window_focus(Window *w)
@@ -185,14 +238,14 @@ void window_focus(Window *w)
 	if (old && !old->closing) {
 		server_focus_event(old, false);
 		window_configure(old);
-		damage_window(old);
+		window_damage(old);
 	}
 	if (w) {
 		w->focus_serial = ++S.focus_serial;
 		server_focus_event(w, true);
 		if (w->configured_once)
 			window_configure(w);
-		damage_window(w);
+		window_damage(w);
 	}
 }
 
@@ -201,7 +254,7 @@ void window_set_rect(Window *w, Rect r, bool animate)
 	r.w = maxf(r.w, (f32)w->min_w);
 	r.h = maxf(r.h, (f32)w->min_h);
 	r.x = roundf(r.x), r.y = roundf(r.y), r.w = roundf(r.w), r.h = roundf(r.h);
-	damage_window(w);
+	window_damage(w);
 	bool resized = r.w != w->rect.w || r.h != w->rect.h;
 	if (animate && !S.set.reduce_motion) {
 		w->anim_from = window_visual_rect(w);
@@ -213,7 +266,7 @@ void window_set_rect(Window *w, Rect r, bool animate)
 	w->rect = r;
 	if (resized)
 		window_configure(w);
-	damage_window(w);
+	window_damage(w);
 }
 
 void window_fullscreen(Window *w, bool on)
@@ -274,7 +327,7 @@ void window_minimize(Window *w, bool on)
 	w->states = on ? (w->states | STATE_MINIMIZED) : (w->states & ~(u32)STATE_MINIMIZED);
 	if (S.set.reduce_motion)
 		w->minimize_k = on ? 1 : 0;
-	damage_window(w);
+	window_damage(w);
 	if (on && S.focus == w) {
 		S.focus = NULL;
 		server_focus_event(w, false);
@@ -296,6 +349,10 @@ void window_minimize(Window *w, bool on)
 
 void window_close_request(Window *w)
 {
+	if (w->wl) {
+		wl_window_close(w);
+		return;
+	}
 	if (!w->client)
 		return;
 	MsgHeader m = { 0 };
@@ -361,7 +418,7 @@ void wm_animate(f64 dt_d)
 		}
 		f32 mk = w->minimized ? 1.0f : 0.0f;
 		if (w->minimize_k != mk) {
-			damage_window(w);
+			window_damage(w);
 			w->minimize_k = step_toward(w->minimize_k, mk, dt, MINIMIZE_SECONDS);
 			moving = true;
 		}
@@ -371,13 +428,13 @@ void wm_animate(f64 dt_d)
 				w->animating_rect = false;
 		}
 		if (moving)
-			damage_window(w);
+			window_damage(w);
 	}
 	/* Free windows whose closing animation finished. */
 	for (int i = S.nwin - 1; i >= 0; i--) {
 		Window *w = S.windows[i];
 		if (w->closing && w->vanish >= 1) {
-			damage_window(w);
+			window_damage(w);
 			memmove(&S.windows[i], &S.windows[i + 1], sizeof(Window *) * (usize)(S.nwin - i - 1));
 			S.nwin--;
 			free_window(w);
@@ -509,10 +566,10 @@ void wm_pointer_motion(void)
 		Rect r = S.grab_rect;
 		r.x += dx;
 		r.y = maxf(work_area().y, r.y + dy);
-		damage_window(w);
+		window_damage(w);
 		w->rect.x = roundf(r.x);
 		w->rect.y = roundf(r.y);
-		damage_window(w);
+		window_damage(w);
 		update_snap();
 		return;
 	}
@@ -592,6 +649,7 @@ void wm_pointer_button(u32 button, bool pressed)
 	}
 	u32 edges;
 	Window *w = window_at(S.px, S.py, &edges);
+	wl_pointer_press(w);
 	if (!w) {
 		/* Click on the desktop: drop focus from popups. */
 		return;

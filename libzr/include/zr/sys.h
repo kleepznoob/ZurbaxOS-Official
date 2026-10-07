@@ -19,7 +19,8 @@ enum {
 #define AT_FDCWD (-100)
 enum { AT_SYMLINK_NOFOLLOW = 0x100, AT_REMOVEDIR = 0x200, AT_EMPTY_PATH = 0x1000 };
 enum { SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2 };
-enum { F_GETFD = 1, F_SETFD = 2, F_GETFL = 3, F_SETFL = 4, FD_CLOEXEC = 1 };
+enum { F_GETFD = 1, F_SETFD = 2, F_GETFL = 3, F_SETFL = 4, FD_CLOEXEC = 1, F_DUPFD_CLOEXEC = 1030, F_ADD_SEALS = 1033 };
+enum { F_SEAL_SEAL = 1, F_SEAL_SHRINK = 2, F_SEAL_GROW = 4, F_SEAL_WRITE = 8 };
 enum { R_OK = 4, W_OK = 2, X_OK = 1, F_OK = 0 };
 
 enum {

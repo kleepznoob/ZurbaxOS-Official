@@ -175,6 +175,10 @@ static Header *header_of(const void *p)
 	return h;
 }
 
+/* ZR_MEM_POISON=1 in the environment: freed blocks are filled with 0xdb, so
+ * a use after free reads garbage and fails loudly in tests (set at start). */
+bool mem_poison;
+
 void mem_free(void *p)
 {
 	if (!p)
@@ -185,6 +189,8 @@ void mem_free(void *p)
 		sys_munmap(h, h->size + HEADER);
 		return;
 	}
+	if (unlikely(mem_poison))
+		memset(p, 0xdb, h->size);
 	FreeBlock *b = p;
 	mutex_lock(&heap_lock);
 	b->next = free_list[h->cls];

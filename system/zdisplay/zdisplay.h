@@ -16,6 +16,7 @@
 #define MAX_CLIENTS 64
 #define PANEL_HEIGHT 30
 #define RESIZE_MARGIN 8
+#define CURSOR_CUSTOM 12            /* after the protocol's shapes: S.cursor_custom */
 
 /* Dock: icon size, gap between icons, shelf padding and height, icon distance from the bottom edge. */
 #define DOCK_ICON 48
@@ -88,6 +89,8 @@ typedef struct Window {
 	f32 minimize_k;             /* 0 shown .. 1 hidden in the dock */
 	u64 focus_serial;
 	bool configured_once;
+	void *wl;                   /* a Wayland program's surface (wayland.c), or NULL */
+	Rect shown;                 /* logical rect it was last drawn at */
 } Window;
 
 struct Client {
@@ -268,6 +271,10 @@ typedef struct {
 	f32 dock_hide_k;             /* 0 shown .. 1 hidden */
 	char dock_menu[48];          /* app whose dock menu is open */
 	bool setup_mode;             /* first boot: only the setup assistant, no panel or dock */
+	/* a cursor picture from a Wayland program (CURSOR_CUSTOM) */
+	const Canvas *cursor_custom;
+	int cursor_custom_hx, cursor_custom_hy;
+	u32 cursor_custom_serial;
 } Server;
 
 extern Server S;
@@ -299,6 +306,7 @@ void window_tile(Window *w, int side); /* -1 left, 1 right */
 void window_minimize(Window *w, bool on);
 void window_configure(Window *w);
 void window_close_request(Window *w);
+void window_damage(Window *w);
 Window *window_at(f32 x, f32 y, u32 *edges);
 Rect window_visual_rect(const Window *w);
 void wm_pointer_motion(void);
@@ -337,6 +345,7 @@ void input_init(void);
 void input_key(u32 code, bool pressed, bool repeat);
 void input_set_layout(const char *name);
 const char *keymap_text(u32 code, u32 mods);
+bool input_key_texts(u32 code, const char **lower, const char **upper, const char **altgr);
 void input_pointer_abs(f32 x, f32 y);
 void input_pointer_rel(f32 dx, f32 dy);
 void input_button(u32 button, bool pressed);
@@ -394,6 +403,27 @@ void splash_thread_stop(void);
 void splash_draw(Canvas *frame);
 void splash_tick(void);
 void splash_finish(void);
+
+/* wayland.c: the Wayland protocol, for standard Linux programs (Xwayland, games) */
+void wl_server_init(void);
+void wl_flush(void);                      /* before waiting: sends what's queued */
+void wl_frame_done(void);                 /* after each composed frame */
+void wl_window_draw(Canvas *frame, Window *w, Rect physical, f32 opacity);
+void wl_window_attach(Window *w);
+Canvas *wl_window_gone(Window *w, bool keep_picture);
+void wl_window_configure(Window *w);
+void wl_window_close(Window *w);
+void wl_pointer_press(Window *w);         /* any click, w under it or NULL: closes menus */
+void wl_pointer_event(Window *w, u32 kind, u32 button);
+void wl_scroll_event(Window *w, f32 dx, f32 dy, u32 source, u32 phase);
+void wl_key_event(Window *w, u32 code, u32 state);
+void wl_focus_event(Window *w, bool focused);
+void wl_keymap_changed(void);
+void wl_relative_motion(f32 dx, f32 dy, f32 raw_dx, f32 raw_dy);
+bool wl_pointer_locked(void);
+void wl_confine(f32 *x, f32 *y);
+/* wm.c: a window for a Wayland surface */
+Window *window_create_wl(void *surface, const char *title, const char *app_id, f32 w, f32 h, u32 flags, Window *parent, f32 x, f32 y);
 
 /* headless.c: scripted control for automated tests */
 void headless_control_init(const char *socket_path);

@@ -80,6 +80,10 @@ static void run_command(int fd, char *line)
 			input_button(button, true);
 			input_button(button, false);
 		}
+	} else if (str_eq(cmd, "rel")) {
+		/* mouse motion as a real mouse sends it, for pointer locks */
+		f32 dx = (f32)str_to_float(p, &p), dy = (f32)str_to_float(p, &p);
+		input_pointer_rel(dx, dy);
 	} else if (str_eq(cmd, "down") || str_eq(cmd, "up")) {
 		u32 button = (u32)str_to_int(p, NULL);
 		input_button(button ? button : BUTTON_LEFT, str_eq(cmd, "down"));

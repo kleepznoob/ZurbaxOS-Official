@@ -347,6 +347,7 @@ void server_init(void)
 
 void server_frame_done(void)
 {
+	wl_frame_done();
 	MsgFrame f = { .time_ns = time_mono_ns() };
 	for (int i = 0; i < S.nwin; i++) {
 		Window *w = S.windows[i];
@@ -366,6 +367,10 @@ void server_frame_done(void)
 
 void server_pointer_event(Window *w, u32 kind, u32 button)
 {
+	if (w && w->wl) {
+		wl_pointer_event(w, kind, button);
+		return;
+	}
 	if (!w || !w->client)
 		return;
 	MsgPointer m = { .kind = kind, .button = button, .mods = S.mods, .x = S.px - w->rect.x, .y = S.py - w->rect.y,
@@ -375,6 +380,10 @@ void server_pointer_event(Window *w, u32 kind, u32 button)
 
 void server_scroll_event(Window *w, f32 dx, f32 dy, u32 source, u32 phase)
 {
+	if (w && w->wl) {
+		wl_scroll_event(w, dx, dy, source, phase);
+		return;
+	}
 	if (!w || !w->client)
 		return;
 	MsgScroll m = { .dx = dx, .dy = dy, .source = source, .phase = phase, .mods = S.mods,
@@ -384,6 +393,10 @@ void server_scroll_event(Window *w, f32 dx, f32 dy, u32 source, u32 phase)
 
 void server_key_event(Window *w, u32 code, u32 state, const char *text)
 {
+	if (w && w->wl) {
+		wl_key_event(w, code, state);
+		return;
+	}
 	if (!w || !w->client)
 		return;
 	MsgKey m = { .code = code, .state = state, .mods = S.mods, .time_ms = time_mono_ms() };
@@ -393,6 +406,10 @@ void server_key_event(Window *w, u32 code, u32 state, const char *text)
 
 void server_focus_event(Window *w, bool focused)
 {
+	if (w && w->wl) {
+		wl_focus_event(w, focused);
+		return;
+	}
 	if (!w || !w->client)
 		return;
 	MsgFocus m = { .focused = focused };

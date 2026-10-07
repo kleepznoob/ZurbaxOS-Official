@@ -17,6 +17,7 @@ usize strlen(const char *s);
 void *mem_alloc(usize n);              /* uninitialised */
 void *mem_zalloc(usize n);             /* zero-filled */
 void *mem_realloc(void *p, usize n);
+extern bool mem_poison;   /* ZR_MEM_POISON=1: freed memory is overwritten (debugging) */
 void mem_free(void *p);
 void *mem_dup(const void *p, usize n);
 usize mem_usable(const void *p);

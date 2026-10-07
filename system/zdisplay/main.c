@@ -139,6 +139,7 @@ int main(int argc, char **argv)
 	}
 	wallpaper_reload();
 	server_init();
+	wl_server_init();
 	if (!S.headless)
 		input_init();
 	shell_init();
@@ -175,6 +176,7 @@ int main(int argc, char **argv)
 				timeout = MIN(timeout, ms);
 			}
 		}
+		wl_flush();
 		loop_once(S.loop, timeout);
 	}
 }

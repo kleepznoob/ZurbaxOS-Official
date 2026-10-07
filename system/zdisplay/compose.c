@@ -116,6 +116,8 @@ static Canvas *make_cursor(u32 shape, f32 s, int *hx, int *hy)
 	Mat m = mat_scale(s, s);
 	*hx = *hy = 0;
 	switch (shape) {
+	case CURSOR_HIDDEN:
+		return c; /* nothing at all, for the hardware cursor too */
 	case CURSOR_TEXT:
 		path_move(&p, 12, 4); path_line(&p, 20, 4);
 		path_move(&p, 16, 4); path_line(&p, 16, 26);
@@ -212,38 +214,56 @@ static Canvas *make_cursor(u32 shape, f32 s, int *hx, int *hy)
 }
 
 static int cursor_hot[16][2];
-static int cursor_drawn_x = -10000, cursor_drawn_y, cursor_drawn_shape = -1;
+static int cursor_drawn_x = -10000, cursor_drawn_y, cursor_drawn_shape = -1, cursor_drawn_size;
+
+/* The picture for the current cursor; a shape number that changes when the picture does. */
+static const Canvas *cursor_picture(int *hx, int *hy, int *key)
+{
+	u32 shape = S.cursor < 16 ? S.cursor : CURSOR_DEFAULT;
+	if (shape == CURSOR_CUSTOM && S.cursor_custom) {
+		*hx = S.cursor_custom_hx, *hy = S.cursor_custom_hy;
+		*key = 1000 + (int)(S.cursor_custom_serial % 1000000);
+		return S.cursor_custom;
+	}
+	if (shape == CURSOR_CUSTOM)
+		shape = CURSOR_DEFAULT;
+	*hx = cursor_hot[shape][0], *hy = cursor_hot[shape][1];
+	*key = (int)shape;
+	return S.cursor_img[shape];
+}
 
 void cursor_update(void)
 {
-	u32 shape = S.cursor < 16 ? S.cursor : CURSOR_DEFAULT;
-	if (shape == CURSOR_HIDDEN)
-		shape = CURSOR_DEFAULT;
-	int x = (int)(S.px * S.scale) - cursor_hot[shape][0], y = (int)(S.py * S.scale) - cursor_hot[shape][1];
+	int hx, hy, key;
+	const Canvas *img = cursor_picture(&hx, &hy, &key);
+	int x = (int)(S.px * S.scale) - hx, y = (int)(S.py * S.scale) - hy;
 	if (S.hw_cursor) {
-		if ((int)shape != cursor_drawn_shape) {
-			S.out->cursor_set(S.out, S.cursor_img[shape], cursor_hot[shape][0], cursor_hot[shape][1]);
-			cursor_drawn_shape = (int)shape;
+		if (key != cursor_drawn_shape) {
+			/* too big for the hardware cursor: the arrow instead */
+			if (!S.out->cursor_set(S.out, img, hx, hy))
+				S.out->cursor_set(S.out, S.cursor_img[CURSOR_DEFAULT], cursor_hot[0][0], cursor_hot[0][1]);
+			cursor_drawn_shape = key;
 		}
 		S.out->cursor_move(S.out, (int)(S.px * S.scale), (int)(S.py * S.scale));
 		return;
 	}
 	/* Software cursor: repaint the old and new spots. */
-	if ((int)shape != cursor_drawn_shape || x != cursor_drawn_x || y != cursor_drawn_y) {
-		int size = S.cursor_img[0]->width;
-		damage_physical(rect((f32)cursor_drawn_x, (f32)cursor_drawn_y, (f32)size, (f32)size));
+	int size = MAX(img->width, img->height);
+	if (key != cursor_drawn_shape || x != cursor_drawn_x || y != cursor_drawn_y) {
+		damage_physical(rect((f32)cursor_drawn_x, (f32)cursor_drawn_y, (f32)cursor_drawn_size, (f32)cursor_drawn_size));
 		damage_physical(rect((f32)x, (f32)y, (f32)size, (f32)size));
 	}
 }
 
 static void draw_software_cursor(Canvas *frame)
 {
-	u32 shape = S.cursor < 16 ? S.cursor : CURSOR_DEFAULT;
 	if (S.cursor == CURSOR_HIDDEN || S.splash || S.capturing)
 		return;
-	int x = (int)(S.px * S.scale) - cursor_hot[shape][0], y = (int)(S.py * S.scale) - cursor_hot[shape][1];
-	blit(frame, S.cursor_img[shape], x, y, 1);
-	cursor_drawn_x = x, cursor_drawn_y = y, cursor_drawn_shape = (int)shape;
+	int hx, hy, key;
+	const Canvas *img = cursor_picture(&hx, &hy, &key);
+	int x = (int)(S.px * S.scale) - hx, y = (int)(S.py * S.scale) - hy;
+	blit(frame, img, x, y, 1);
+	cursor_drawn_x = x, cursor_drawn_y = y, cursor_drawn_shape = key, cursor_drawn_size = MAX(img->width, img->height);
 }
 
 /* ---- Frame composition --------------------------------------------------------------------- */
@@ -281,6 +301,7 @@ static void draw_window(Canvas *frame, Window *w)
 	if (opacity <= 0.003f)
 		return;
 	Rect v = window_visual_rect(w);
+	w->shown = v;
 	Rect pr = { v.x * S.scale, v.y * S.scale, v.w * S.scale, v.h * S.scale };
 	pr.x = roundf(pr.x), pr.y = roundf(pr.y);
 	if (!rect_empty(rect_intersect(pr, frame->clip)) || !(w->flags & WIN_NO_SHADOW)) {
@@ -296,6 +317,9 @@ static void draw_window(Canvas *frame, Window *w)
 	const Canvas *img;
 	if (w->closing && w->last_frame) {
 		img = w->last_frame;
+	} else if (w->wl) {
+		wl_window_draw(frame, w, pr, opacity);
+		return;
 	} else {
 		if (w->front < 0 || !w->map)
 			return;

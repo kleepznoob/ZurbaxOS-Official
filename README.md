@@ -9,7 +9,7 @@ controller vibration, F11 full screen, and the Golden Rain wallpaper. It
 also brings Wi-Fi and Mail. (Inside the source, programs, paths and
 settings still carry the project's first name, `zurbax`.)
 
-There's no glibc, no X11 or Wayland, no GTK or Qt, no GRUB and no
+There's no glibc, no X server or libwayland, no GTK or Qt, no GRUB and no
 distribution underneath. ZOS has its own pieces for everything:
 - the C runtime,
 - graphics engine and font,
@@ -50,6 +50,15 @@ gives its battery level. The Arcade's games have proper controller
 layouts, and Settings → Gaming shows a live picture of each controller to
 test its buttons, sticks and vibration. F11 makes any window full screen,
 which also turns on game mode.
+
+**Linux programs.** zdisplay also speaks Wayland, the window protocol
+standard Linux programs use (its own implementation of it, not libwayland's).
+Wayland programs, and X11 programs through Xwayland, open as ordinary ZOS
+windows: they move, resize, maximize, go full screen, show their menus and
+cursors and sit in the dock like ZOS apps, and they type with the keyboard
+layout chosen in Settings. Games can lock the pointer and read raw mouse
+motion for mouse-look. A full-screen game that keeps a smaller picture is
+shown centred at its own aspect ratio.
 
 **First start.** The Welcome assistant covers keyboard, time zone, an
 account and a look. Every step can be skipped. When started from the USB
@@ -143,7 +152,7 @@ The Installer finds the system on whichever one ZOS started from.
 | `apps/` | The apps |
 | `store/` | Apps offered in Harbor, packaged by `mkimage repo` |
 | `kernel/` | Kernel configuration and build script |
-| `tools/` | Image builder, QEMU test drivers (with a simulated access point and a virtual controller), development helpers |
+| `tools/` | Image builder, QEMU test drivers (with a simulated access point and a virtual controller), the Wayland protocol table generator (`wlgen.py`), development helpers |
 | `data/` | Icons, wallpaper, trusted root certificates, Harbor's trusted keys |
 | `tests/` | Test suites and fixtures |
 

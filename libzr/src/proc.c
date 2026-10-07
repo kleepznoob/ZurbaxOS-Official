@@ -158,6 +158,17 @@ void sig_handle(int sig, void (*fn)(int))
 	sys_rt_sigaction(sig, &sa, NULL);
 }
 
+/* A handler that also gets the fault details: info points at the kernel's
+ * siginfo (the faulting address of SIGBUS and SIGSEGV is at byte 16). */
+void sig_handle_info(int sig, void (*fn)(int, void *, void *))
+{
+	struct kernel_sigaction sa = { 0 };
+	sa.handler = (void (*)(int))(void *)fn;
+	sa.flags = SA_RESTORER | SA_RESTART | SA_SIGINFO;
+	sa.restorer = zr_sigreturn;
+	sys_rt_sigaction(sig, &sa, NULL);
+}
+
 void sig_ignore(int sig)
 {
 	sig_handle(sig, SIG_IGN);

@@ -108,10 +108,24 @@ static const KeyDef *find_key(u32 code, bool want_altgr)
 
 void input_set_layout(const char *name)
 {
+	const Layout *old = active_layout;
 	active_layout = &LAYOUTS[0];
 	for (usize i = 0; i < ARRAY_LEN(LAYOUTS); i++)
 		if (str_eq(LAYOUTS[i].name, name))
 			active_layout = &LAYOUTS[i];
+	if (old && old != active_layout)
+		wl_keymap_changed(); /* Wayland programs get the new layout */
+}
+
+/* What a key types in the active layout, for describing the layout to
+ * Wayland programs: unshifted, shifted and AltGr text (NULL for none). */
+bool input_key_texts(u32 code, const char **lower, const char **upper, const char **altgr)
+{
+	const KeyDef *k = find_key(code, false), *g = find_key(code, true);
+	*lower = k ? k->lower : NULL;
+	*upper = k ? k->upper : NULL;
+	*altgr = g ? g->altgr : NULL;
+	return k || g;
 }
 
 /* A key whose shifted text differs only in case is a letter: Caps Lock applies. */
@@ -166,6 +180,7 @@ void input_pointer_abs(f32 x, f32 y)
 {
 	mark_active();
 	f32 nx = clampf(x, 0, S.sw - 1), ny = clampf(y, 0, S.sh - 1);
+	wl_confine(&nx, &ny);
 	if (nx == S.px && ny == S.py)
 		return;
 	S.px = nx;
@@ -179,6 +194,12 @@ void input_pointer_abs(f32 x, f32 y)
 void input_pointer_rel(f32 dx, f32 dy)
 {
 	f32 speed = 0.4f + S.set.pointer_speed * 1.6f;
+	wl_relative_motion(dx * speed, dy * speed, dx, dy);
+	/* a game holding the pointer gets the motion alone; the cursor stays put */
+	if (wl_pointer_locked()) {
+		mark_active();
+		return;
+	}
 	input_pointer_abs(S.px + dx * speed, S.py + dy * speed);
 }
 

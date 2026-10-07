@@ -26,6 +26,8 @@ void zr_start(long *sp)
 	int argc = (int)sp[0];
 	char **argv = (char **)(sp + 1);
 	environ = argv + argc + 1;
+	const char *poison = env_get("ZR_MEM_POISON");
+	mem_poison = poison && str_eq(poison, "1");
 	if (argc > 0 && argv[0]) {
 		const char *slash = str_rchr(argv[0], '/');
 		program_name = slash ? slash + 1 : argv[0];
