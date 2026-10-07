@@ -20,7 +20,7 @@ static char *get(const char *url, usize *len)
 {
 	if (!str_starts(url, "http"))
 		return file_read(url, len);
-	HttpOptions o = { .user_agent = "Mozilla/5.0 (X11; Zurbax x86_64) Drift/1.0", .max_redirects = 10 };
+	HttpOptions o = { .user_agent = "Mozilla/5.0 (X11; ZOS x86_64) Drift/1.0", .max_redirects = 10 };
 	HttpResponse *r = http_request(url, &o);
 	char *out = NULL;
 	if (r->status == 200 && r->body) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetches the firmware Zurbax's Wi-Fi drivers load, for the system image.
+"""Fetches the firmware ZOS's Wi-Fi drivers load, for the system image.
 
     tools/fetch-firmware.py OUTDIR
 

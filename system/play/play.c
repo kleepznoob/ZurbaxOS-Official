@@ -14,7 +14,7 @@ static int raw(const char *path)
 	AudioInfo info;
 	Decoder *d = decoder_open(path, &info);
 	if (!d) {
-		eprint("play: %s isn't a sound file Zurbax can play\n", path);
+		eprint("play: %s isn't a sound file ZOS can play\n", path);
 		return 1;
 	}
 	static i16 buf[4096 * 8];
@@ -29,7 +29,7 @@ static int show_info(const char *path)
 {
 	AudioInfo info;
 	if (!audio_probe(path, &info, true)) {
-		eprint("play: %s isn't a sound file Zurbax can play\n", path);
+		eprint("play: %s isn't a sound file ZOS can play\n", path);
 		return 1;
 	}
 	print("Title:    %s\nArtist:   %s\nAlbum:    %s\nTrack:    %d\nYear:     %d\nGenre:    %s\n", info.title, info.artist, info.album, info.track, info.year,
@@ -45,7 +45,7 @@ static int play_file(const char *path)
 	AudioInfo info;
 	Decoder *d = decoder_open(path, &info);
 	if (!d) {
-		eprint("play: %s isn't a sound file Zurbax can play\n", path);
+		eprint("play: %s isn't a sound file ZOS can play\n", path);
 		return 1;
 	}
 	int ch = MIN(info.channels, 2);

@@ -360,25 +360,32 @@ static u8 *efivar_read(const char *name, usize *len)
 	return raw;
 }
 
-static bool option_is_zurbax(const u8 *opt, usize len)
+/* Whether a boot option's UTF-16 description is exactly name. */
+static bool option_named(const u8 *opt, usize len, const char *name)
 {
-	/* Attributes (4), path list length (2), then the UTF-16 description. */
-	const char *want = "Zurbax";
-	if (len < 6 + 14)
+	/* Attributes (4), path list length (2), then the description. */
+	usize n = strlen(name);
+	if (len < 6 + (n + 1) * 2)
 		return false;
-	for (int i = 0; i < 7; i++) {
+	for (usize i = 0; i <= n; i++) {
 		u16 c = (u16)(opt[6 + i * 2] | opt[7 + i * 2] << 8);
-		if (c != (u16)(i < 6 ? want[i] : 0))
+		if (c != (u16)(i < n ? name[i] : 0))
 			return false;
 	}
 	return true;
+}
+
+/* Ours: named for the system, or for its name before 2.0. */
+static bool option_is_ours(const u8 *opt, usize len)
+{
+	return option_named(opt, len, OS_NAME) || option_named(opt, len, "Zurbax");
 }
 
 static bool add_boot_entry(u32 part_number, u64 start, u64 sectors, const u8 part_guid[16])
 {
 	if (!dir_exists(EFIVARS))
 		return false;
-	/* Reuse an older Zurbax entry, else take the first free number. */
+	/* Reuse an older entry of ours, else take the first free number. */
 	int number = -1, first_free = -1;
 	for (int i = 0; i < 0x100; i++) {
 		char name[16];
@@ -390,7 +397,7 @@ static bool add_boot_entry(u32 part_number, u64 start, u64 sectors, const u8 par
 				first_free = i;
 			continue;
 		}
-		bool ours = option_is_zurbax(opt, len);
+		bool ours = option_is_ours(opt, len);
 		mem_free(opt);
 		if (ours) {
 			number = i;
@@ -405,7 +412,7 @@ static bool add_boot_entry(u32 part_number, u64 start, u64 sectors, const u8 par
 	u8 opt[512] = { 0 };
 	usize n = 6;
 	put32(opt, 1); /* active */
-	n += put_utf16(opt + n, "Zurbax");
+	n += put_utf16(opt + n, OS_NAME);
 	usize path_start = n;
 	/* Hard drive media path: which partition. */
 	u8 *hd = opt + n;
@@ -493,15 +500,15 @@ static void install_erase(Disk *d, int fd, const u8 *sys, usize sys_len)
 	if (!gpt_write(fd, sectors, parts, 2, disk_guid))
 		fail("The partition table couldn't be written.");
 
-	step(0.25f, "Copying Zurbax");
-	FatWriter *w = fat_format(fd, parts[0].first_lba, parts[0].last_lba - parts[0].first_lba + 1, "ZURBAX");
+	step(0.25f, "Copying " OS_NAME);
+	FatWriter *w = fat_format(fd, parts[0].first_lba, parts[0].last_lba - parts[0].first_lba + 1, "ZOS");
 	if (!w)
 		fail("The startup partition couldn't be formatted.");
 	bool ok = fat_mkdir(w, "/EFI/ZURBAX") && fat_add_file(w, "/EFI/ZURBAX/ZURBAX.EFI", sys, sys_len) &&
 		  /* The fallback path: firmware boots it even with no boot entry. */
 		  fat_add_file(w, "/EFI/BOOT/BOOTX64.EFI", sys, sys_len);
 	if (!fat_finish(w) || !ok)
-		fail("Zurbax couldn't be copied to the disk.");
+		fail("ZOS couldn't be copied to the disk.");
 
 	step(0.55f, "Preparing storage for your files");
 	u8 uuid[16];
@@ -523,7 +530,7 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 	u8 disk_guid[16];
 	int n = gpt_read(fd, sectors, parts, 128, disk_guid);
 	if (n < 0)
-		fail("This disk has no GPT partition table, so Zurbax can only be installed by erasing it.");
+		fail("This disk has no GPT partition table, so ZOS can only be installed by erasing it.");
 	int esp = -1, data = -1;
 	for (int i = 0; i < n; i++) {
 		if (memcmp(parts[i].type, GPT_TYPE_ESP, 16) == 0 && esp < 0)
@@ -532,7 +539,7 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 			data = i;
 	}
 	if (esp < 0)
-		fail("This disk has no EFI system partition to start Zurbax from.");
+		fail("This disk has no EFI system partition to start ZOS from.");
 	if (data < 0) {
 		/* A new partition in the largest free space. */
 		u64 a, b;
@@ -555,7 +562,7 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 		sys_ioctl(fd, BLKRRPART, NULL);
 	}
 
-	step(0.25f, "Copying Zurbax");
+	step(0.25f, "Copying " OS_NAME);
 	char espdev[48] = { 0 };
 	for (int i = 0; i < d->nparts; i++)
 		if (d->parts[i].number == parts[esp].slot)
@@ -594,7 +601,7 @@ static int cmd_install(const char *name, const char *mode)
 	if (!load_disk(name, &d))
 		fail("That disk isn't connected any more.");
 	if (d.boot_medium)
-		fail("Zurbax can't be installed on the stick it's running from.");
+		fail("ZOS can't be installed on the stick it's running from.");
 	step(0.02f, "Reading the install stick");
 	usize sys_len;
 	u8 *sys = read_system(&sys_len);
@@ -628,7 +635,7 @@ int main(int argc, char **argv)
 	/* Only in the live session, which only process 1 can mark. */
 	struct stat st;
 	if (sys_stat("/run/zurbax-live", &st) < 0 || st.st_uid != 0) {
-		say("error Zurbax can only be installed while running from the install stick.");
+		say("error ZOS can only be installed while running from the install stick.");
 		return 1;
 	}
 	if (sys_setresgid(0, 0, 0) < 0 || sys_setresuid(0, 0, 0) < 0) {

@@ -250,7 +250,7 @@ static bool open_camera(const char *path)
 		mjpg |= d.pixelformat == FMT_MJPG;
 	}
 	if (!yuyv && !mjpg) {
-		str_copy(cam.error, "This camera sends pictures in a format Zurbax doesn't read yet.", sizeof cam.error);
+		str_copy(cam.error, "This camera sends pictures in a format ZOS doesn't read yet.", sizeof cam.error);
 		close_camera();
 		return false;
 	}

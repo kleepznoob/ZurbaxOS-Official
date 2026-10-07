@@ -37,6 +37,13 @@ typedef ptrdiff_t isize;
 #define CLAMP(x, lo, hi) ((x) < (lo) ? (lo) : (x) > (hi) ? (hi) : (x))
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 #define UNUSED(x) ((void)(x))
+
+/* The system's name and release, as people see it. (Inside, programs,
+ * paths and settings keep the "zurbax" name it was started under.) */
+#define OS_NAME "ZOS"
+#define OS_VERSION "2.0"
+#define OS_CODENAME "Golden Rain"
+#define OS_PRETTY_NAME OS_NAME " " OS_VERSION " " OS_CODENAME
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define NORETURN __attribute__((noreturn))

@@ -205,7 +205,7 @@ static void page_appearance(Ui *ui, Rect r)
 	b.y = y0 + 26;
 	b.h = 100000; /* scrolling content: room to lay out everything */
 	f32 top = b.y;
-	page_title(ui, &b, "Appearance", "Make Zurbax yours: style, colour and wallpaper.");
+	page_title(ui, &b, "Appearance", "Make ZOS yours: style, colour and wallpaper.");
 
 	section(ui, &b, "Style");
 	Rect styles = cut_top(&b, 150);
@@ -898,7 +898,7 @@ static void page_gaming(Ui *ui, Rect r)
 	ui_icon(ui, rect(in.x, in.y + 4, 32, 32), "computer", t->text_dim);
 	ui_text(ui, ui_font(ui, 14, 600), in.x + 48, in.y + 16, "Running .exe programs", t->text);
 	ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(in.x + 48, in.y + 24, in.w - 48, 40),
-			"Zurbax can't run Windows programs yet. Games made for Zurbax are in Harbor and Arcade.", t->text_dim, ALIGN_START);
+			"ZOS can't run Windows programs yet. Games made for ZOS are in Harbor and Arcade.", t->text_dim, ALIGN_START);
 	cut_top(&b, 14);
 	if (ui_button(ui, cut_left(&(Rect){ b.x, b.y, 200, 34 }, 200), "Browse Games in Harbor"))
 		ui_launch(ui, "harbor", "games");
@@ -1027,8 +1027,9 @@ static void page_about(Ui *ui, Rect r)
 	Rect b = page_body(r);
 	Rect top = cut_top(&b, 200);
 	ui_app_icon(ui, center_in(cut_top(&top, 110), 100, 100), "zurbax");
-	ui_text_in(ui, ui_font(ui, 28, 300), cut_top(&top, 40), "Zurbax", t->text, ALIGN_CENTER);
-	ui_text_in(ui, ui_font(ui, 13, 400), cut_top(&top, 20), "Version 1.0 · Built from scratch on the Linux kernel", t->text_dim, ALIGN_CENTER);
+	ui_text_in(ui, ui_font(ui, 28, 300), cut_top(&top, 40), OS_NAME " " OS_VERSION, t->text, ALIGN_CENTER);
+	ui_text_in(ui, ui_font(ui, 13, 600), cut_top(&top, 20), OS_CODENAME, color_hex("#d99a1e"), ALIGN_CENTER);
+	ui_text_in(ui, ui_font(ui, 12, 400), cut_top(&top, 18), "Built from scratch on the Linux kernel", t->text_dim, ALIGN_CENTER);
 	Rect rows = card_rows(ui, &b, 6, 44);
 	char mem[32], disk[64], tot[32], fr[32];
 	fmt_bytes(mem, sizeof mem, st.mem_kb * 1024);
@@ -1168,7 +1169,7 @@ static void init(Ui *ui)
 	st.conf = conf_load(st.conf_path);
 	char *path = str_fmt("%s/system/users.conf", zurbax_data());
 	Conf *u = conf_load(path);
-	sb_adds(&st.full_name, conf_get(u, "full_name", "Zurbax User"));
+	sb_adds(&st.full_name, conf_get(u, "full_name", "ZOS User"));
 	str_copy(st.user_name, conf_get(u, "user", "user"), sizeof st.user_name);
 	st.has_password = conf_get_bool(u, "has_password", false);
 	conf_free(u);

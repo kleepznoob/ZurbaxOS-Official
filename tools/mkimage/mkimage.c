@@ -180,7 +180,7 @@ static int make_disk(const char *out, const char *efi)
 	u8 disk[16];
 	guid_random(disk);
 	check(gpt_write(fd, sectors, &esp, 1, disk), "partition table");
-	FatWriter *w = fat_format(fd, esp.first_lba, esp.last_lba - esp.first_lba + 1, "ZURBAX");
+	FatWriter *w = fat_format(fd, esp.first_lba, esp.last_lba - esp.first_lba + 1, "ZOS"); /* the name Windows shows for the stick */
 	check(w != NULL, "FAT32 format");
 	if (w) {
 		check(fat_mkdir(w, "/EFI"), "EFI folder");
@@ -231,7 +231,7 @@ static int make_repo(const char *out)
 		return 1;
 	}
 	StrBuf ix = { 0 };
-	sb_adds(&ix, "# Apps built with Zurbax, offered by Harbor.\nsource = Zurbax\n");
+	sb_adds(&ix, "# Apps built for " OS_NAME ", offered by Harbor.\nsource = " OS_NAME "\n");
 	for (usize i = 0; i < store.len; i++) {
 		const char *a = store.data[i].name;
 		char *conf_path = str_fmt("store/%s/app.conf", a), *meta_path = str_fmt("store/%s/store.conf", a);
@@ -285,7 +285,7 @@ static int make_repo(const char *out)
 		index_line(&ix, "name", conf_get(app, "name", a));
 		index_line(&ix, "version", version);
 		index_line(&ix, "category", conf_get(meta, "category", conf_get(app, "category", "Other")));
-		index_line(&ix, "developer", conf_get(meta, "developer", "Zurbax"));
+		index_line(&ix, "developer", conf_get(meta, "developer", OS_NAME));
 		index_line(&ix, "summary", conf_get(meta, "summary", ""));
 		index_line(&ix, "description", conf_get(meta, "description", ""));
 		index_line(&ix, "file", pkg);

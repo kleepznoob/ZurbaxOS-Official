@@ -1,13 +1,13 @@
 /*
- * Wallpapers: the pictures that ship with Zurbax and the procedural
+ * Wallpapers: the pictures that ship with ZOS and the procedural
  * landscapes, rendered at any size. Used by the desktop and by Settings
  * for previews.
  */
 #include "zui.h"
 
-const char *const WALLPAPER_NAMES[] = { "lake", "ridgeline", "glacier", "nightfall", "ember", "meadow" };
-const char *const WALLPAPER_TITLES[] = { "Lake at Dusk", "Ridgeline", "Glacier", "Nightfall", "Ember", "Meadow" };
-const int WALLPAPER_COUNT = 6;
+const char *const WALLPAPER_NAMES[] = { "lake", "golden-rain", "ridgeline", "glacier", "nightfall", "ember", "meadow" };
+const char *const WALLPAPER_TITLES[] = { "Lake at Dusk", "Golden Rain", "Ridgeline", "Glacier", "Nightfall", "Ember", "Meadow" };
+const int WALLPAPER_COUNT = 7;
 
 static f32 hash1(int i, u32 seed)
 {
@@ -85,7 +85,7 @@ static Canvas *cover(Canvas *img, int w, int h, f32 focus_y)
 	return c;
 }
 
-/* Pictures that ship with Zurbax, in /system/share/wallpapers. */
+/* Pictures that ship with ZOS, in /system/share/wallpapers. */
 static const struct {
 	const char *name, *file;
 	f32 focus_y;
@@ -93,8 +93,126 @@ static const struct {
 	{ "lake", "lake.png", 0.72f },
 };
 
+/* A streak of light that fades out toward its tail. */
+static void light_streak(Canvas *c, f32 x0, f32 y0, f32 x1, f32 y1, f32 width, Color col, f32 alpha)
+{
+	Path p = { 0 };
+	path_move(&p, x0, y0);
+	path_line(&p, x1, y1);
+	Paint paint = paint_linear(x0, y0, x1, y1, color_scale_alpha(col, 0), color_scale_alpha(col, alpha));
+	StrokeStyle st = { .width = width, .cap = CAP_ROUND, .join = JOIN_ROUND, .miter_limit = 4 };
+	stroke_path(c, &p, mat_identity(), &paint, &st);
+	path_free(&p);
+}
+
+/* Golden Rain, the picture of ZOS 2.0: a lake at sundown under a shower of
+ * golden light, with ripples where the drops land. */
+static Canvas *golden_rain(int w, int h)
+{
+	Canvas *c = canvas_new(w, h);
+	f32 fw = (f32)w, fh = (f32)h, k = fw / 1920;
+	f32 horizon = fh * 0.62f, sx = fw * 0.5f, sy = horizon - fh * 0.035f;
+	/* the sky, from night above to gold at the water */
+	Paint sky = paint_linear(0, 0, 0, horizon, color_hex("#1d1640"), color_hex("#ffc56e"));
+	paint_add_stop(&sky, 0.38f, color_hex("#5a326a"));
+	paint_add_stop(&sky, 0.68f, color_hex("#c9636c"));
+	paint_add_stop(&sky, 0.88f, color_hex("#f3955f"));
+	fill_rect_paint(c, rect(0, 0, fw, horizon + 2), &sky);
+	for (int i = 0; i < w * h / 9000; i++) {
+		f32 x = hash1(i, 501) * fw, y = hash1(i, 503) * horizon * 0.42f;
+		fill_circle(c, x, y, (0.4f + hash1(i, 505) * 0.9f) * k, color_scale_alpha(COLOR_WHITE, 0.15f + hash1(i, 507) * 0.5f * (1 - y / (horizon * 0.42f))));
+	}
+	/* the sun sinking into the lake, and its glow */
+	Paint glow = paint_radial(sx, sy, fw * 0.55f, color_scale_alpha(color_hex("#ffd27a"), 0.7f), color_scale_alpha(color_hex("#ff9a5a"), 0));
+	fill_rect_paint(c, rect(0, 0, fw, horizon), &glow);
+	Paint core = paint_radial(sx, sy, fw * 0.09f, color_scale_alpha(color_hex("#fff4d6"), 0.95f), color_scale_alpha(color_hex("#ffd27a"), 0));
+	fill_rect_paint(c, rect(sx - fw * 0.1f, sy - fw * 0.1f, fw * 0.2f, fw * 0.2f), &core);
+	fill_circle(c, sx, sy, fw * 0.034f, color_hex("#fff3d4"));
+	/* distant hills along the shore, hazy with light */
+	static const char *const HILLS[] = { "#c47a7c", "#8f5272", "#5c3557" };
+	for (int layer = 0; layer < 3; layer++) {
+		f32 amp = fh * (0.085f - 0.02f * (f32)layer), scale = 2.5f + 1.7f * (f32)layer;
+		Path p = { 0 };
+		path_move(&p, 0, horizon + 1);
+		for (int x = 0; x <= w; x += MAX(2, w / 640)) {
+			f32 fx = (f32)x / fw;
+			f32 edge = minf(1, minf(fx, 1 - fx) * (3.2f - (f32)layer * 0.6f)); /* low by the sun, higher at the sides */
+			f32 n = ridge(fx * scale, 900 + (u32)layer * 17, 6);
+			path_line(&p, (f32)x, horizon - amp * (0.25f + n * 0.9f) * (1.2f - edge * 0.85f));
+		}
+		path_line(&p, fw, horizon + 1);
+		path_close(&p);
+		Color col = color_hex(HILLS[layer]);
+		Paint fill = paint_linear(0, horizon - amp * 1.2f, 0, horizon, col, color_mix(col, color_hex("#ffb26b"), 0.35f));
+		fill_path(c, &p, mat_identity(), &fill, FILL_NONZERO);
+		path_free(&p);
+	}
+	/* the lake: the sky again, darker, and a road of light under the sun */
+	Paint lake = paint_linear(0, horizon, 0, fh, color_hex("#f0a46a"), color_hex("#1a1233"));
+	paint_add_stop(&lake, 0.22f, color_hex("#b45c6c"));
+	paint_add_stop(&lake, 0.55f, color_hex("#4c2a58"));
+	fill_rect_paint(c, rect(0, horizon, fw, fh - horizon), &lake);
+	for (int i = 0; i < 900; i++) {
+		f32 t = hash1(i, 601);
+		f32 y = horizon + 2 + t * t * (fh - horizon);
+		f32 spread = (0.012f + t * 0.16f) * fw;
+		f32 x = sx + (hash1(i, 603) * 2 - 1) * spread * (0.4f + hash1(i, 607) * 0.6f);
+		f32 len = (6 + hash1(i, 605) * 30) * k * (0.5f + t);
+		f32 a = (0.85f - t * 0.6f) * (1 - fabsf(x - sx) / (spread + 1)) * (0.5f + hash1(i, 609) * 0.5f);
+		fill_rect(c, rect(x - len / 2, y, len, maxf(1, (1 + t * 2) * k)), color_scale_alpha(color_hex("#ffe1a0"), clampf(a, 0, 1)));
+	}
+	/* ripples where the rain meets the water */
+	for (int i = 0; i < 70; i++) {
+		f32 t = hash1(i, 701);
+		f32 y = horizon + fh * 0.02f + t * (fh - horizon) * 0.95f;
+		f32 x = hash1(i, 703) * fw, r = (8 + hash1(i, 705) * 34) * k * (0.4f + t * 1.2f);
+		Path p = { 0 };
+		path_ellipse(&p, x, y, r, r * 0.22f);
+		StrokeStyle st = { .width = maxf(0.8f, 1.3f * k), .cap = CAP_ROUND, .join = JOIN_ROUND, .miter_limit = 4 };
+		Paint ring = paint_solid(color_scale_alpha(color_hex("#ffd9a0"), 0.1f + 0.25f * (1 - t)));
+		stroke_path(c, &p, mat_identity(), &ring, &st);
+		path_free(&p);
+	}
+	/* a dark shore in the corners to frame it */
+	for (int side = 0; side < 2; side++) {
+		Path p = { 0 };
+		f32 x0 = side ? fw : 0, dir = side ? -1 : 1;
+		path_move(&p, x0, fh * (0.80f + 0.03f * (f32)side));
+		path_cubic(&p, x0 + dir * fw * 0.12f, fh * 0.80f, x0 + dir * fw * 0.2f, fh * 0.9f, x0 + dir * fw * (0.34f - 0.06f * (f32)side), fh);
+		path_line(&p, x0, fh);
+		path_close(&p);
+		Paint shore = paint_linear(0, fh * 0.8f, 0, fh, color_hex("#20152f"), color_hex("#0d0918"));
+		fill_path(c, &p, mat_identity(), &shore, FILL_NONZERO);
+		path_free(&p);
+	}
+	/* the golden rain: streaks of light falling slightly aslant, thicker near */
+	f32 slant = 0.16f;
+	int drops = w * h / 5200;
+	for (int i = 0; i < drops; i++) {
+		f32 x = hash1(i, 801) * (fw + fh * slant) - fh * slant, y = hash1(i, 803) * fh * 1.05f - fh * 0.05f;
+		f32 depth = hash1(i, 805);                      /* 0 far .. 1 near */
+		f32 len = (18 + depth * depth * 90) * k;
+		f32 width = (0.6f + depth * depth * 2.2f) * k;
+		f32 near_sun = 1 - minf(1, sqrtf((x - sx) * (x - sx) + (y - sy) * (y - sy)) / (fw * 0.6f));
+		f32 a = (0.22f + depth * 0.5f) * (0.6f + near_sun * 0.6f);
+		Color col = color_mix(color_hex("#ffbe4d"), color_hex("#fff0c0"), near_sun * near_sun);
+		light_streak(c, x - len * slant, y - len, x, y, width, col, clampf(a, 0, 1));
+	}
+	/* drops caught in the light: soft glowing beads */
+	for (int i = 0; i < 46; i++) {
+		f32 x = hash1(i, 901) * fw, y = hash1(i, 903) * fh * 0.85f;
+		f32 r = (4 + hash1(i, 905) * hash1(i, 907) * 26) * k;
+		Paint bead = paint_radial(x, y, r, color_scale_alpha(color_hex("#ffe3a3"), 0.35f + hash1(i, 909) * 0.25f), color_scale_alpha(color_hex("#ffcf70"), 0));
+		fill_rect_paint(c, rect(x - r, y - r, 2 * r, 2 * r), &bead);
+	}
+	add_grain(c, 4242, 0.02f);
+	return c;
+}
+
 Canvas *wallpaper_render(const char *name, int w, int h)
 {
+	if (name && str_eq(name, "golden-rain"))
+		return golden_rain(w, h);
 	/* A user picture? */
 	if (name && name[0] == '/') {
 		Canvas *img = image_load(name);

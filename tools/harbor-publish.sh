@@ -5,7 +5,7 @@
 #   tools/harbor-publish.sh --new-key KEY.pem       make a publisher key
 #
 # Keep KEY.pem private and out of this repository. The public half goes in
-# data/harbor/keys/<name>.pub so Zurbax trusts what you sign.
+# data/harbor/keys/<name>.pub so ZOS trusts what you sign.
 set -eu
 if [ "${1:-}" = "--new-key" ]; then
 	openssl ecparam -name prime256v1 -genkey -noout -out "$2"

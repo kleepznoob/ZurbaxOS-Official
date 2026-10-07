@@ -12,7 +12,7 @@ static void load_account(void)
 	Conf *u = conf_load(path);
 	mem_free(path);
 	str_copy(S.set.user_name, conf_get(u, "user", "user"), sizeof S.set.user_name);
-	str_copy(S.set.full_name, conf_get(u, "full_name", "Zurbax User"), sizeof S.set.full_name);
+	str_copy(S.set.full_name, conf_get(u, "full_name", "ZOS User"), sizeof S.set.full_name);
 	S.set.uid = (u32)conf_get_int(u, "uid", 1000);
 	S.set.setup_done = conf_get_bool(u, "setup_done", false);
 	S.set.gid = (u32)conf_get_int(u, "gid", 1000);

@@ -1,5 +1,5 @@
 /*
- * Installer — puts Zurbax on this computer, from the install stick.
+ * Installer — puts ZOS on this computer, from the install stick.
  *
  * Four short steps: pick a disk, pick how (erase it, or use its free space
  * next to Windows), confirm, and watch it finish in about a minute. The work
@@ -98,7 +98,7 @@ static void finish_disk(Disk *d, bool ntfs, bool ext4, int nparts)
 	if (!d->name[0])
 		return;
 	if (d->has_zurbax)
-		str_copy(d->contents, "Zurbax", sizeof d->contents), str_copy(d->os, "the current Zurbax files", sizeof d->os);
+		str_copy(d->contents, OS_NAME, sizeof d->contents), str_copy(d->os, "the current ZOS files", sizeof d->os);
 	else if (ntfs && d->esp)
 		str_copy(d->contents, "Windows", sizeof d->contents), str_copy(d->os, "Windows", sizeof d->os);
 	else if (ntfs)
@@ -261,7 +261,7 @@ static void start_install(Ui *ui)
 
 static void demo_tick(Ui *ui)
 {
-	static const char *const steps[] = { "Reading the install stick", "Preparing the disk", "Creating partitions", "Copying Zurbax",
+	static const char *const steps[] = { "Reading the install stick", "Preparing the disk", "Creating partitions", "Copying ZOS",
 					     "Preparing storage for your files", "Setting up startup" };
 	f32 t = (f32)(ui->now - in.demo_t0) / 6.0f;
 	in.fraction = minf(t, 1);
@@ -316,7 +316,7 @@ static bool choice_card(Ui *ui, Rect r, const char *id, const char *icon, const 
 static void page_disk(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	page_header(ui, &r, "Where should Zurbax go?", "Choose the disk to install Zurbax on. The next step lets you keep what's already there, if there's room.");
+	page_header(ui, &r, "Where should ZOS go?", "Choose the disk to install ZOS on. The next step lets you keep what's already there, if there's room.");
 	Rect bottom = cut_bottom(&r, 36);
 	cut_bottom(&r, 16);
 	if (in.ndisks == 0) {
@@ -328,7 +328,7 @@ static void page_disk(Ui *ui, Rect r)
 			char size[32], sub[160];
 			format_size(size, sizeof size, d->bytes);
 			if (d->boot_medium)
-				str_copy(sub, "Zurbax is running from this stick", sizeof sub);
+				str_copy(sub, "ZOS is running from this stick", sizeof sub);
 			else
 				fmt(sub, sizeof sub, "%s%s", d->contents, d->usb ? " · USB" : "");
 			ui_push_id(ui, i);
@@ -359,15 +359,15 @@ static void page_how(Ui *ui, Rect r)
 	Theme *t = &ui->theme;
 	Disk *d = &in.disks[in.disk];
 	char title[128];
-	fmt(title, sizeof title, "How should Zurbax use %s?", disk_title(d));
-	page_header(ui, &r, title, "Zurbax needs at least 16 GB.");
+	fmt(title, sizeof title, "How should ZOS use %s?", disk_title(d));
+	page_header(ui, &r, title, "ZOS needs at least 16 GB.");
 	Rect bottom = cut_bottom(&r, 36);
 	cut_bottom(&r, 16);
 
 	bool empty = str_eq(d->contents, "Empty");
 	char sub[256];
-	fmt(sub, sizeof sub, empty ? "The whole disk is used for Zurbax." : "Everything on the disk is deleted, including %s.", d->os);
-	if (choice_card(ui, cut_top(&r, 82), "erase", "drive", empty ? "Use the whole disk" : "Erase disk and install Zurbax", sub, NULL,
+	fmt(sub, sizeof sub, empty ? "The whole disk is used for ZOS." : "Everything on the disk is deleted, including %s.", d->os);
+	if (choice_card(ui, cut_top(&r, 82), "erase", "drive", empty ? "Use the whole disk" : "Erase disk and install ZOS", sub, NULL,
 			!in.alongside, true, empty ? t->text_dim : t->danger))
 		in.alongside = false;
 	cut_top(&r, 10);
@@ -377,8 +377,8 @@ static void page_how(Ui *ui, Rect r)
 		char size[32], label[128];
 		format_size(size, sizeof size, d->free_bytes);
 		if (d->has_zurbax) {
-			str_copy(label, "Reinstall Zurbax, keep the rest", sizeof label);
-			str_copy(sub, "Zurbax's storage is replaced; other systems on the disk stay as they are.", sizeof sub);
+			str_copy(label, "Reinstall ZOS, keep the rest", sizeof label);
+			str_copy(sub, "ZOS's storage is replaced; other systems on the disk stay as they are.", sizeof sub);
 		} else {
 			fmt(label, sizeof label, "Install alongside %s", d->os);
 			if (can)
@@ -393,7 +393,7 @@ static void page_how(Ui *ui, Rect r)
 		if (in.alongside) {
 			cut_top(&r, 16);
 			ui_text_wrapped(ui, ui_font(ui, 13, 400), cut_top(&r, 40),
-					"Zurbax starts by default. To start the other system, open your computer's boot menu while it starts (F8 or Esc on most ASUS computers).",
+					"ZOS starts by default. To start the other system, open your computer's boot menu while it starts (F8 or Esc on most ASUS computers).",
 					t->text_dim, ALIGN_START);
 		}
 	}
@@ -409,7 +409,7 @@ static void page_confirm(Ui *ui, Rect r)
 	Disk *d = &in.disks[in.disk];
 	char size[32], sub[256];
 	format_size(size, sizeof size, d->bytes);
-	fmt(sub, sizeof sub, "Zurbax will be installed on %s (%s). It takes about a minute.", disk_title(d), size);
+	fmt(sub, sizeof sub, "ZOS will be installed on %s (%s). It takes about a minute.", disk_title(d), size);
 	page_header(ui, &r, "Ready to install", sub);
 	Rect bottom = cut_bottom(&r, 36);
 	cut_bottom(&r, 16);
@@ -427,11 +427,11 @@ static void page_confirm(Ui *ui, Rect r)
 		fmt(body, sizeof body, "%s on %s will be deleted. This can't be undone, so copy anything you need first.",
 		    str_eq(d->contents, "Empty") ? "Anything" : d->os, disk_title(d));
 	else
-		fmt(body, sizeof body, "%s keeps its files. Zurbax goes into the free space and adds itself to the startup menu.", d->os);
+		fmt(body, sizeof body, "%s keeps its files. ZOS goes into the free space and adds itself to the startup menu.", d->os);
 	ui_text_in(ui, ui_font(ui, 15, 700), cut_top(&c, 24), head, t->text, ALIGN_START);
 	ui_text_wrapped(ui, ui_font(ui, 13, 400), c, body, t->text_dim, ALIGN_START);
 	cut_top(&r, 22);
-	static const char *const facts[] = { "Your account and settings are set up when Zurbax first starts.",
+	static const char *const facts[] = { "Your account and settings are set up when ZOS first starts.",
 					     "Keep the computer plugged in until it's done." };
 	for (int i = 0; i < 2; i++) {
 		Rect row = cut_top(&r, 28);
@@ -457,7 +457,7 @@ static void page_installing(Ui *ui, Rect r)
 	Rect c = center_in(r, minf(440, r.w), 230);
 	ui_app_icon(ui, center_in(cut_top(&c, 96), 96, 96), "installer");
 	cut_top(&c, 18);
-	ui_text_in(ui, ui_font(ui, 20, 700), cut_top(&c, 30), "Installing Zurbax", t->text, ALIGN_CENTER);
+	ui_text_in(ui, ui_font(ui, 20, 700), cut_top(&c, 30), "Installing ZOS", t->text, ALIGN_CENTER);
 	cut_top(&c, 18);
 	ui_progress(ui, cut_top(&c, 8), in.shown_fraction);
 	cut_top(&c, 12);
@@ -472,9 +472,9 @@ static void page_result(Ui *ui, Rect r, bool ok)
 	ui_circle(ui, ir.x + 40, ir.y + 40, 40, color_with_alpha(ok ? t->success : t->danger, 0x26));
 	ui_icon(ui, center_in(ir, 40, 40), ok ? "check" : "warning", ok ? t->success : t->danger);
 	cut_top(&c, 18);
-	ui_text_in(ui, ui_font(ui, 20, 700), cut_top(&c, 30), ok ? "Zurbax is installed" : "Zurbax couldn't be installed", t->text, ALIGN_CENTER);
+	ui_text_in(ui, ui_font(ui, 20, 700), cut_top(&c, 30), ok ? "ZOS is installed" : "ZOS couldn't be installed", t->text, ALIGN_CENTER);
 	cut_top(&c, 6);
-	const char *msg = ok ? "Remove the USB stick, then restart to start using Zurbax." : in.error;
+	const char *msg = ok ? "Remove the USB stick, then restart to start using ZOS." : in.error;
 	f32 h = ui_text_height(ui, ui_font(ui, 14, 400), msg, c.w);
 	ui_text_wrapped(ui, ui_font(ui, 14, 400), cut_top(&c, h), msg, t->text_dim, ALIGN_CENTER);
 	cut_top(&c, 22);
@@ -500,7 +500,7 @@ static void frame(Ui *ui)
 	Theme *t = &ui->theme;
 	ui_window_background(ui, t->window);
 	Rect win = rect(0, 0, ui->width, ui->height);
-	ui_headerbar(ui, cut_top(&win, 46), "Install Zurbax", HEADER_NO_MAXIMIZE | HEADER_FLAT);
+	ui_headerbar(ui, cut_top(&win, 46), "Install ZOS", HEADER_NO_MAXIMIZE | HEADER_FLAT);
 	f32 slide = clampf((f32)(ui->now - in.changed_at) / 0.22f, 0, 1);
 	slide = 1 - (1 - slide) * (1 - slide);
 	if (slide < 1)
@@ -554,7 +554,7 @@ static void init(Ui *ui)
 
 int main(void)
 {
-	UiAppDesc d = { .id = "installer", .title = "Install Zurbax", .width = 720, .height = 560, .min_width = 620, .min_height = 520,
+	UiAppDesc d = { .id = "installer", .title = "Install ZOS", .width = 720, .height = 560, .min_width = 620, .min_height = 520,
 			.flags = WIN_RESIZABLE, .init = init, .frame = frame, .close = on_close };
 	return ui_run(&d);
 }

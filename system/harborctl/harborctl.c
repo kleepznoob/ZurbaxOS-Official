@@ -195,7 +195,7 @@ static void install(const char *index_path, const char *pkg_path, const char *id
 		fail(why);
 	}
 	char *marker = str_fmt("%s/.harbor", tmp);
-	char *info = str_fmt("version = %s\nsource = %s\n", app->version, ix.name[0] ? ix.name : "Zurbax");
+	char *info = str_fmt("version = %s\nsource = %s\n", app->version, ix.name[0] ? ix.name : OS_NAME);
 	file_write_str(marker, info);
 	mem_free(marker);
 	mem_free(info);

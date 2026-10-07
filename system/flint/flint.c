@@ -1398,7 +1398,7 @@ static void greet(void)
 	mem_free(path);
 	if (seen)
 		return;
-	out("\n  " C_BOLD "Welcome to Forge" C_RESET " — the Zurbax command line, running the " C_BOLD "Flint" C_RESET " shell.\n");
+	out("\n  " C_BOLD "Welcome to Forge" C_RESET " — the ZOS command line, running the " C_BOLD "Flint" C_RESET " shell.\n");
 	out("  Type " C_BGREEN "help" C_RESET " to see what you can do, or " C_BGREEN "sysinfo" C_RESET " for a look at this computer.\n\n");
 	out_flush();
 }

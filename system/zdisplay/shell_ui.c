@@ -827,7 +827,7 @@ void controlcenter_draw(Ui *ui)
 	if (S.battery >= 0)
 		fmt(batt, sizeof batt, "Battery %d%%%s", S.battery, S.charging ? ", charging" : "");
 	else
-		str_copy(batt, "Zurbax", sizeof batt);
+		str_copy(batt, OS_PRETTY_NAME, sizeof batt);
 	ui_text_in(ui, ui_font(ui, 12, 400), rect(user.x, user.y + 24, user.w - 40, 16), batt, t->text_dim, ALIGN_START);
 	if (ui_icon_button(ui, rect(r.x + r.w - 52, user.y + 6, 32, 32), "settings", "Settings")) {
 		shell_launch("settings", NULL);

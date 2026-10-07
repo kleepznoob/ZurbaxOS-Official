@@ -231,7 +231,7 @@ static void start_loading(void)
 	H.nentries = 0;
 	H.detail = NULL;
 	char *sys = zurbax_path("share/harbor-repo");
-	add_source("Zurbax", sys, true);
+	add_source(OS_NAME, sys, true);
 	mem_free(sys);
 	/* web sources: one per line in the system list and the user's own */
 	char *lists[2] = { zurbax_path("share/harbor/sources.conf"), path_join(home_dir(), ".config/zurbax/harbor-sources.conf") };

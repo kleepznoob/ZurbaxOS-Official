@@ -645,7 +645,7 @@ static void page_hardware(Ui *ui, Rect r)
 	Rect top = cut_top(&body, 110);
 	ui_app_icon(ui, rect(top.x, top.y + 10, 80, 80), "zurbax");
 	ui_text(ui, ui_font(ui, 26, 300), top.x + 100, top.y + 45, pl.board[0] ? pl.board : "This Computer", t->text);
-	ui_text(ui, ui_font(ui, 13, 400), top.x + 100, top.y + 70, "Zurbax 1.0", t->text_dim);
+	ui_text(ui, ui_font(ui, 13, 400), top.x + 100, top.y + 70, OS_PRETTY_NAME, t->text_dim);
 	Rect card = cut_top(&body, 40 * 7 + 16);
 	ui_card(ui, card);
 	Rect in = pad2(card, 18, 8);

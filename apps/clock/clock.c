@@ -95,7 +95,7 @@ static void save_alarms(void)
 	dir_make(dir, 0755);
 	mem_free(dir);
 	StrBuf sb = { 0 };
-	sb_adds(&sb, "# Zurbax alarms: time, days (bit 0 = Sunday, 0 = once), enabled, label\n");
+	sb_adds(&sb, "# ZOS alarms: time, days (bit 0 = Sunday, 0 = once), enabled, label\n");
 	for (int i = 0; i < ck.nalarms; i++) {
 		Alarm *a = &ck.alarms[i];
 		sb_fmt(&sb, "%02d:%02d %d %d %s\n", a->hour, a->min, a->days, a->enabled ? 1 : 0, a->label);

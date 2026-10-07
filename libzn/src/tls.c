@@ -318,7 +318,7 @@ static bool parse_server_hello(Tls *t, const u8 *m, usize len, u8 server_pub[32]
 		return fail(t, "the site's hello was malformed");
 	const u8 *p = m + 4, *end = m + len;
 	if (memcmp(p + 2, HRR_RANDOM, 32) == 0)
-		return fail(t, "the site asked for a key exchange Zurbax doesn't support yet");
+		return fail(t, "the site asked for a key exchange ZOS doesn't support yet");
 	p += 34;
 	usize sid = *p++;
 	if (p + sid + 3 > end)

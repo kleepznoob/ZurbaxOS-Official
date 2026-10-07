@@ -1,0 +1,6 @@
+NAME="ZOS"
+VERSION="2.0 (Golden Rain)"
+VERSION_ID="2.0"
+VERSION_CODENAME="golden-rain"
+PRETTY_NAME="ZOS 2.0 Golden Rain"
+ID=zos

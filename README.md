@@ -1,10 +1,16 @@
-# Zurbax
+# ZOS 2.0 "Golden Rain"
 
 A desktop operating system written from scratch in C. The Linux kernel is
 the only outside code.
 
+**ZOS 2.0, code name Golden Rain, is the release for playing:** game
+controllers everywhere, Glide (a 3D game drawn by ZOS's own renderer),
+controller vibration, F11 full screen, and the Golden Rain wallpaper. It
+also brings Wi-Fi and Mail. (Inside the source, programs, paths and
+settings still carry the project's first name, `zurbax`.)
+
 There's no glibc, no X11 or Wayland, no GTK or Qt, no GRUB and no
-distribution underneath. Zurbax has its own pieces for everything:
+distribution underneath. ZOS has its own pieces for everything:
 - the C runtime,
 - graphics engine and font,
 - display server and desktop,
@@ -31,7 +37,8 @@ boot loader in between.
 menu. A dock with running indicators that hides out of the way, plus
 notifications with sounds, a lock screen and screenshots (Print Screen).
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
-French, Spanish) are built in.
+French, Spanish) are built in. Wallpapers: the Lake at Dusk photo (the default), Golden
+Rain, and five painted landscapes, all drawn to fit any screen.
 
 **Game controllers.** Xbox, PlayStation, Switch Pro, Steam and other USB
 controllers work the moment they're plugged in, up to four at once. The
@@ -46,10 +53,10 @@ which also turns on game mode.
 
 **First start.** The Welcome assistant covers keyboard, time zone, an
 account and a look. Every step can be skipped. When started from the USB
-stick, it offers to try Zurbax or install it.
+stick, it offers to try ZOS or install it.
 
 **Installing.** The Installer either erases a disk or installs into its
-free space next to Windows, and adds a "Zurbax" entry to the firmware's
+free space next to Windows, and adds a "ZOS" entry to the firmware's
 boot menu. It takes about a minute.
 
 **Apps**
@@ -61,7 +68,7 @@ boot menu. It takes about a minute.
 | Mail | Email for Gmail, Outlook, iCloud, Yahoo or any IMAP account: HTML mail, attachments, search, drafts, undo |
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
-| Help | A searchable guide to Zurbax |
+| Help | A searchable guide to ZOS, with what's new in 2.0 |
 | Arcade | Glide, a 3D flying game, plus Blocks, Snake, 2048, Mines and Breakout, with best scores; keyboard, mouse or controller |
 | Music | Albums, songs and artists from your Music folder (FLAC, Ogg Vorbis, WAV) |
 | Weather | Live forecasts with an hourly strip, the week and details |
@@ -78,7 +85,7 @@ boot menu. It takes about a minute.
 
 **Glide** is the Arcade's 3D game: fly a paper glider through golden rings
 over an endless low-poly land of lakes, hills and forests at sunset. It's
-drawn by Zurbax's own 3D renderer on every processor core, and lowers its
+drawn by ZOS's own 3D renderer on every processor core, and lowers its
 resolution by itself when a machine can't keep up.
 
 **In Harbor** (installed when you want them): Chess, with a computer
@@ -106,17 +113,17 @@ needs an app password (Mail explains how when you type a Gmail address).
 ```sh
 make            # everything: libraries, system programs, apps
 make test       # the test suites (runtime, graphics, 3D, toolkit, TLS/crypto, audio, Wi-Fi)
-make image      # the kernel with the system inside, and build/zurbax.img
-make run        # boot build/zurbax.img in QEMU with UEFI firmware
+make image      # the kernel with the system inside, and build/zos.img
+make run        # boot build/zos.img in QEMU with UEFI firmware
 ```
 
 A C compiler and `make` are enough for the system itself. Building the
 kernel also needs the usual kernel build tools (`bc`, `flex`, `bison`,
 `libelf`, `libssl` headers). `kernel/build.sh` downloads Linux on first use.
 
-To try it on a real PC, write `build/zurbax.img` to a USB stick and boot
+To try it on a real PC, write `build/zos.img` to a USB stick and boot
 from it in UEFI mode. On ASUS machines, press F8 or Esc for the boot menu.
-GitHub Actions builds the image on every push (see the `zurbax-image`
+GitHub Actions builds the image on every push (see the `zos-2.0-golden-rain`
 artifact).
 
 ## Layout
@@ -149,5 +156,5 @@ artifact).
   FLAC, Ogg Vorbis and WAV play.
 - **Hardware 3D.** The desktop and Glide are drawn in software, so they
   work on any GPU through the firmware's framebuffer. Big 3D games would
-  need GPU drivers in user space, which Zurbax doesn't have.
+  need GPU drivers in user space, which ZOS doesn't have.
 - **Windows programs.** `.exe` files don't run.

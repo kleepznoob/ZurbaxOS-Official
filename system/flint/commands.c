@@ -1684,7 +1684,7 @@ static int cmd_sysinfo(int argc, char **argv)
 	const char *user = sys_geteuid() == 0 ? "root" : env_get("USER") ? env_get("USER") : "user";
 	fmt(lines[n++], 160, "%s%s%s@%s%s%s", paint(C_BGREEN), user, paint(C_RESET), paint(C_BGREEN), u.nodename, paint(C_RESET));
 	fmt(lines[n++], 160, "%s", "──────────────────");
-	fmt(lines[n++], 160, "%sSystem%s    Zurbax 1.0", paint(C_BCYAN), paint(C_RESET));
+	fmt(lines[n++], 160, "%sSystem%s    " OS_PRETTY_NAME, paint(C_BCYAN), paint(C_RESET));
 	fmt(lines[n++], 160, "%sKernel%s    Linux %s", paint(C_BCYAN), paint(C_RESET), u.release);
 	char up[64];
 	format_uptime(si.uptime, up, sizeof up);
@@ -1745,7 +1745,7 @@ static int cmd_help(int argc, char **argv)
 		outf("%s%s%s — %s\n", paint(C_BOLD), c->usage, paint(C_RESET), c->help);
 		return 0;
 	}
-	outf("\n  %sFlint%s, the Zurbax shell. Built-in commands:\n\n", paint(C_BOLD), paint(C_RESET));
+	outf("\n  %sFlint%s, the ZOS shell. Built-in commands:\n\n", paint(C_BOLD), paint(C_RESET));
 	for (int i = 0; i < COMMAND_COUNT; i++)
 		outf("  %s%-10s%s %s\n", paint(C_BGREEN), COMMANDS[i].name, paint(C_RESET), COMMANDS[i].help);
 	outf("\n  Combine commands with %s|%s, %s&&%s and %s||%s; save output with %s>%s; run in the background with %s&%s.\n",

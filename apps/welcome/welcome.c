@@ -96,7 +96,7 @@ static void page_intro(Ui *ui, Rect r, const char *icon, bool app_icon, const ch
 	}
 	cut_top(&r, 6);
 	ui_text_in(ui, ui_font(ui, 26, 300), cut_top(&r, 40), title, t->text, ALIGN_CENTER);
-	cut_top(&r, 4);
+	cut_top(&r, 22); /* room for a line under the title (the release, on the first page) */
 	ui_text_wrapped(ui, ui_font(ui, 14, 400), pad2(cut_top(&r, 80), 24, 0), text, t->text_dim, ALIGN_CENTER);
 }
 
@@ -124,14 +124,14 @@ static void form_welcome(Ui *ui, Rect r)
 	Theme *t = &ui->theme;
 	Rect c = center_in(r, r.w, 200);
 	if (wl.live) {
-		ui_text_in(ui, ui_font(ui, 15, 600), cut_top(&c, 28), "You're running Zurbax from the USB stick.", t->text, ALIGN_CENTER);
+		ui_text_in(ui, ui_font(ui, 15, 600), cut_top(&c, 28), "You're running " OS_NAME " from the USB stick.", t->text, ALIGN_CENTER);
 		ui_text_in(ui, ui_font(ui, 13, 400), cut_top(&c, 24), "Try it as long as you like, or install it on this computer.", t->text_dim, ALIGN_CENTER);
 		cut_top(&c, 20);
 		Rect b = center_in(cut_top(&c, 44), 380, 44);
-		if (ui_button(ui, cut_left(&b, 180), "Try Zurbax"))
+		if (ui_button(ui, cut_left(&b, 180), "Try " OS_NAME))
 			go(ui, P_KEYBOARD);
 		cut_left(&b, 20);
-		if (ui_button_suggested(ui, b, "Install Zurbax"))
+		if (ui_button_suggested(ui, b, "Install " OS_NAME))
 			ui_launch(ui, "installer", NULL);
 	} else {
 		ui_text_in(ui, ui_font(ui, 14, 400), cut_top(&c, 26), "A few choices and you're done. Every step can be skipped.", t->text_dim, ALIGN_CENTER);
@@ -368,7 +368,7 @@ static void finish(Ui *ui)
 	bool pw = !wl.skip_password && wl.pw.len && str_eq(sb_str(&wl.pw), sb_str(&wl.pw2));
 	if (pw)
 		flags |= ACCOUNT_SET_PASSWORD;
-	const char *name = wl.name.len ? sb_str(&wl.name) : "Zurbax User";
+	const char *name = wl.name.len ? sb_str(&wl.name) : "ZOS User";
 	wl.pending = ui_account_update(ui, flags, name, NULL, pw ? sb_str(&wl.pw) : NULL);
 	if (!wl.pending)
 		ui->quit = true; /* not connected (preview): nothing to wait for */
@@ -418,7 +418,10 @@ static void frame(Ui *ui)
 	right.x += off;
 	switch (wl.page) {
 	case P_WELCOME:
-		page_intro(ui, left, "zurbax", true, "Welcome to Zurbax", "Let's get your computer ready. It takes about a minute.");
+		page_intro(ui, left, "zurbax", true, "Welcome to " OS_NAME, "Let's get your computer ready. It takes about a minute.");
+		/* the release, in gold under the greeting */
+		ui_text_in(ui, ui_font(ui, 13, 700), rect(left.x, left.y + left.h * 0.5f + 46, left.w, 18), OS_VERSION " · " OS_CODENAME,
+			   color_hex("#d99a1e"), ALIGN_CENTER);
 		form_welcome(ui, right);
 		break;
 	case P_KEYBOARD:
@@ -442,14 +445,14 @@ static void frame(Ui *ui)
 		form_look(ui, right);
 		break;
 	case P_DONE:
-		page_intro(ui, left, "check", false, "You're All Set", "Zurbax is ready. Have fun!");
+		page_intro(ui, left, "check", false, "You're All Set", OS_NAME " is ready. Have fun!");
 		{
 			Rect c = center_in(right, right.w, 120);
 			ui_text_wrapped(ui, ui_font(ui, 14, 400), cut_top(&c, 50),
 					"Open apps from Applications in the top left or the dock at the bottom. Settings has everything else.", t->text_dim,
 					ALIGN_CENTER);
 			cut_top(&c, 16);
-			if (ui_button_suggested(ui, center_in(cut_top(&c, 44), 220, 44), wl.finishing ? "Starting…" : "Start Using Zurbax") ||
+			if (ui_button_suggested(ui, center_in(cut_top(&c, 44), 220, 44), wl.finishing ? "Starting…" : "Start Using " OS_NAME) ||
 			    ui_key_pressed(ui, KEY_ENTER, 0))
 				finish(ui);
 		}

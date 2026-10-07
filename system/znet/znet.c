@@ -265,8 +265,8 @@ static void dhcp_send(Iface *f, int type)
 	*o++ = 53, *o++ = 1, *o++ = (u8)type;
 	*o++ = 61, *o++ = 7, *o++ = 1;
 	memcpy(o, f->mac, 6), o += 6;
-	*o++ = 12, *o++ = 6;
-	memcpy(o, "zurbax", 6), o += 6;
+	*o++ = 12, *o++ = 3; /* host name */
+	memcpy(o, "zos", 3), o += 3;
 	if (type == 3) {
 		*o++ = 50, *o++ = 4;
 		memcpy(o, &f->offered, 4), o += 4;

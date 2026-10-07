@@ -360,7 +360,7 @@ int main(int argc, char **argv)
 	if (!cmdline || !str_find(cmdline, "zurbax.debug"))
 		file_write_str("/proc/sys/kernel/printk", "1 4 1 3");
 	mem_free(cmdline);
-	sys_sethostname("zurbax", 6);
+	sys_sethostname("zos", 3);
 	sys_reboot(REBOOT_CMD_CAD_OFF);
 	dir_make("/run/zurbax", 0755);
 	mount_data();

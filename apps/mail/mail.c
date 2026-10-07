@@ -1021,7 +1021,7 @@ static char *build_message(Compose *c, const Account *a, char ***rcpt, int *nrcp
 		sb_fmt(&sb, "In-Reply-To: %s\r\n", c->in_reply_to);
 	if (c->references[0])
 		sb_fmt(&sb, "References: %s\r\n", c->references);
-	sb_adds(&sb, "MIME-Version: 1.0\r\nUser-Agent: Zurbax Mail\r\n");
+	sb_adds(&sb, "MIME-Version: 1.0\r\nUser-Agent: ZOS Mail\r\n");
 	char *text = crlf(sb_str(&c->body));
 	char *qp = mime_quoted_printable(text, strlen(text));
 	mem_free(text);

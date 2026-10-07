@@ -10,7 +10,7 @@
 #define WORKERS 6
 #define HOME_URL "drift:home"
 #define SEARCH_URL "https://html.duckduckgo.com/html/?q="
-#define USER_AGENT "Mozilla/5.0 (X11; Zurbax x86_64) Drift/1.0"
+#define USER_AGENT "Mozilla/5.0 (X11; ZOS x86_64) Drift/1.0"
 
 /* ---- Jobs ------------------------------------------------------------------------------------ */
 

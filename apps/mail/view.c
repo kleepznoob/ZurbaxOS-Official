@@ -90,7 +90,7 @@ static void v_fetch(Msg *m, Image *im)
 	int w = 0, h = 0;
 	if (!atomic_load(&m->doc.cancelled)) {
 		/* no referrer and no cookies: the sender learns as little as possible */
-		HttpOptions o = { .user_agent = "Mozilla/5.0 (X11; Zurbax x86_64) Mail/1.0", .max_redirects = 5,
+		HttpOptions o = { .user_agent = "Mozilla/5.0 (X11; ZOS x86_64) Mail/1.0", .max_redirects = 5,
 				  .max_body = 16 << 20, .timeout_ms = 20000, .accept = "image/png,image/jpeg,image/gif,image/svg+xml,image/*;q=0.5" };
 		HttpResponse *r = http_request(im->url, &o);
 		if (r->status == 200 && r->body && r->body_len) {
