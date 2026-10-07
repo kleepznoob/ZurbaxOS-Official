@@ -439,6 +439,7 @@ static inline long sys_sysinfo(struct sysinfo *s) { return SC(1, SYS_sysinfo, (l
 static inline long sys_sethostname(const char *name, usize n) { return SC(2, SYS_sethostname, (long)name, (long)n); }
 static inline long sys_setpriority(int which, int who, int prio) { return SC(3, SYS_setpriority, which, who, prio); }
 static inline long sys_sched_yield(void) { return SC(0, SYS_sched_yield); }
+static inline long sys_sched_getaffinity(int pid, usize size, void *mask) { return SC(3, SYS_sched_getaffinity, pid, (long)size, (long)mask); }
 static inline long sys_rt_sigaction(int sig, const struct kernel_sigaction *act, struct kernel_sigaction *old) { return SC(4, SYS_rt_sigaction, sig, (long)act, (long)old, 8); }
 static inline long sys_rt_sigprocmask(int how, const u64 *set, u64 *old) { return SC(4, SYS_rt_sigprocmask, how, (long)set, (long)old, 8); }
 static inline long sys_futex(int *addr, int op, int val, const struct timespec *timeout) { return SC(4, SYS_futex, (long)addr, op, val, (long)timeout); }

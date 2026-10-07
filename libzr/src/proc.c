@@ -247,6 +247,16 @@ __asm__(".text\n"
 	"	syscall\n"
 	"1:	ret\n");
 
+int cpu_count(void)
+{
+	u64 mask[16] = { 0 };
+	long n = sys_sched_getaffinity(0, sizeof mask, mask);
+	int count = 0;
+	for (long i = 0; i < n / 8; i++)
+		count += __builtin_popcountll(mask[i]);
+	return MAX(1, count);
+}
+
 int thread_spawn(void (*fn)(void *), void *arg)
 {
 	const usize size = 8u << 20; /* reserved, not committed: deep recursion is fine */

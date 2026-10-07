@@ -95,6 +95,7 @@ typedef struct {
 } Mutex;
 
 int thread_spawn(void (*fn)(void *), void *arg);  /* returns tid or -errno */
+int cpu_count(void);                              /* processors this process may run on */
 void mutex_lock(Mutex *m);
 void mutex_unlock(Mutex *m);
 void futex_wait(int *addr, int expected, i64 timeout_ms);
