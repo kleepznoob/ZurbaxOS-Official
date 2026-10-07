@@ -25,6 +25,12 @@ jobs:
             build/kernel
           key: kernel-${{ hashFiles('kernel/build.sh', 'kernel/zurbax.config') }}
 
+      - name: Cache the Wi-Fi firmware
+        uses: actions/cache@v4
+        with:
+          path: build/firmware
+          key: firmware-${{ hashFiles('tools/fetch-firmware.py') }}
+
       - name: Build
         run: make -j"$(nproc)"
 
