@@ -76,6 +76,7 @@ def main():
     out = args.pop(0)
     stick = disk = vars_file = audio_wav = kernel = None
     debug = False
+    extra_cmdline = ""
     while args and args[0].startswith("--"):
         opt = args.pop(0)
         if opt == "--stick":
@@ -90,6 +91,8 @@ def main():
             audio_wav = args.pop(0)
         elif opt == "--kernel":
             kernel = args.pop(0)
+        elif opt == "--cmdline":
+            extra_cmdline += " " + args.pop(0)
     os.makedirs(out, exist_ok=True)
     if not vars_file:
         vars_file = os.path.join(out, "vars.fd")
@@ -114,7 +117,7 @@ def main():
     if audio_wav:
         cmd += ["-audiodev", f"wav,id=snd,path={audio_wav}", "-device", "intel-hda", "-device", "hda-duplex,audiodev=snd"]
     if debug or kernel:
-        cmd += ["-kernel", kernel or "build/kernel/arch/x86/boot/bzImage", "-append", "console=ttyS0 loglevel=7 zurbax.debug"]
+        cmd += ["-kernel", kernel or "build/kernel/arch/x86/boot/bzImage", "-append", "console=ttyS0 loglevel=7 zurbax.debug " + extra_cmdline]
     proc = subprocess.Popen(cmd)
     q = Qmp(qmp_path)
     try:

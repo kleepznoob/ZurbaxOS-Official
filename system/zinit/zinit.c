@@ -366,6 +366,15 @@ int main(int argc, char **argv)
 
 	for (usize i = 0; i < ARRAY_LEN(services); i++)
 		service_start(&services[i]);
+	/* Test builds carry a helper (a simulated access point, say) that runs
+	 * only when the kernel is told "zurbax.test"; releases have neither. */
+	cmdline = file_read("/proc/cmdline", NULL);
+	if (cmdline && str_find(cmdline, "zurbax.test") && file_exists("/system/bin/ztest-hook")) {
+		static char *const hook_argv[] = { "ztest-hook", NULL };
+		static Service hook = { "test hook", "/system/bin/ztest-hook", hook_argv, false };
+		service_start(&hook);
+	}
+	mem_free(cmdline);
 	log_msg("started%s", live_session ? " (live session)" : "");
 	for (;;) {
 		loop_once(loop, 1000);

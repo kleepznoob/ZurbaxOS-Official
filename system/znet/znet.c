@@ -10,7 +10,7 @@
  *   strength = 0..100             address, gateway, dns, iface
  *   ethernet = text for Settings  wifi_available = 1 if there's a Wi-Fi adapter
  */
-#include "zr.h"
+#include "znet.h"
 
 #define STATUS_FILE "/run/zurbax/network.status"
 #define ETH_P_IP 0x0800
@@ -27,37 +27,6 @@
 #define NLM_F_CREATE 0x400
 #define NLMSG_ERROR 2
 
-struct sockaddr_ll {
-	u16 family;
-	u16 protocol;
-	i32 ifindex;
-	u16 hatype;
-	u8 pkttype;
-	u8 halen;
-	u8 addr[8];
-};
-
-enum { DHCP_IDLE, DHCP_DISCOVER, DHCP_REQUEST, DHCP_BOUND };
-
-typedef struct {
-	char name[16];
-	int index;
-	u8 mac[6];
-	bool wireless, present, carrier;
-	int speed;              /* Mb/s, wired */
-	/* DHCP */
-	int state;
-	int fd;                 /* packet socket while DHCP runs */
-	u32 xid;
-	u32 offered, server, mask, router, dns[3];
-	int ndns;
-	u32 lease;
-	u64 next_ms, bound_ms;
-	int tries;
-	bool configured;
-	u32 cfg_addr, cfg_mask;
-} Iface;
-
 static Iface ifaces[8];
 static int nifaces;
 static int rtnl = -1;
@@ -65,8 +34,7 @@ static u32 nl_seq;
 
 /* ---- Logging ------------------------------------------------------------------------- */
 
-static void log_msg(const char *f, ...) PRINTF_LIKE(1, 2);
-static void log_msg(const char *f, ...)
+void log_msg(const char *f, ...)
 {
 	char line[256];
 	va_list ap;
@@ -81,7 +49,7 @@ static void log_msg(const char *f, ...)
 	}
 }
 
-static void ip_str(u32 a, char *out, usize cap)
+void ip_str(u32 a, char *out, usize cap)
 {
 	const u8 *b = (const u8 *)&a;
 	fmt(out, cap, "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
@@ -89,7 +57,7 @@ static void ip_str(u32 a, char *out, usize cap)
 
 /* ---- Links ------------------------------------------------------------------------------ */
 
-static void link_up(const char *name)
+void link_up(const char *name)
 {
 	int fd = (int)sys_socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 	if (fd < 0)
@@ -170,7 +138,11 @@ static void scan_links(void)
 		if (mac)
 			parse_mac(mac, f->mac);
 		mem_free(mac);
-		link_up(n);
+		/* Wi-Fi adapters are brought up by the Wi-Fi code, which uses just one */
+		if (!f->wireless)
+			link_up(n);
+		else
+			wifi_adapter(f);
 		p = str_fmt("/sys/class/net/%s/carrier", n);
 		f->carrier = file_read_int(p, 0) == 1;
 		mem_free(p);
@@ -491,12 +463,16 @@ static void write_status(void)
 	for (int i = 0; i < nifaces; i++)
 		if (ifaces[i].present && !ifaces[i].wireless && (!wired || ifaces[i].carrier))
 			wired = &ifaces[i];
+	const char *wname = "Wi-Fi";
+	int wstrength = 100;
+	StrBuf wifi = { 0 };
+	wifi_status(&wifi, &wname, &wstrength);
 	if (best) {
 		char a[20], g[20];
 		ip_str(best->offered, a, sizeof a);
 		ip_str(best->router, g, sizeof g);
-		sb_fmt(&s, "state = connected\nkind = %s\nname = %s\nstrength = 100\niface = %s\naddress = %s\ngateway = %s\ndns =",
-		       best->wireless ? "wifi" : "ethernet", best->wireless ? "Wi-Fi" : "Wired", best->name, a, g);
+		sb_fmt(&s, "state = connected\nkind = %s\nname = %s\nstrength = %d\niface = %s\naddress = %s\ngateway = %s\ndns =",
+		       best->wireless ? "wifi" : "ethernet", best->wireless ? wname : "Wired", best->wireless ? wstrength : 100, best->name, a, g);
 		for (int i = 0; i < best->ndns; i++) {
 			char d[20];
 			ip_str(best->dns[i], d, sizeof d);
@@ -514,6 +490,8 @@ static void write_status(void)
 	}
 	if (wifi_available)
 		sb_adds(&s, "wifi_available = 1\n");
+	sb_add(&s, wifi.data, wifi.len);
+	sb_free(&wifi);
 	if (!str_eq(sb_str(&s), last_status)) {
 		str_copy(last_status, sb_str(&s), sizeof last_status);
 		file_write_atomic(STATUS_FILE, s.data, s.len);
@@ -529,6 +507,7 @@ int main(void)
 	dir_make("/run/zurbax", 0755);
 	link_up("lo");
 	rtnl = (int)sys_socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+	wifi_init();
 	write_status();
 	u64 last_scan = 0;
 	for (;;) {
@@ -538,9 +517,9 @@ int main(void)
 			scan_links();
 			for (int i = 0; i < nifaces; i++) {
 				Iface *f = &ifaces[i];
-				bool want = f->present && f->carrier && !f->wireless;
+				bool want = f->present && (f->wireless ? wifi_link_ok(f) : f->carrier);
 				if (want && f->state == DHCP_IDLE) {
-					log_msg("%s: cable connected", f->name);
+					log_msg(f->wireless ? "%s: joined a network" : "%s: cable connected", f->name);
 					dhcp_start(f);
 				} else if (!want && f->state != DHCP_IDLE) {
 					log_msg("%s: link down", f->name);
@@ -548,8 +527,9 @@ int main(void)
 				}
 			}
 		}
-		struct pollfd pfd[8];
-		int np = 0, map[8];
+		wifi_tick(now);
+		struct pollfd pfd[12];
+		int np = 0, map[12];
 		for (int i = 0; i < nifaces; i++) {
 			Iface *f = &ifaces[i];
 			dhcp_tick(f, now);
@@ -558,10 +538,12 @@ int main(void)
 				map[np++] = i;
 			}
 		}
+		int nw = wifi_fds(pfd + np, 4);
 		write_status();
-		sys_poll(pfd, (usize)np, 250);
+		sys_poll(pfd, (usize)(np + nw), 250);
 		for (int i = 0; i < np; i++)
 			if (pfd[i].revents & POLLIN)
 				dhcp_receive(&ifaces[map[i]]);
+		wifi_ready(pfd + np, nw);
 	}
 }

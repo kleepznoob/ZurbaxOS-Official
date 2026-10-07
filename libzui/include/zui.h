@@ -354,6 +354,20 @@ void ui_clipboard_set_data(Ui *ui, const char *mime, const void *data, usize len
 void ui_screenshot_request(Ui *ui, u32 mode);
 const char *ui_user_name(Ui *ui);
 
+/* Wi-Fi through the network service (Settings, the top bar, Welcome). */
+typedef struct {
+	char ssid[100];          /* for showing */
+	char hex[65];            /* the name as the service knows it */
+	int signal;              /* 0..100 */
+	char security[12];       /* open, wpa2, wpa3, wpa, wep, enterprise */
+	bool saved, connected;
+} WifiNet;
+int wifi_networks(WifiNet *out, int max);       /* strongest first */
+bool wifi_supported(const WifiNet *w);          /* open and WPA2 networks can be joined */
+bool wifi_command(const char *cmd);             /* "scan", "disconnect", "forget HEX", "radio on|off" */
+void wifi_connect(const char *ssid_hex, const char *password);   /* password may be NULL */
+const char *wifi_signal_icon(int signal);
+
 /* Renders a frame offscreen (for tests, previews and screenshots). */
 bool ui_snapshot(const UiAppDesc *desc, int w, int h, f32 scale, bool dark, const char *png_path);
 

@@ -159,7 +159,13 @@ void system_status_poll(void)
 	S.net_wired = str_eq(conf_get(net, "kind", ""), "ethernet");
 	str_copy(S.wifi_name, conf_get(net, "name", ""), sizeof S.wifi_name);
 	S.wifi_strength = (int)conf_get_int(net, "strength", 0);
+	S.wifi_radio = str_eq(conf_get(net, "wifi", "off"), "on");
+	S.wifi_available = conf_get_bool(net, "wifi_available", false);
+	str_copy(S.wifi_state, conf_get(net, "wifi_state", "off"), sizeof S.wifi_state);
 	conf_free(net);
+	/* the control center lists networks: keep it current while it's open */
+	if (S.session_menu_open)
+		damage_all();
 	if (old_batt != S.battery || old_bright != S.brightness || old_charging != S.charging || old_wifi != S.wifi_connected)
 		damage_rect(rect(0, 0, S.sw, PANEL_HEIGHT));
 }

@@ -121,6 +121,9 @@ static void test_ciphers(void)
 	unhex("000102030405060708090a0b0c0d0e0f", kek);
 	unhex("1fa68b0a8112b447aef34bd8fb5a7b829d3e862371d2cfe5", wrapped);
 	CHECK(aes_key_unwrap(kek, 16, wrapped, 24, unwrapped) && hex_is(unwrapped, 16, "00112233445566778899aabbccddeeff"));
+	u8 rewrapped[24];
+	aes_key_wrap(kek, 16, unwrapped, 16, rewrapped);
+	CHECK(hex_is(rewrapped, 24, "1fa68b0a8112b447aef34bd8fb5a7b829d3e862371d2cfe5"));
 }
 
 static void test_x25519(void)

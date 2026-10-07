@@ -683,10 +683,76 @@ static bool quick_toggle(Ui *ui, Rect r, const char *icon, const char *label, co
 	return it.clicked;
 }
 
+/* The Wi-Fi networks, inside the control center. */
+static bool cc_wifi;
+
+static void cc_wifi_view(Ui *ui, Rect body)
+{
+	Theme *t = &ui->theme;
+	Rect head = cut_top(&body, 36);
+	if (ui_icon_button(ui, cut_left(&head, 32), "go-back", "Back"))
+		cc_wifi = false;
+	cut_left(&head, 6);
+	ui_text_in(ui, ui_font(ui, 15, 700), head, "Wi-Fi", t->text, ALIGN_START);
+	bool on = S.wifi_radio;
+	if (ui_switch(ui, center_in(cut_right(&head, 52), 46, 26), &on))
+		wifi_command(on ? "radio on" : "radio off");
+	cut_top(&body, 8);
+	Rect more = cut_bottom(&body, 34);
+	if (ui_button_flat(ui, more, "Wi-Fi Settings…")) {
+		shell_launch("settings", "wifi");
+		S.session_menu_open = false;
+		cc_wifi = false;
+	}
+	ui_separator(ui, body.x, body.y + body.h - 4, body.x + body.w);
+	if (!S.wifi_radio) {
+		ui_placeholder(ui, body, "network-wireless-off", "Wi-Fi Is Off", NULL);
+		return;
+	}
+	WifiNet nets[12];
+	int n = wifi_networks(nets, 12);
+	if (!n) {
+		ui_spinner(ui, center_in(body, 24, 24));
+		return;
+	}
+	f32 y = body.y;
+	for (int i = 0; i < n && y + 44 <= body.y + body.h - 6; i++) {
+		WifiNet *w = &nets[i];
+		Rect row = rect(body.x - 6, y, body.w + 12, 44);
+		ui_push_id_str(ui, w->hex);
+		bool ok = wifi_supported(w);
+		UiInteract in = ui_row(ui, row, ui_id(ui, "net"), w->connected);
+		ui_pop_id(ui);
+		Color fg = ok ? t->text : t->text_faint;
+		ui_icon(ui, rect(row.x + 10, row.y + 12, 20, 20), wifi_signal_icon(w->signal), w->connected ? t->accent : fg);
+		ui_text_in(ui, ui_font(ui, 13, w->connected ? 700 : 500), rect(row.x + 40, row.y + 4, row.w - 80, 20), w->ssid, fg, ALIGN_START);
+		const char *sub = w->connected ? (str_eq(S.wifi_state, "connected") ? "Connected" : "Connecting…") : w->saved ? "Saved" : NULL;
+		if (sub)
+			ui_text_in(ui, ui_font(ui, 11, 400), rect(row.x + 40, row.y + 23, row.w - 80, 16), sub, t->text_dim, ALIGN_START);
+		if (!str_eq(w->security, "open"))
+			ui_icon(ui, rect(row.x + row.w - 28, row.y + 14, 14, 14), "lock", t->text_faint);
+		if (in.clicked && ok && !w->connected) {
+			if (w->saved || str_eq(w->security, "open")) {
+				wifi_connect(w->hex, NULL);
+			} else {
+				/* passwords are typed in Settings, which opens asking for this one */
+				char arg[80];
+				fmt(arg, sizeof arg, "wifi:%s", w->hex);
+				shell_launch("settings", arg);
+				S.session_menu_open = false;
+				cc_wifi = false;
+			}
+		}
+		y += 46;
+	}
+}
+
 void controlcenter_draw(Ui *ui)
 {
-	if (!S.session_menu_open)
+	if (!S.session_menu_open) {
+		cc_wifi = false;
 		return;
+	}
 	Theme *t = &ui->theme;
 	f32 k = ui_fade(ui, ui_id(ui, "cc"), true, 0.12f);
 	f32 w = 340, h = 400;
@@ -712,13 +778,35 @@ void controlcenter_draw(Ui *ui)
 		S.session_menu_open = false;
 	}
 	cut_top(&body, 14);
+	if (cc_wifi) {
+		cc_wifi_view(ui, body);
+		return;
+	}
 	/* Toggles */
 	Rect row = cut_top(&body, 52);
 	Rect a = cut_left(&row, (row.w - 10) / 2);
 	cut_left(&row, 10);
-	if (quick_toggle(ui, a, S.net_wired ? "network-wired" : "network-wireless", S.net_wired ? "Network" : "Wi-Fi",
-			 S.wifi_connected ? S.wifi_name : "Not connected", S.wifi_connected))
-		shell_launch("settings", "wifi");
+	/* with a Wi-Fi adapter the tile is about Wi-Fi (a cable shows in the top bar anyway) */
+	bool wifi_tile = S.wifi_available;
+	bool wifi_on = str_eq(S.wifi_state, "connected");
+	char ssid[64] = "";
+	if (wifi_tile && wifi_on) {
+		Conf *net = conf_load("/run/zurbax/network.status");
+		str_copy(ssid, conf_get(net, "wifi_ssid", "Connected"), sizeof ssid);
+		conf_free(net);
+	}
+	const char *net_sub = wifi_tile ? (!S.wifi_radio ? "Off" : wifi_on ? ssid : str_eq(S.wifi_state, "connecting") ? "Connecting…" : "Not connected")
+					: S.wifi_connected ? S.wifi_name : "Not connected";
+	if (quick_toggle(ui, a, wifi_tile ? "network-wireless" : S.net_wired ? "network-wired" : "network-wireless", wifi_tile ? "Wi-Fi" : "Network",
+			 net_sub, wifi_tile ? wifi_on : S.wifi_connected)) {
+		if (wifi_tile) {
+			cc_wifi = true;
+			wifi_command("scan");
+		} else {
+			shell_launch("settings", "network");
+			S.session_menu_open = false;
+		}
+	}
 	if (quick_toggle(ui, row, "dark-mode", "Dark Style", S.set.dark ? "On" : "Off", S.set.dark)) {
 		S.set.dark = !S.set.dark;
 		settings_save();

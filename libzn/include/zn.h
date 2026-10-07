@@ -73,6 +73,8 @@ void aes_gcm_seal(const AesGcm *a, const u8 nonce[12], const u8 *aad, usize alen
 bool aes_gcm_open(const AesGcm *a, const u8 nonce[12], const u8 *aad, usize alen, const u8 *in, usize n, u8 *out);
 /* RFC 3394 key unwrap (Wi-Fi group keys). False if the integrity check fails. */
 bool aes_key_unwrap(const u8 *kek, usize klen, const u8 *in, usize n, u8 *out);
+/* RFC 3394 key wrap: n bytes (a multiple of 8, at least 16) become n + 8 in out. */
+void aes_key_wrap(const u8 *kek, usize klen, const u8 *in, usize n, u8 *out);
 
 /* ---- Public keys ------------------------------------------------------------------------- */
 

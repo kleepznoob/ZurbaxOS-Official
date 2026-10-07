@@ -1,9 +1,11 @@
 /*
  * mkimage — builds what Zurbax boots from.
  *
- *   mkimage cpio OUT.cpio            the system archive the kernel embeds:
+ *   mkimage cpio OUT.cpio [HOOK]     the system archive the kernel embeds (HOOK: a
+ *                                    test helper for test kernels only):
  *                                    build/bin, build/apps + apps/<app> files,
- *                                    data/ as /system/share
+ *                                    data/ as /system/share, build/firmware as
+ *                                    /lib/firmware
  *   mkimage disk OUT.img EFI-FILE    a GPT disk image with one EFI system
  *                                    partition holding EFI/BOOT/BOOTX64.EFI;
  *                                    write it to a USB stick and boot it
@@ -71,7 +73,7 @@ static bool skip_sources(const char *name)
 	return str_ends(name, ".c") || str_ends(name, ".h");
 }
 
-static int make_cpio(const char *out)
+static int make_cpio(const char *out, const char *test_hook)
 {
 	int fd = (int)sys_open(out, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
 	if (fd < 0) {
@@ -101,6 +103,8 @@ static int make_cpio(const char *out)
 		mem_free(d);
 	}
 	dir_list_free(&bins);
+	if (test_hook)
+		add_host_file(test_hook, "system/bin/ztest-hook", 0755);
 
 	DirList apps = { 0 };
 	dir_list("apps", &apps, false);
@@ -115,6 +119,12 @@ static int make_cpio(const char *out)
 	}
 	dir_list_free(&apps);
 	add_tree("data", "system/share", NULL);
+	/* Wi-Fi firmware and the regulatory database, where the kernel looks (tools/fetch-firmware.py) */
+	if (dir_exists("build/firmware")) {
+		check(cpio_dir(&cw, "lib", 0755), "lib");
+		check(cpio_dir(&cw, "lib/firmware", 0755), "lib/firmware");
+		add_tree("build/firmware", "lib/firmware", NULL);
+	}
 	if (dir_exists("build/repo"))
 		add_tree("build/repo", "system/share/harbor-repo", NULL);
 
@@ -298,8 +308,8 @@ static int make_repo(const char *out)
 
 int main(int argc, char **argv)
 {
-	if (argc == 3 && str_eq(argv[1], "cpio"))
-		return make_cpio(argv[2]);
+	if ((argc == 3 || argc == 4) && str_eq(argv[1], "cpio"))
+		return make_cpio(argv[2], argc == 4 ? argv[3] : NULL);
 	if (argc == 4 && str_eq(argv[1], "disk"))
 		return make_disk(argv[2], argv[3]);
 	if (argc == 4 && str_eq(argv[1], "ext4"))

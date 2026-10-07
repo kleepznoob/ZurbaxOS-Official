@@ -465,3 +465,26 @@ bool aes_key_unwrap(const u8 *kek, usize klen, const u8 *in, usize n, u8 *out)
 	static const u8 iv[8] = { 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6 };
 	return mem_equal_ct(A, iv, 8);
 }
+
+/* RFC 3394 key wrap: n bytes (a multiple of 8, at least 16) become n + 8. */
+void aes_key_wrap(const u8 *kek, usize klen, const u8 *in, usize n, u8 *out)
+{
+	AesGcm a;
+	aes_init(&a, kek, klen);
+	usize blocks = n / 8;
+	u8 A[8] = { 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6, 0xa6 }, b[16];
+	u8 *R = out + 8;
+	memmove(R, in, n);
+	for (int j = 0; j <= 5; j++) {
+		for (usize i = 1; i <= blocks; i++) {
+			memcpy(b, A, 8);
+			memcpy(b + 8, R + (i - 1) * 8, 8);
+			aes_encrypt_block(&a, b, b);
+			u64 t = (u64)blocks * (u64)j + i;
+			for (int k = 0; k < 8; k++)
+				A[k] = b[k] ^ (u8)(t >> (56 - 8 * k));
+			memcpy(R + (i - 1) * 8, b + 8, 8);
+		}
+	}
+	memcpy(out, A, 8);
+}

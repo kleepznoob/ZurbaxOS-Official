@@ -243,6 +243,8 @@ typedef struct {
 	bool net_wired;
 	char wifi_name[64];
 	int wifi_strength;
+	bool wifi_radio, wifi_available;   /* from the network service */
+	char wifi_state[16];               /* off, idle, connecting, connected */
 	bool shutting_down;
 	u32 shutdown_action;
 	f32 shutdown_k;

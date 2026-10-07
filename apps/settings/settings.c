@@ -400,12 +400,113 @@ static void page_sound(Ui *ui, Rect r)
 	switch_row(ui, &rows, 60, true, "Alert sounds", "Play a sound for notifications", "alert_sounds", true);
 }
 
+/* ---- Network ------------------------------------------------------------------------------- */
+
+static struct {
+	f64 last_scan;
+	WifiNet pick;            /* the network the password dialog is for */
+	StrBuf pass;
+	bool show_pass;
+	WifiNet menu;            /* the network whose menu is open */
+	bool ask;                /* open the password prompt on the next frame */
+} wf;
+
+static void send_scan(Ui *ui)
+{
+	if (ui->now - wf.last_scan > 12) {
+		wf.last_scan = ui->now;
+		wifi_command("scan");
+	}
+}
+
+static void join(Ui *ui, const WifiNet *n)
+{
+	if (n->saved || str_eq(n->security, "open")) {
+		wifi_connect(n->hex, NULL);
+		return;
+	}
+	wf.pick = *n;
+	sb_clear(&wf.pass);
+	wf.show_pass = false;
+	ui_dialog_open(ui, "wifi-pass");
+}
+
+static void password_dialog(Ui *ui)
+{
+	Theme *t = &ui->theme;
+	Rect c;
+	if (!ui_dialog_begin(ui, "wifi-pass", 420, 214, &c))
+		return;
+	char title[160];
+	fmt(title, sizeof title, "Join “%s”", wf.pick.ssid);
+	ui_text_in(ui, ui_font(ui, 17, 700), rect(c.x, c.y, c.w, 26), title, t->text, ALIGN_START);
+	ui_text_in(ui, ui_font(ui, 13, 400), rect(c.x, c.y + 30, c.w, 20), "Type the network's password.", t->text_dim, ALIGN_START);
+	Rect er = rect(c.x, c.y + 62, c.w - 44, 36);
+	int ev = ui_entry(ui, er, "wifi-pass-entry", &wf.pass, "Password", (wf.show_pass ? 0 : ENTRY_PASSWORD) | ENTRY_AUTOFOCUS);
+	if (ui_icon_toggle(ui, rect(er.x + er.w + 8, er.y + 2, 32, 32), wf.show_pass ? "eye-off" : "eye", wf.show_pass,
+			   wf.show_pass ? "Hide Password" : "Show Password"))
+		wf.show_pass = !wf.show_pass;
+	bool ok = wf.pass.len >= 8 && wf.pass.len <= 64;
+	if (wf.pass.len && !ok)
+		ui_text(ui, ui_font(ui, 12, 500), c.x, c.y + 118, "Wi-Fi passwords are 8 to 63 characters long.", t->text_dim);
+	Rect b = rect(c.x, c.y + c.h - 36, c.w, 36);
+	bool go = (ev & ENTRY_SUBMIT) && ok;
+	if (ok ? ui_button_suggested(ui, cut_right(&b, 100), "Join") : (ui_button(ui, cut_right(&b, 100), "Join"), false))
+		go = true;
+	cut_right(&b, 10);
+	if (ui_button(ui, cut_right(&b, 100), "Cancel")) {
+		sb_clear(&wf.pass);
+		ui_dialog_close(ui);
+	}
+	if (go) {
+		wifi_connect(wf.pick.hex, sb_str(&wf.pass));
+		memset(wf.pass.data, 0, wf.pass.len);
+		sb_clear(&wf.pass);
+		ui_dialog_close(ui);
+	}
+	ui_dialog_end(ui);
+}
+
+static void network_menu(Ui *ui, Rect anchor)
+{
+	Rect c;
+	WifiNet *n = &wf.menu;
+	int items = (n->connected ? 1 : 0) + (n->saved ? 1 : 0) + (!n->connected ? 1 : 0);
+	if (!ui_popover_begin(ui, "wifi-menu", anchor, 200, 8 + 36 * (f32)items, &c))
+		return;
+	f32 y = c.y + 4;
+	if (n->connected) {
+		if (ui_menu_item(ui, rect(c.x + 4, y, c.w - 8, 34), "window-close", "Disconnect", NULL)) {
+			wifi_command("disconnect");
+			ui_popover_close(ui);
+		}
+		y += 36;
+	} else {
+		if (ui_menu_item(ui, rect(c.x + 4, y, c.w - 8, 34), "network-wireless", "Connect", NULL)) {
+			ui_popover_close(ui);
+			join(ui, n);
+		}
+		y += 36;
+	}
+	if (n->saved && ui_menu_item(ui, rect(c.x + 4, y, c.w - 8, 34), "trash", "Forget", NULL)) {
+		char cmd[96];
+		fmt(cmd, sizeof cmd, "forget %s", n->hex);
+		wifi_command(cmd);
+		ui_popover_close(ui);
+	}
+	ui_popover_end(ui);
+}
+
 static void page_network(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
 	Rect b = page_body(r);
+	f32 y0 = ui_scroll_begin(ui, r, "page-scroll");
+	b.y = y0 + 26;
+	b.h = 100000;
+	f32 top = b.y;
 	page_title(ui, &b, "Network", NULL);
-	/* The network service publishes its state here. */
+	/* the network service publishes its state here */
 	char *status = file_read("/run/zurbax/network.status", NULL);
 	Conf *c = NULL;
 	if (status) {
@@ -413,15 +514,94 @@ static void page_network(Ui *ui, Rect r)
 		mem_free(status);
 	}
 	section(ui, &b, "Wi-Fi");
+	bool adapter = c && conf_get_bool(c, "wifi_available", false);
+	bool radio = c && str_eq(conf_get(c, "wifi", "off"), "on");
+	const char *state = c ? conf_get(c, "wifi_state", "idle") : "idle";
+	const char *ssid = c ? conf_get(c, "wifi_ssid", "") : "";
 	Rect rows = card_rows(ui, &b, 1, 64);
 	Rect wr = cut_top(&rows, 64);
-	bool wifi_on = get_bool("wifi", true);
-	const char *ssid = c ? conf_get(c, "wifi_ssid", "") : "";
-	ui_icon(ui, rect(wr.x, wr.y + 22, 20, 20), ssid[0] ? "network-wireless" : "network-wireless-none", t->text_dim);
-	Rect lab = pad4(wr, 0, 0, 0, 32);
-	row_label(ui, lab, "Wi-Fi", !c ? "The network service isn't running" : ssid[0] ? ssid : wifi_on ? "Not connected" : "Off");
-	if (ui_switch(ui, center_in(cut_right(&wr, 52), 46, 26), &wifi_on))
-		set_bool(ui, "wifi", wifi_on);
+	char sub[160];
+	if (!c)
+		str_copy(sub, "The network service isn't running", sizeof sub);
+	else if (!adapter)
+		str_copy(sub, "No Wi-Fi adapter found", sizeof sub);
+	else if (!radio)
+		str_copy(sub, "Off", sizeof sub);
+	else if (str_eq(state, "connected"))
+		fmt(sub, sizeof sub, "Connected to %s", ssid);
+	else if (str_eq(state, "connecting"))
+		fmt(sub, sizeof sub, "Connecting to %s…", ssid);
+	else
+		str_copy(sub, "Not connected", sizeof sub);
+	ui_icon(ui, rect(wr.x, wr.y + 22, 20, 20), radio && adapter ? "network-wireless" : "network-wireless-off", t->text_dim);
+	row_label(ui, pad4(wr, 0, 0, 0, 32), "Wi-Fi", sub);
+	if (adapter) {
+		bool on = radio;
+		if (ui_switch(ui, center_in(cut_right(&wr, 52), 46, 26), &on))
+			wifi_command(on ? "radio on" : "radio off");
+	}
+	if (adapter && radio) {
+		send_scan(ui);
+		const char *err = conf_get(c, "wifi_error", "");
+		if (err[0] && !str_eq(state, "connected")) {
+			Rect er = cut_top(&b, 44);
+			ui_round(ui, er, 10, color_with_alpha(t->danger, 0x22));
+			ui_icon(ui, rect(er.x + 14, er.y + 14, 16, 16), "error", t->danger);
+			char msg[220];
+			fmt(msg, sizeof msg, "Couldn't connect: %s", err);
+			ui_text_in(ui, ui_font(ui, 13, 500), rect(er.x + 40, er.y, er.w - 50, er.h), msg, t->text, ALIGN_START);
+			cut_top(&b, 14);
+		}
+		WifiNet nets[40];
+		int n = wifi_networks(nets, 40);
+		Rect head = cut_top(&b, 28);
+		ui_heading(ui, head, "Networks");
+		if (conf_get_bool(c, "wifi_scanning", false) || !n)
+			ui_spinner(ui, rect(head.x + head.w - 20, head.y + 5, 18, 18));
+		cut_top(&b, 4);
+		if (!n) {
+			Rect card = cut_top(&b, 64);
+			ui_card(ui, card);
+			ui_text_in(ui, ui_font(ui, 13, 500), card, "Looking for networks…", t->text_dim, ALIGN_CENTER);
+			cut_top(&b, 14);
+		} else {
+			Rect list = card_rows(ui, &b, n, 56);
+			for (int i = 0; i < n; i++) {
+				WifiNet *w = &nets[i];
+				Rect row = cut_top(&list, 56);
+				if (i)
+					ui_separator(ui, row.x, row.y, row.x + row.w);
+				ui_push_id_str(ui, w->hex);
+				bool ok = wifi_supported(w);
+				UiInteract in = ui_row(ui, pad2(row, -10, 3), ui_id(ui, "net"), false);
+				Color fg = ok ? t->text : t->text_faint;
+				ui_icon(ui, rect(row.x, row.y + 18, 20, 20), wifi_signal_icon(w->signal), ok ? t->text_dim : t->text_faint);
+				const char *what = w->connected ? (str_eq(state, "connected") ? "Connected" : "Connecting…")
+						   : str_eq(w->security, "wpa3") ? "WPA3 only (not supported yet)"
+						   : str_eq(w->security, "enterprise") ? "Enterprise (not supported yet)"
+						   : str_eq(w->security, "wep") || str_eq(w->security, "wpa") ? "Outdated security (not supported)"
+						   : w->saved ? "Saved" : str_eq(w->security, "open") ? "Open network" : "Secured";
+				ui_text_in(ui, ui_font(ui, 14, w->connected ? 700 : 500), rect(row.x + 34, row.y + 8, row.w - 120, 22), w->ssid, fg, ALIGN_START);
+				ui_text_in(ui, ui_font(ui, 12, 400), rect(row.x + 34, row.y + 28, row.w - 120, 18), what,
+					   w->connected ? t->accent : t->text_dim, ALIGN_START);
+				Rect right = cut_right(&row, 40);
+				if (!str_eq(w->security, "open"))
+					ui_icon(ui, rect(right.x - 22, row.y + 20, 16, 16), "lock", t->text_faint);
+				if ((w->saved || w->connected) && ok) {
+					Rect mb = center_in(right, 32, 32);
+					if (ui_icon_button(ui, mb, "more-vertical", "Options")) {
+						wf.menu = *w;
+						ui_popover_toggle(ui, "wifi-menu");
+					}
+					if (str_eq(wf.menu.hex, w->hex))
+						network_menu(ui, mb);
+				}
+				if (in.clicked && ok && !w->connected)
+					join(ui, w);
+				ui_pop_id(ui);
+			}
+		}
+	}
 	section(ui, &b, "Wired");
 	rows = card_rows(ui, &b, 1, 64);
 	Rect er = cut_top(&rows, 64);
@@ -444,6 +624,14 @@ static void page_network(Ui *ui, Rect r)
 		}
 		conf_free(c);
 	}
+	ui_scroll_end(ui, b.y - top + 40);
+	if (wf.ask) {
+		wf.ask = false;
+		ui_dialog_open(ui, "wifi-pass");
+	}
+	password_dialog(ui);
+	/* the service's state changes on its own: look again shortly */
+	ui->wake_at = ui->wake_at ? minf((f32)ui->wake_at, (f32)(ui->now + 1)) : ui->now + 1;
 }
 
 static void page_bluetooth(Ui *ui, Rect r)
@@ -861,10 +1049,24 @@ static void init(Ui *ui)
 	if (w[0] == '/')
 		st.custom_thumb = image_load_thumb(w, 320);
 	load_about();
+	if (start_page && str_starts(start_page, "wifi:")) {
+		/* from the top bar: a secured network to join */
+		str_copy(wf.pick.hex, start_page + 5, sizeof wf.pick.hex);
+		u8 raw[32];
+		usize rl = strlen(wf.pick.hex) / 2;
+		if (rl <= 32 && hex_decode(wf.pick.hex, raw, rl)) {
+			usize w = 0;
+			for (usize i = 0; i < rl && w + 1 < sizeof wf.pick.ssid; i++)
+				wf.pick.ssid[w++] = raw[i] >= 0x20 && raw[i] != 0x7f ? (char)raw[i] : '?';
+			wf.pick.ssid[w] = 0;
+			wf.ask = true;   /* ids belong to the page, so the page opens it */
+		}
+		start_page = "wifi";
+	}
 	if (start_page)
 		for (int i = 0; i < PAGE_COUNT; i++)
 			if (str_eq_nocase(PAGES[i].title, start_page) || (str_eq(start_page, "users") && i == PAGE_USERS) ||
-			    (str_eq(start_page, "network") && i == PAGE_NETWORK) || (str_eq(start_page, "about") && i == PAGE_ABOUT))
+			    ((str_eq(start_page, "network") || str_eq(start_page, "wifi")) && i == PAGE_NETWORK) || (str_eq(start_page, "about") && i == PAGE_ABOUT))
 				st.page = i;
 }
 

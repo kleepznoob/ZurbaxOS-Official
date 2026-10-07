@@ -22,7 +22,9 @@ if [ ! -f "$SRC/Makefile" ]; then
 fi
 
 mkdir -p "$OUT"
-if [ ! -f "$OUT/.config" ] || [ "$ROOT/kernel/zurbax.config" -nt "$OUT/.config" ]; then
+# Reconfigure whenever the configuration files' contents change.
+sig=$(cat "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} | cksum)
+if [ ! -f "$OUT/.config" ] || [ "$(cat "$OUT/.zurbax-config-sig" 2>/dev/null)" != "$sig" ]; then
 	echo ">> configuring"
 	make -s -C "$SRC" O="$OUT" x86_64_defconfig
 	"$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} >"$OUT/merge.log"
@@ -39,6 +41,7 @@ if [ ! -f "$OUT/.config" ] || [ "$ROOT/kernel/zurbax.config" -nt "$OUT/.config" 
 		[ "$want" = n ] && [ "$have" = n ] && continue
 		[ "$have" = "$want" ] || echo "   note: $sym wanted $want, got $have"
 	done
+	echo "$sig" >"$OUT/.zurbax-config-sig"
 fi
 
 if [ $# -ge 1 ]; then
