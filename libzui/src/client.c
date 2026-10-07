@@ -123,6 +123,12 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		c->dirty = true;
 		break;
 	}
+	case MSG_GAMEPAD: {
+		const MsgGamepad *m = (const MsgGamepad *)buf;
+		ui_input_gamepad(ui, m->pad, m->connected, m->buttons, m->axes, m->name);
+		c->dirty = true;
+		break;
+	}
 	case MSG_FOCUS: {
 		const MsgFocus *m = (const MsgFocus *)buf;
 		ui_input_focus(ui, m->focused);

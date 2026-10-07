@@ -531,7 +531,8 @@ void ui_scroll_end(Ui *ui, f32 content_height)
 	bool near = ui_mouse_in(ui, zone) || s->dragging;
 	f32 vis = ui_fade(ui, sid ^ 0x51, near || ui->now - s->last_activity < 0.8, 0.2f);
 	if (ui->now - s->last_activity < 0.8)
-		ui->wake_at = ui->wake_at ? minf((f32)ui->wake_at, (f32)(s->last_activity + 0.85)) : s->last_activity + 0.85;
+		if (!ui->wake_at || s->last_activity + 0.85 < ui->wake_at)
+			ui->wake_at = s->last_activity + 0.85;
 	f32 frac = view.h / content_height;
 	f32 bar_h = maxf(32, view.h * frac);
 	f32 max_off = content_height - view.h;

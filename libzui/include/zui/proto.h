@@ -56,6 +56,7 @@ enum {
 	MSG_DROP_FILES,
 	MSG_REPLY,          /* result of a request such as MSG_ACCOUNT */
 	MSG_SCREENSHOT_DATA,/* + memfd with the pixels */
+	MSG_GAMEPAD,        /* a game controller's state changed */
 };
 
 typedef struct {
@@ -317,3 +318,23 @@ typedef struct {
 	i32 status;            /* 0 = pixels attached, negative = cancelled or failed */
 	u32 width, height;     /* device pixels, premultiplied ARGB, rows packed */
 } MsgScreenshotData;
+
+/* Game controllers. Buttons are named by position, Xbox style: A is the
+ * bottom face button, B the right, X the left and Y the top, whatever the
+ * labels on the controller say. */
+enum {
+	PAD_A, PAD_B, PAD_X, PAD_Y, PAD_LB, PAD_RB, PAD_LT, PAD_RT, PAD_BACK, PAD_START, PAD_GUIDE,
+	PAD_LS, PAD_RS, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_BUTTONS
+};
+/* Sticks go from -1 to 1 (up and left negative); triggers from 0 to 1. */
+enum { PAD_LX, PAD_LY, PAD_RX, PAD_RY, PAD_LTRIGGER, PAD_RTRIGGER, PAD_AXES };
+#define PAD_MAX 4
+
+typedef struct {
+	MsgHeader h;
+	u32 pad;               /* 0..PAD_MAX-1 */
+	u32 connected;         /* 0 when it was unplugged */
+	u32 buttons;           /* bit per PAD_* button */
+	f32 axes[PAD_AXES];
+	char name[64];
+} MsgGamepad;

@@ -1,8 +1,9 @@
 /*
  * mkimage — builds what Zurbax boots from.
  *
- *   mkimage cpio OUT.cpio [HOOK]     the system archive the kernel embeds (HOOK: a
- *                                    test helper for test kernels only):
+ *   mkimage cpio OUT.cpio [HOOK...]  the system archive the kernel embeds (HOOKs:
+ *                                    test helpers for test kernels only, in
+ *                                    /system/test):
  *                                    build/bin, build/apps + apps/<app> files,
  *                                    data/ as /system/share, build/firmware as
  *                                    /lib/firmware
@@ -73,7 +74,7 @@ static bool skip_sources(const char *name)
 	return str_ends(name, ".c") || str_ends(name, ".h");
 }
 
-static int make_cpio(const char *out, const char *test_hook)
+static int make_cpio(const char *out, char **hooks, int nhooks)
 {
 	int fd = (int)sys_open(out, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
 	if (fd < 0) {
@@ -103,8 +104,13 @@ static int make_cpio(const char *out, const char *test_hook)
 		mem_free(d);
 	}
 	dir_list_free(&bins);
-	if (test_hook)
-		add_host_file(test_hook, "system/bin/ztest-hook", 0755);
+	if (nhooks)
+		check(cpio_dir(&cw, "system/test", 0755), "system/test");
+	for (int i = 0; i < nhooks; i++) {
+		char *d = path_join("system/test", path_base(hooks[i]));
+		add_host_file(hooks[i], d, 0755);
+		mem_free(d);
+	}
 
 	DirList apps = { 0 };
 	dir_list("apps", &apps, false);
@@ -308,8 +314,8 @@ static int make_repo(const char *out)
 
 int main(int argc, char **argv)
 {
-	if ((argc == 3 || argc == 4) && str_eq(argv[1], "cpio"))
-		return make_cpio(argv[2], argc == 4 ? argv[3] : NULL);
+	if (argc >= 3 && str_eq(argv[1], "cpio"))
+		return make_cpio(argv[2], argv + 3, argc - 3);
 	if (argc == 4 && str_eq(argv[1], "disk"))
 		return make_disk(argv[2], argv[3]);
 	if (argc == 4 && str_eq(argv[1], "ext4"))

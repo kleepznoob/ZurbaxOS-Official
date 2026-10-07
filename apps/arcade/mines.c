@@ -1,6 +1,7 @@
 /* Mines: clear the field without stepping on a mine. The first click is
  * always safe; right-click plants a flag; clicking a number whose flags
- * are all placed opens its neighbours. Three sizes. */
+ * are all placed opens its neighbours. Three sizes. The arrow keys or a
+ * controller move a cursor over the field for playing without a mouse. */
 #include "arcade.h"
 
 #define MW 30
@@ -17,6 +18,8 @@ static struct {
 	int opened, flags;
 	f64 time;
 	int boom_x, boom_y;
+	int cx, cy;          /* the keyboard / controller cursor */
+	bool cursor;         /* shown once the keys or a controller are used */
 } m;
 
 static void start(void)
@@ -26,6 +29,7 @@ static void start(void)
 	m.level = level;
 	m.w = LEVELS[level].w, m.h = LEVELS[level].h, m.mines = LEVELS[level].mines;
 	m.boom_x = m.boom_y = -1;
+	m.cx = m.w / 2, m.cy = m.h / 2;
 }
 
 static void place(int sx, int sy)
@@ -93,6 +97,42 @@ static void check_win(void)
 	}
 }
 
+/* What a click on a cell does: open it, or open around a satisfied number. */
+static void open_cell(int x, int y)
+{
+	if (m.flag[y][x])
+		return;
+	if (!m.placed)
+		place(x, y);
+	if (!m.open[y][x]) {
+		reveal(x, y);
+		if (!m.over)
+			sound_play("click");
+	} else if (m.count[y][x]) {
+		int f = 0;
+		for (int dy = -1; dy <= 1; dy++)
+			for (int dx = -1; dx <= 1; dx++) {
+				int nx = x + dx, ny = y + dy;
+				if (nx >= 0 && ny >= 0 && nx < m.w && ny < m.h && m.flag[ny][nx])
+					f++;
+			}
+		if (f == m.count[y][x])
+			for (int dy = -1; dy <= 1 && !m.over; dy++)
+				for (int dx = -1; dx <= 1 && !m.over; dx++)
+					reveal(x + dx, y + dy);
+	}
+	check_win();
+}
+
+static void toggle_flag(int x, int y)
+{
+	if (m.open[y][x])
+		return;
+	m.flag[y][x] = !m.flag[y][x];
+	m.flags += m.flag[y][x] ? 1 : -1;
+	sound_play("pop");
+}
+
 static void paint_mine(Ui *ui, f32 cx, f32 cy, f32 r)
 {
 	for (int k = 0; k < 4; k++) {
@@ -121,6 +161,33 @@ static void frame(Ui *ui, Rect r)
 {
 	if (m.placed && !m.over && !game_paused)
 		m.time += ui->dt;
+	/* the cursor: arrows or the D-pad move it, Enter / A opens, F / X flags */
+	if (!m.over && !game_paused) {
+		int dx = 0, dy = 0;
+		dx -= key_hit(ui, KEY_LEFT) || pad_repeat(ui, PAD_LEFT);
+		dx += key_hit(ui, KEY_RIGHT) || pad_repeat(ui, PAD_RIGHT);
+		dy -= key_hit(ui, KEY_UP) || pad_repeat(ui, PAD_UP);
+		dy += key_hit(ui, KEY_DOWN) || pad_repeat(ui, PAD_DOWN);
+		if (dx || dy) {
+			if (m.cursor)
+				m.cx = CLAMP(m.cx + dx, 0, m.w - 1), m.cy = CLAMP(m.cy + dy, 0, m.h - 1);
+			m.cursor = true;
+		}
+		if (key_hit(ui, KEY_ENTER) || key_hit(ui, KEY_SPACE) || pad_hit(ui, PAD_A)) {
+			m.cursor = true;
+			open_cell(m.cx, m.cy);
+		}
+		if (key_hit(ui, KEY_F) || pad_hit(ui, PAD_X) || pad_hit(ui, PAD_Y)) {
+			m.cursor = true;
+			toggle_flag(m.cx, m.cy);
+		}
+	}
+	/* the bumpers change the size */
+	int bump = pad_hit(ui, PAD_RB) - pad_hit(ui, PAD_LB);
+	if (bump && CLAMP(m.level + bump, 0, 2) != m.level) {
+		m.level += bump;
+		start();
+	}
 	/* Level choice and status above the field. */
 	Rect top = cut_top(&r, 46);
 	const char *names[] = { LEVELS[0].name, LEVELS[1].name, LEVELS[2].name };
@@ -161,35 +228,15 @@ static void frame(Ui *ui, Rect r)
 					ui_text_in(ui, ui_font(ui, cs * 0.55f, 800), c, n, color_hex(NUM_COLORS[m.count[y][x]]), ALIGN_CENTER);
 				}
 			}
+			if (m.cursor && x == m.cx && y == m.cy && !m.over)
+				ui_border(ui, pad(c, -2), cs * 0.2f, 2.5f, color_hex("#ffd166"));
 			if (!m.over && !game_paused) {
-				if (it.clicked && !m.flag[y][x]) {
-					if (!m.placed)
-						place(x, y);
-					if (!open) {
-						reveal(x, y);
-						if (!m.over)
-							sound_play("click");
-					} else if (m.count[y][x]) {
-						/* Chord: open around a satisfied number. */
-						int f = 0;
-						for (int dy = -1; dy <= 1; dy++)
-							for (int dx = -1; dx <= 1; dx++) {
-								int nx = x + dx, ny = y + dy;
-								if (nx >= 0 && ny >= 0 && nx < m.w && ny < m.h && m.flag[ny][nx])
-									f++;
-							}
-						if (f == m.count[y][x])
-							for (int dy = -1; dy <= 1 && !m.over; dy++)
-								for (int dx = -1; dx <= 1 && !m.over; dx++)
-									reveal(x + dx, y + dy);
-					}
-					check_win();
-				}
-				if (it.right_clicked && !open) {
-					m.flag[y][x] = !m.flag[y][x];
-					m.flags += m.flag[y][x] ? 1 : -1;
-					sound_play("pop");
-				}
+				if (it.clicked || it.right_clicked)
+					m.cx = x, m.cy = y, m.cursor = false;
+				if (it.clicked)
+					open_cell(x, y);
+				if (it.right_clicked)
+					toggle_flag(x, y);
 			}
 			ui_pop_id(ui);
 		}
@@ -230,4 +277,5 @@ static void preview(Ui *ui, Rect r)
 }
 
 const Game GAME_MINES = { "mines", "Mines", "Find the mines without stepping on one.", "Click to open, right-click to flag, click a number to open around it",
+			  "D-pad move   A open   X flag   LB/RB size",
 			  start, frame, preview, 0xff3a5a9a, 0xff1a2a50 };

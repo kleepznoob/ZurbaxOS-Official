@@ -32,5 +32,5 @@ int audio_fd(AudioStream *s);
 void audio_close(AudioStream *s);
 
 /* Short interface sounds, synthesized on the spot: "click", "notify",
- * "error", "complete", "camera", "pop", "coin", "hit", "lose", "win". */
+ * "error", "complete", "camera", "tick", "pop", "coin", "hit", "lose", "win". */
 void sound_play(const char *name);

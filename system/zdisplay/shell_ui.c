@@ -473,6 +473,29 @@ static bool app_matches(const AppInfo *a, const char *q)
 	       str_find_nocase(a->id, q);
 }
 
+/* The highlighted app, moved with arrow keys or a controller's D-pad. */
+static int launcher_sel = -1, launcher_sel_app = -1, launcher_shown;
+static bool launcher_follow;
+#define LAUNCHER_COLS 5
+
+void launcher_nav(int dx, int dy)
+{
+	if (launcher_sel < 0)
+		launcher_sel = 0;
+	else
+		launcher_sel = CLAMP(launcher_sel + dx + dy * LAUNCHER_COLS, 0, MAX(0, launcher_shown - 1));
+	launcher_follow = true;
+}
+
+void launcher_activate(void)
+{
+	int app = launcher_sel >= 0 ? launcher_sel_app : launcher_first_match;
+	if (app < 0 || app >= S.napps)
+		return;
+	shell_launch(S.apps[app].id, NULL);
+	S.launcher_open = false;
+}
+
 bool launcher_key(Ui *ui, u32 code, u32 mods, const char *text)
 {
 	UNUSED(ui), UNUSED(mods), UNUSED(text);
@@ -480,9 +503,17 @@ bool launcher_key(Ui *ui, u32 code, u32 mods, const char *text)
 		S.launcher_open = false;
 		return true;
 	}
-	if ((code == KEY_ENTER || code == KEY_KPENTER) && launcher_first_match >= 0) {
-		shell_launch(S.apps[launcher_first_match].id, NULL);
-		S.launcher_open = false;
+	if (code == KEY_ENTER || code == KEY_KPENTER) {
+		launcher_activate();
+		return true;
+	}
+	if (code == KEY_DOWN || code == KEY_UP) {
+		launcher_nav(0, code == KEY_DOWN ? 1 : -1);
+		return true;
+	}
+	/* left and right move through the apps unless there's text to edit */
+	if ((code == KEY_LEFT || code == KEY_RIGHT) && (launcher_sel >= 0 || !launcher_query.len)) {
+		launcher_nav(code == KEY_RIGHT ? 1 : -1, 0);
 		return true;
 	}
 	return false;
@@ -494,10 +525,11 @@ void launcher_draw(Ui *ui)
 	f32 k = S.launcher_k;
 	if (k <= 0.01f) {
 		sb_clear(&launcher_query);
+		launcher_sel = -1;
 		return;
 	}
 	Theme *t = &ui->theme;
-	f32 cols = 5, cell_w = 116, cell_h = 104;
+	f32 cols = LAUNCHER_COLS, cell_w = 116, cell_h = 104;
 	f32 w = cols * cell_w + 32, h = minf(560, S.sh - PANEL_HEIGHT - 120);
 	Rect r = panel_popover(ui, panel_apps_btn.x + panel_apps_btn.w / 2 + w / 2 - 40, w, h, k);
 	if (S.launcher_open && click_outside(ui, r) && !rect_contains(panel_apps_btn, ui->mx, ui->my)) {
@@ -510,9 +542,22 @@ void launcher_draw(Ui *ui)
 	int ev = ui_entry(ui, search, "launcher-search", &launcher_query, "Search Apps", ENTRY_SEARCH | ENTRY_AUTOFOCUS);
 	if (S.launcher_open && ui->focus != ui_id(ui, "launcher-search"))
 		ui_focus(ui, "launcher-search");
-	UNUSED(ev);
+	if (ev & ENTRY_CHANGED)
+		launcher_sel = -1;
 	cut_top(&body, 12);
+	/* keep the highlighted app in view */
+	static f32 grid_offset;
+	if (launcher_follow && launcher_sel >= 0) {
+		f32 top = (f32)(launcher_sel / LAUNCHER_COLS) * cell_h;
+		if (top < grid_offset)
+			ui_scroll_to(ui, "launcher-grid", top);
+		else if (top + cell_h > grid_offset + body.h)
+			ui_scroll_to(ui, "launcher-grid", top + cell_h - body.h);
+	}
+	launcher_follow = false;
+	f32 oy0 = ui->oy;
 	f32 y0 = ui_scroll_begin(ui, body, "launcher-grid");
+	grid_offset = oy0 - ui->oy;
 	int shown = 0;
 	launcher_first_match = -1;
 	const char *q = sb_str(&launcher_query);
@@ -525,7 +570,10 @@ void launcher_draw(Ui *ui)
 		f32 cx = body.x + (f32)(shown % (int)cols) * cell_w, cy = y0 + (f32)(shown / (int)cols) * cell_h;
 		Rect cell = rect(cx + 2, cy, cell_w - 4, cell_h - 4);
 		ui_push_id_str(ui, a->id);
-		UiInteract it = ui_row(ui, cell, ui_id(ui, "app"), shown == 0 && *q);
+		bool sel = launcher_sel >= 0 ? shown == launcher_sel : shown == 0 && *q;
+		if (sel && launcher_sel >= 0)
+			launcher_sel_app = i;
+		UiInteract it = ui_row(ui, cell, ui_id(ui, "app"), sel);
 		ui_app_icon(ui, rect(cell.x + (cell.w - 56) / 2, cell.y + 8, 56, 56), a->icon);
 		ui_text_in(ui, ui_font(ui, 12, 500), rect(cell.x + 4, cell.y + 68, cell.w - 8, 22), a->name, t->text, ALIGN_CENTER);
 		if (it.clicked) {
@@ -535,6 +583,9 @@ void launcher_draw(Ui *ui)
 		ui_pop_id(ui);
 		shown++;
 	}
+	launcher_shown = shown;
+	if (launcher_sel >= shown)
+		launcher_sel = shown - 1;
 	if (shown == 0)
 		ui_placeholder(ui, body, "search", "No Results", "Try a different search.");
 	f32 rows = ceilf((f32)shown / cols);

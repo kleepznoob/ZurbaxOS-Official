@@ -177,6 +177,9 @@ static usize synth(const char *name, f32 *buf, usize cap)
 		noise(buf, cap, 0, 0.012f, 0.5f, 0.6f);
 		bell(buf, cap, 0, 2200, 0.12f, 120);
 		len = 0.05f;
+	} else if (str_eq(name, "tick")) {
+		bell(buf, cap, 0, 1760, 0.08f, 160);
+		len = 0.03f;
 	} else if (str_eq(name, "pop")) {
 		sweep(buf, cap, 0, 0.07f, 720, 320, 0.5f, false);
 		len = 0.08f;

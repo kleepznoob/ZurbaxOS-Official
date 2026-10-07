@@ -157,6 +157,11 @@ static void mark_active(void)
 		S.osd_k = 0;
 }
 
+void input_activity(void)
+{
+	mark_active();
+}
+
 void input_pointer_abs(f32 x, f32 y)
 {
 	mark_active();

@@ -725,6 +725,148 @@ void ui_input_key(Ui *ui, u32 code, u32 state, u32 mods, const char *text)
 	ui->redraw = true;
 }
 
+/* ---- Game controllers ------------------------------------------------------------------ */
+
+/* Keys a controller stands in for when the app doesn't read controllers. */
+static const struct {
+	int button;
+	u32 key;
+} PAD_KEYS[] = {
+	{ PAD_UP, KEY_UP }, { PAD_DOWN, KEY_DOWN }, { PAD_LEFT, KEY_LEFT }, { PAD_RIGHT, KEY_RIGHT },
+	{ PAD_A, KEY_ENTER }, { PAD_B, KEY_ESC }, { PAD_X, KEY_SPACE }, { PAD_START, KEY_ENTER },
+	{ PAD_LB, KEY_PAGEUP }, { PAD_RB, KEY_PAGEDOWN },
+};
+
+static bool pad_raw(Ui *ui)
+{
+	return ui->pad_raw_frame && ui->frame_no - ui->pad_raw_frame <= 2;
+}
+
+/* Directions from the D-pad or the left stick, across all controllers. */
+static u32 pad_virtual_buttons(Ui *ui)
+{
+	u32 b = 0;
+	for (int i = 0; i < PAD_MAX; i++) {
+		if (!ui->pads[i].connected)
+			continue;
+		b |= ui->pads[i].buttons;
+		const f32 *a = ui->pads[i].axes;
+		if (a[PAD_LX] < -0.55f) b |= 1u << PAD_LEFT;
+		if (a[PAD_LX] > 0.55f) b |= 1u << PAD_RIGHT;
+		if (a[PAD_LY] < -0.55f) b |= 1u << PAD_UP;
+		if (a[PAD_LY] > 0.55f) b |= 1u << PAD_DOWN;
+	}
+	return b;
+}
+
+static void pad_translate(Ui *ui)
+{
+	u32 want = pad_raw(ui) ? 0 : pad_virtual_buttons(ui);
+	for (usize i = 0; i < ARRAY_LEN(PAD_KEYS); i++) {
+		u32 bit = 1u << i;
+		bool on = (want >> PAD_KEYS[i].button) & 1, was = ui->pad_keys & bit;
+		if (on == was)
+			continue;
+		/* two buttons can stand for one key (A and Start): keep it down while either is */
+		bool other = false;
+		for (usize j = 0; j < ARRAY_LEN(PAD_KEYS); j++)
+			if (j != i && PAD_KEYS[j].key == PAD_KEYS[i].key && (ui->pad_keys & (1u << j)))
+				other = true;
+		if (on) {
+			ui->pad_keys |= bit;
+			if (!other)
+				ui_input_key(ui, PAD_KEYS[i].key, KEY_PRESSED, 0, PAD_KEYS[i].key == KEY_SPACE ? " " : "");
+			ui->pad_repeat_at = ui->now + 0.4;
+		} else {
+			ui->pad_keys &= ~bit;
+			if (!other)
+				ui_input_key(ui, PAD_KEYS[i].key, KEY_RELEASED, 0, "");
+		}
+	}
+}
+
+void ui_input_gamepad(Ui *ui, u32 pad, bool connected, u32 buttons, const f32 *axes, const char *name)
+{
+	if (pad >= PAD_MAX)
+		return;
+	typeof(ui->pads[0]) *p = &ui->pads[pad];
+	p->connected = connected;
+	str_copy(p->name, name, sizeof p->name);
+	if (!connected) {
+		buttons = 0;
+		memset(p->axes, 0, sizeof p->axes);
+	} else {
+		memcpy(p->axes, axes, sizeof p->axes);
+	}
+	p->hit |= buttons & ~p->buttons;
+	p->buttons = buttons;
+	pad_translate(ui);
+	ui->redraw = true;
+}
+
+int ui_pad_count(Ui *ui)
+{
+	int n = 0;
+	for (int i = 0; i < PAD_MAX; i++)
+		n += ui->pads[i].connected;
+	return n;
+}
+
+bool ui_pad_held(Ui *ui, int pad, int button)
+{
+	return pad >= 0 && pad < PAD_MAX && ui->pads[pad].connected && ((ui->pads[pad].buttons >> button) & 1);
+}
+
+bool ui_pad_down(Ui *ui, int button)
+{
+	for (int i = 0; i < PAD_MAX; i++)
+		if (ui_pad_held(ui, i, button))
+			return true;
+	return false;
+}
+
+bool ui_pad_pressed(Ui *ui, int button)
+{
+	for (int i = 0; i < PAD_MAX; i++)
+		if (ui->pads[i].connected && ((ui->pads[i].hit >> button) & 1)) {
+			ui->pads[i].hit &= ~(1u << button);
+			return true;
+		}
+	return false;
+}
+
+f32 ui_pad_axis_of(Ui *ui, int pad, int axis)
+{
+	if (pad < 0 || pad >= PAD_MAX || axis < 0 || axis >= PAD_AXES || !ui->pads[pad].connected)
+		return 0;
+	f32 v = ui->pads[pad].axes[axis];
+	if (axis >= PAD_LTRIGGER)
+		return v < 0.05f ? 0 : v;
+	/* a dead zone that still lets small movements through smoothly */
+	const f32 dz = 0.16f;
+	if (fabsf(v) < dz)
+		return 0;
+	return (v - (v > 0 ? dz : -dz)) / (1 - dz);
+}
+
+f32 ui_pad_axis(Ui *ui, int axis)
+{
+	for (int i = 0; i < PAD_MAX; i++) {
+		f32 v = ui_pad_axis_of(ui, i, axis);
+		if (v != 0)
+			return v;
+	}
+	return 0;
+}
+
+void ui_pad_raw(Ui *ui)
+{
+	bool was = pad_raw(ui);
+	ui->pad_raw_frame = ui->frame_no;
+	if (!was)
+		pad_translate(ui);   /* let go of any keys standing in for the controller */
+}
+
 void ui_input_focus(Ui *ui, bool focused)
 {
 	ui->window_focused = focused;
@@ -805,8 +947,21 @@ bool ui_frame(Ui *ui, void (*draw)(Ui *ui))
 	UiId prev_tooltip = ui->tooltip_id;
 	ui->tooltip_text[0] = 0;
 	apply_clip(ui);
+	/* a held D-pad direction repeats like a held arrow key */
+	bool pad_dirs = false;
+	for (int i = 0; i < 4; i++)
+		if ((ui->pad_keys >> i) & 1) {
+			pad_dirs = true;
+			if (ui->now >= ui->pad_repeat_at)
+				ui_input_key(ui, PAD_KEYS[i].key, KEY_REPEATED, 0, "");
+		}
+	if (pad_dirs && ui->now >= ui->pad_repeat_at)
+		ui->pad_repeat_at = ui->now + 0.09;
 
 	draw(ui);
+	if (pad_dirs && ui->pad_keys & 15)
+		if (!ui->wake_at || ui->pad_repeat_at < ui->wake_at)
+			ui->wake_at = ui->pad_repeat_at;
 
 	/* Clicking anywhere that does not take focus drops keyboard focus. */
 	if (ui->pressed[BUTTON_LEFT] && !ui->focus_claimed)
@@ -825,6 +980,8 @@ bool ui_frame(Ui *ui, void (*draw)(Ui *ui))
 	draw_tooltip(ui);
 
 	/* Per-frame input is consumed. */
+	for (int i = 0; i < PAD_MAX; i++)
+		ui->pads[i].hit = 0;
 	memset(ui->pressed, 0, sizeof ui->pressed);
 	memset(ui->released, 0, sizeof ui->released);
 	ui->scroll_dx = ui->scroll_dy = 0;

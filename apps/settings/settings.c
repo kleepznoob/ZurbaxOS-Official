@@ -813,10 +813,77 @@ static void page_datetime(Ui *ui, Rect r)
 	switch_row(ui, &rows, 56, true, "24-hour clock", NULL, "clock_24h", true);
 }
 
+/* A controller drawn from shapes, lit up as it's used: the test in Gaming. */
+static void controller_test(Ui *ui, Rect r, int pad)
+{
+	Theme *t = &ui->theme;
+	f32 cx = r.x + r.w / 2, cy = r.y + r.h / 2 + 6;
+	Color body = t->dark ? color_hex("#3a3b41") : color_hex("#e4e5ea");
+	Color part = t->dark ? color_hex("#26272c") : color_hex("#c9cbd2");
+	Color lit = t->accent;
+	bool dark = t->dark;
+	/* triggers and bumpers */
+	for (int side = -1; side <= 1; side += 2) {
+		f32 tx = cx + (f32)side * 112 - 34;
+		f32 v = ui_pad_axis_of(ui, pad, side < 0 ? PAD_LTRIGGER : PAD_RTRIGGER);
+		bool td = ui_pad_held(ui, pad, side < 0 ? PAD_LT : PAD_RT);
+		Rect tr = rect(tx, cy - 112, 68, 14);
+		ui_round(ui, tr, 7, part);
+		if (v > 0 || td)
+			ui_round(ui, rect(tr.x, tr.y, tr.w * (td && v == 0 ? 1 : v), tr.h), 7, lit);
+		bool bd = ui_pad_held(ui, pad, side < 0 ? PAD_LB : PAD_RB);
+		ui_round(ui, rect(tx - 6, cy - 90, 80, 16), 8, bd ? lit : part);
+	}
+	/* the body and grips */
+	ui_shadow(ui, rect(cx - 170, cy - 72, 340, 130), 60, 18, 6, color_hex("#00000030"));
+	ui_circle(ui, cx - 118, cy + 44, 52, body);
+	ui_circle(ui, cx + 118, cy + 44, 52, body);
+	ui_round(ui, rect(cx - 170, cy - 72, 340, 124), 60, body);
+	/* sticks */
+	for (int side = -1; side <= 1; side += 2) {
+		f32 sx = side < 0 ? cx - 108 : cx + 52, sy = side < 0 ? cy - 18 : cy + 30;
+		f32 ax = ui_pad_axis_of(ui, pad, side < 0 ? PAD_LX : PAD_RX), ay = ui_pad_axis_of(ui, pad, side < 0 ? PAD_LY : PAD_RY);
+		bool pressed = ui_pad_held(ui, pad, side < 0 ? PAD_LS : PAD_RS);
+		ui_circle(ui, sx, sy, 30, part);
+		ui_circle(ui, sx + ax * 12, sy + ay * 12, 21, pressed ? lit : (dark ? color_hex("#4c4d54") : COLOR_WHITE));
+		ui_ring(ui, sx + ax * 12, sy + ay * 12, 21, 1.5f, color_hex("#00000022"));
+	}
+	/* D-pad */
+	f32 dx = cx - 52, dy = cy + 30;
+	static const int dirs[4] = { PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT };
+	static const f32 off[4][2] = { { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 } };
+	ui_round(ui, rect(dx - 9, dy - 9, 18, 18), 3, part);
+	for (int i = 0; i < 4; i++)
+		ui_round(ui, rect(dx + off[i][0] * 18 - 9, dy + off[i][1] * 18 - 9, 18, 18), 4,
+			 ui_pad_held(ui, pad, dirs[i]) ? lit : part);
+	/* face buttons, in their usual colours */
+	static const struct { int b; const char *label; u32 color; f32 x, y; } face[4] = {
+		{ PAD_A, "A", 0xff3ccf5a, 0, 1 }, { PAD_B, "B", 0xffe5484d, 1, 0 }, { PAD_X, "X", 0xff3b82f6, -1, 0 }, { PAD_Y, "Y", 0xfff5b400, 0, -1 },
+	};
+	f32 fx = cx + 108, fy = cy - 18;
+	for (int i = 0; i < 4; i++) {
+		f32 bx = fx + face[i].x * 26, by = fy + face[i].y * 26;
+		bool on = ui_pad_held(ui, pad, face[i].b);
+		ui_circle(ui, bx, by, 14, on ? face[i].color : part);
+		ui_text_in(ui, ui_font(ui, 12, 800), rect(bx - 14, by - 14, 28, 28), face[i].label, on ? COLOR_WHITE : face[i].color, ALIGN_CENTER);
+	}
+	/* back, guide, start */
+	ui_round(ui, rect(cx - 44, cy - 34, 22, 12), 6, ui_pad_held(ui, pad, PAD_BACK) ? lit : part);
+	ui_round(ui, rect(cx + 22, cy - 34, 22, 12), 6, ui_pad_held(ui, pad, PAD_START) ? lit : part);
+	ui_circle(ui, cx, cy - 46, 13, ui_pad_held(ui, pad, PAD_GUIDE) ? lit : part);
+	ui_icon(ui, rect(cx - 7, cy - 53, 14, 14), "gamepad", dark ? color_hex("#9a9ba3") : color_hex("#6b6d76"));
+}
+
 static void page_gaming(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
+	/* the controller test reads buttons itself: B isn't Escape here */
+	ui_pad_raw(ui);
 	Rect b = page_body(r);
+	f32 y0 = ui_scroll_begin(ui, r, "page-scroll");
+	b.y = y0 + 26;
+	b.h = 100000;
+	f32 top = b.y;
 	page_title(ui, &b, "Gaming", "Get the most out of this computer when you play.");
 	Rect rows = card_rows(ui, &b, 3, 64);
 	switch_row(ui, &rows, 64, false, "Game Mode", "Full speed for the processor and no notifications while a game is full screen",
@@ -834,6 +901,53 @@ static void page_gaming(Ui *ui, Rect r)
 	cut_top(&b, 14);
 	if (ui_button(ui, cut_left(&(Rect){ b.x, b.y, 200, 34 }, 200), "Browse Games in Harbor"))
 		ui_launch(ui, "harbor", "games");
+	cut_top(&b, 34 + 14);
+	/* controllers, with a live test */
+	section(ui, &b, "Controllers");
+	static int shown_pad;
+	int n = ui_pad_count(ui);
+	if (!n) {
+		Rect card = cut_top(&b, 92);
+		ui_card(ui, card);
+		Rect in = pad(card, 18);
+		ui_icon(ui, rect(in.x, in.y + 4, 32, 32), "gamepad", t->text_dim);
+		ui_text(ui, ui_font(ui, 14, 600), in.x + 48, in.y + 16, "No controller connected", t->text);
+		ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(in.x + 48, in.y + 24, in.w - 48, 40),
+				"Plug in a USB controller: Xbox, PlayStation, Switch Pro and most others work, in games and to move around the desktop.",
+				t->text_dim, ALIGN_START);
+	} else {
+		if (!ui->pads[shown_pad].connected)
+			for (int i = 0; i < PAD_MAX; i++)
+				if (ui->pads[i].connected) {
+					shown_pad = i;
+					break;
+				}
+		Rect card = cut_top(&b, 56 + 270);
+		ui_card(ui, card);
+		Rect in = pad(card, 18);
+		Rect head = cut_top(&in, 30);
+		ui_icon(ui, rect(head.x, head.y + 5, 20, 20), "gamepad", t->accent);
+		ui_text_in(ui, ui_font(ui, 14, 600), rect(head.x + 30, head.y, head.w - 200, 30), ui->pads[shown_pad].name, t->text, ALIGN_START);
+		if (n > 1) {
+			char label[32];
+			fmt(label, sizeof label, "Player %d of %d", shown_pad + 1, n);
+			if (ui_button(ui, rect(head.x + head.w - 140, head.y, 140, 30), label)) {
+				for (int k = 1; k <= PAD_MAX; k++)
+					if (ui->pads[(shown_pad + k) % PAD_MAX].connected) {
+						shown_pad = (shown_pad + k) % PAD_MAX;
+						break;
+					}
+			}
+		} else {
+			ui_text_in(ui, ui_font(ui, 12, 400), rect(head.x, head.y, head.w, 30), "Press buttons to test them", t->text_dim, ALIGN_END);
+		}
+		controller_test(ui, in, shown_pad);
+	}
+	cut_top(&b, 14);
+	ui_text_wrapped(ui, ui_font(ui, 12, 400), cut_top(&b, 40),
+			"Press the Guide (logo) button for Applications, then use the D-pad and A to start an app. "
+			"In apps, the D-pad moves, A selects and B goes back.", t->text_faint, ALIGN_START);
+	ui_scroll_end(ui, b.y - top + 40);
 }
 
 static void page_screentime(Ui *ui, Rect r)

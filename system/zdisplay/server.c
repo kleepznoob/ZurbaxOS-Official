@@ -405,4 +405,13 @@ void server_focus_event(Window *w, bool focused)
 		return;
 	MsgFocus m = { .focused = focused };
 	server_send(w->client, &m, MSG_FOCUS, sizeof m, w->client_win, NULL, 0);
+	input_gamepads_focus(w, focused);
+}
+
+void server_gamepad_event(Window *w, const MsgGamepad *m)
+{
+	if (!w || !w->client)
+		return;
+	MsgGamepad copy = *m;   /* server_send fills in the header */
+	server_send(w->client, &copy, MSG_GAMEPAD, sizeof copy, w->client_win, NULL, 0);
 }

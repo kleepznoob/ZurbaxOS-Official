@@ -5,6 +5,7 @@
 
 typedef struct {
 	const char *id, *name, *tagline, *controls;
+	const char *pad_controls;        /* the same, for a game controller */
 	void (*start)(void);
 	void (*frame)(Ui *ui, Rect r);   /* plays and draws the game in r */
 	void (*preview)(Ui *ui, Rect r); /* art for its card in the hub */
@@ -22,8 +23,16 @@ bool key_down(u32 code);
 /* A key press this frame (consumed). */
 bool key_hit(Ui *ui, u32 code);
 
+/* Game controllers, which the Arcade reads itself. Directions come from the
+ * D-pad or the left stick. pad_hit is a fresh press (consumed); pad_repeat
+ * is the same but repeats while a direction is held, like a key. */
+bool pad_hit(Ui *ui, int button);
+bool pad_repeat(Ui *ui, int button);
+bool pad_held(Ui *ui, int button);
+bool pad_connected(Ui *ui);
+
 /* A dimmed panel over the game with a title, a line and a button; returns
- * true when the button (or Enter / Space) is pressed. */
+ * true when the button (or Enter / Space, or A / Start) is pressed. */
 bool game_overlay(Ui *ui, Rect r, const char *title, const char *sub, const char *button);
 
 /* A score box for the side panels. */

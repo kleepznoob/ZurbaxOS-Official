@@ -1,5 +1,7 @@
-/* Renders a widget gallery offscreen (light and dark) for visual review. */
+/* Renders a widget gallery offscreen (light and dark) for visual review,
+ * and checks how game controllers reach apps. */
 #include "zui.h"
+#include "zui/driver.h"
 
 typedef struct {
 	int page;
@@ -138,6 +140,59 @@ static void init(Ui *ui)
 	ui_focus(ui, "name");
 }
 
+/* ---- Controllers ---- */
+
+static struct {
+	bool raw;
+	int enter, down_held, a;
+} seen;
+
+static void pad_frame(Ui *ui)
+{
+	if (seen.raw)
+		ui_pad_raw(ui);
+	seen.enter += ui_key_pressed(ui, KEY_ENTER, 0);
+	seen.down_held += ui_key_down(ui, KEY_DOWN);
+	seen.a += ui_pad_pressed(ui, PAD_A);
+}
+
+static bool test_pads(void)
+{
+	Ui *ui = ui_new();
+	Canvas *c = canvas_new(64, 64);
+	ui_attach(ui, c, 64, 64, 1);
+	f32 axes[PAD_AXES] = { 0 };
+	bool ok = true;
+	/* A stands in for Enter, the left stick for the arrows */
+	ui_input_gamepad(ui, 0, true, 1u << PAD_A, axes, "Test Pad");
+	ui_frame(ui, pad_frame);
+	ok &= seen.enter == 1 && seen.a == 1 && ui_pad_count(ui) == 1;
+	axes[PAD_LY] = 0.9f;
+	ui_input_gamepad(ui, 0, true, 0, axes, "Test Pad");
+	ui_frame(ui, pad_frame);
+	ok &= seen.down_held == 1;
+	ok &= ui_pad_axis(ui, PAD_LY) > 0.85f && ui_pad_axis(ui, PAD_LY) < 0.9f; /* past the dead zone, rescaled */
+	/* small stick movements are ignored */
+	axes[PAD_LY] = 0.1f;
+	ui_input_gamepad(ui, 0, true, 0, axes, "Test Pad");
+	ui_frame(ui, pad_frame);
+	ok &= seen.down_held == 1 && ui_pad_axis(ui, PAD_LY) == 0;
+	/* an app that reads the controller itself gets no keys */
+	seen.raw = true;
+	ui_frame(ui, pad_frame);
+	ui_input_gamepad(ui, 0, true, 1u << PAD_A, axes, "Test Pad");
+	ui_frame(ui, pad_frame);
+	ok &= seen.enter == 1 && seen.a == 2;
+	/* unplugging lets go of everything */
+	ui_input_gamepad(ui, 0, false, 0, axes, "Test Pad");
+	ui_frame(ui, pad_frame);
+	ok &= ui_pad_count(ui) == 0 && !ui_pad_down(ui, PAD_A);
+	canvas_free(c);
+	ui_free(ui);
+	print("zui: controllers %s\n", ok ? "ok" : "FAILED");
+	return ok;
+}
+
 int main(void)
 {
 	static Gallery g;
@@ -146,5 +201,6 @@ int main(void)
 	memset(&g, 0, sizeof g);
 	ok = ui_snapshot(&d, 900, 720, 1, true, "build/tests/zui_dark.png") && ok;
 	print("zui: gallery rendered (%s)\n", ok ? "ok" : "failed");
+	ok = test_pads() && ok;
 	return ok ? 0 : 1;
 }

@@ -170,8 +170,15 @@ static void frame(Ui *ui, Rect r)
 			k.px -= speed;
 		if (key_down(KEY_RIGHT) || key_down(KEY_D))
 			k.px += speed;
+		/* the stick steers with how far it's pushed; the D-pad at full speed */
+		f32 stick = ui_pad_axis(ui, PAD_LX);
+		if (ui_pad_down(ui, PAD_LEFT))
+			stick = -1;
+		if (ui_pad_down(ui, PAD_RIGHT))
+			stick = 1;
+		k.px += stick * speed * 1.15f;
 		k.px = clampf(k.px, PADDLE_W / 2, FW - PADDLE_W / 2);
-		if (k.stuck && (key_hit(ui, KEY_SPACE) || key_hit(ui, KEY_UP) || (ui->pressed[BUTTON_LEFT] && ui_mouse_in(ui, field))))
+		if (k.stuck && (key_hit(ui, KEY_SPACE) || key_hit(ui, KEY_UP) || pad_hit(ui, PAD_A) || (ui->pressed[BUTTON_LEFT] && ui_mouse_in(ui, field))))
 			launch();
 		physics(dt);
 	}
@@ -213,7 +220,8 @@ static void frame(Ui *ui, Rect r)
 	if (k.stuck && playing) {
 		Rect m = center_in(rect(field.x, field.y + field.h * 0.55f, field.w, 40), 300, 36);
 		ui_round(ui, m, 18, color_hex("#00000070"));
-		ui_text_in(ui, ui_font(ui, 14, 700), m, "Click or press Space to launch", COLOR_WHITE, ALIGN_CENTER);
+		ui_text_in(ui, ui_font(ui, 14, 700), m, pad_connected(ui) ? "Press A to launch" : "Click or press Space to launch", COLOR_WHITE,
+			   ALIGN_CENTER);
 	}
 	if (k.won_level) {
 		char sub[64];
@@ -249,5 +257,5 @@ static void preview(Ui *ui, Rect r)
 	ui_circle(ui, r.x + r.w / 2 + 30, py - 34, 7, color_hex("#ffd166"));
 }
 
-const Game GAME_BREAKOUT = { "breakout", "Breakout", "Bounce the ball, break every brick.", "Mouse or ← → to move, Space to launch", start, frame, preview,
+const Game GAME_BREAKOUT = { "breakout", "Breakout", "Bounce the ball, break every brick.", "Mouse or ← → to move, Space to launch", "Stick or D-pad to move, A to launch", start, frame, preview,
 			     0xff2a3f8a, 0xff121a40 };

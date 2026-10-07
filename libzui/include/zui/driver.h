@@ -16,6 +16,7 @@ void ui_set_theme(Ui *ui, const ThemeInfo *info);
 void ui_input_pointer(Ui *ui, u32 kind, f32 x, f32 y, u32 button, u32 mods);
 void ui_input_scroll(Ui *ui, f32 dx, f32 dy, u32 source, u32 phase);
 void ui_input_key(Ui *ui, u32 code, u32 state, u32 mods, const char *text);
+void ui_input_gamepad(Ui *ui, u32 pad, bool connected, u32 buttons, const f32 *axes, const char *name);
 void ui_input_focus(Ui *ui, bool focused);
 void ui_input_paste(Ui *ui, const char *text);
 void ui_input_drop(Ui *ui, const char *paths);

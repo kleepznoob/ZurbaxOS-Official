@@ -83,6 +83,16 @@ static void run_command(int fd, char *line)
 	} else if (str_eq(cmd, "down") || str_eq(cmd, "up")) {
 		u32 button = (u32)str_to_int(p, NULL);
 		input_button(button ? button : BUTTON_LEFT, str_eq(cmd, "down"));
+	} else if (str_eq(cmd, "pad")) {
+		/* a virtual controller: "pad BUTTON 1|0" or "pad axis AXIS VALUE" (PAD_* numbers) */
+		if (str_starts(p, "axis")) {
+			p += 4;
+			int axis = (int)str_to_int(p, &p);
+			input_fake_pad(-1, false, axis, (f32)str_to_float(p, NULL));
+		} else {
+			int b = (int)str_to_int(p, &p);
+			input_fake_pad(b, str_to_int(p, NULL) != 0, -1, 0);
+		}
 	} else if (str_eq(cmd, "scroll")) {
 		input_scroll(0, (f32)str_to_float(p, NULL), SCROLL_WHEEL, SCROLL_PHASE_NONE);
 	} else if (str_eq(cmd, "key")) {

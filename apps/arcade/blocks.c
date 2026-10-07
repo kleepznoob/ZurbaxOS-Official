@@ -184,15 +184,16 @@ static void frame(Ui *ui, Rect r)
 			if (b.clear_t <= 0)
 				remove_full();
 		} else {
-			if (key_hit(ui, KEY_LEFT) && fits(b.piece, b.rot, b.px - 1, b.py))
+			if ((key_hit(ui, KEY_LEFT) || pad_repeat(ui, PAD_LEFT)) && fits(b.piece, b.rot, b.px - 1, b.py))
 				b.px--, b.lock_timer = 0;
-			if (key_hit(ui, KEY_RIGHT) && fits(b.piece, b.rot, b.px + 1, b.py))
+			if ((key_hit(ui, KEY_RIGHT) || pad_repeat(ui, PAD_RIGHT)) && fits(b.piece, b.rot, b.px + 1, b.py))
 				b.px++, b.lock_timer = 0;
-			if (key_hit(ui, KEY_UP) || key_hit(ui, KEY_X))
+			if (key_hit(ui, KEY_UP) || key_hit(ui, KEY_X) || pad_hit(ui, PAD_A))
 				try_rotate(1);
-			if (key_hit(ui, KEY_Z))
+			if (key_hit(ui, KEY_Z) || pad_hit(ui, PAD_B))
 				try_rotate(-1);
-			if (key_hit(ui, KEY_C) && !b.hold_used) {
+			bool hold = key_hit(ui, KEY_C) || pad_hit(ui, PAD_X) || pad_hit(ui, PAD_Y) || pad_hit(ui, PAD_LB) || pad_hit(ui, PAD_RB);
+			if (hold && !b.hold_used) {
 				int h = b.hold;
 				b.hold = b.piece;
 				b.hold_used = true;
@@ -201,21 +202,22 @@ static void frame(Ui *ui, Rect r)
 				else
 					spawn(h);
 			}
-			if (key_hit(ui, KEY_SPACE)) {
+			bool soft = key_down(KEY_DOWN) || pad_held(ui, PAD_DOWN);
+			if (key_hit(ui, KEY_SPACE) || pad_hit(ui, PAD_UP)) {
 				int g = ghost_y();
 				b.score += 2 * (g - b.py);
 				b.py = g;
 				lock_piece();
 			} else {
 				f64 interval = maxf(0.05f, 0.8f * powf(0.84f, (f32)(b.level - 1)));
-				if (key_down(KEY_DOWN))
+				if (soft)
 					interval = minf((f32)interval, 0.04f);
 				b.fall_timer += dt;
 				while (b.fall_timer >= interval && !b.over && b.clear_t <= 0) {
 					b.fall_timer -= interval;
 					if (fits(b.piece, b.rot, b.px, b.py + 1)) {
 						b.py++;
-						if (key_down(KEY_DOWN))
+						if (soft)
 							b.score++;
 					} else {
 						b.fall_timer = 0;
@@ -312,4 +314,5 @@ static void preview(Ui *ui, Rect r)
 }
 
 const Game GAME_BLOCKS = { "blocks", "Blocks", "Fit the falling pieces, clear the rows.", "← → move   ↑ rotate   ↓ drop   Space slam   C hold",
+			   "D-pad move   A/B rotate   ↓ drop   ↑ slam   X hold",
 			   start, frame, preview, 0xff3a2a7a, 0xff1b1440 };

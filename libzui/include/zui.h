@@ -96,6 +96,17 @@ typedef struct Ui {
 	bool held[256];         /* keys down right now, by code (games) */
 	bool window_focused;
 	char *drop_paths;       /* newline-separated files dropped this frame, or NULL */
+	/* game controllers */
+	struct {
+		bool connected;
+		char name[64];
+		u32 buttons;        /* bit per PAD_* button, held now */
+		u32 hit;            /* went down since the last frame */
+		f32 axes[PAD_AXES];
+	} pads[PAD_MAX];
+	u64 pad_raw_frame;      /* the last frame the app said it reads controllers itself */
+	u32 pad_keys;           /* keys made from controller input that are held (translation) */
+	f64 pad_repeat_at;
 
 	/* widget bookkeeping */
 	UiId hot, active, focus;
@@ -179,6 +190,17 @@ bool ui_mouse_in(Ui *ui, Rect r);
 UiInteract ui_interact(Ui *ui, UiId id, Rect r);
 bool ui_key_pressed(Ui *ui, u32 code, u32 mods); /* consumes the key */
 bool ui_key_down(Ui *ui, u32 code);              /* held down right now */
+
+/* Game controllers. Apps that don't call ui_pad_raw get keys from them:
+ * the D-pad and left stick are the arrow keys, A is Enter, B is Escape and
+ * X is Space, so menus and keyboard games work with a controller as is. */
+int ui_pad_count(Ui *ui);
+bool ui_pad_down(Ui *ui, int button);             /* held on any controller */
+bool ui_pad_pressed(Ui *ui, int button);          /* went down since the last frame; consumes */
+bool ui_pad_held(Ui *ui, int pad, int button);    /* one controller (local multiplayer) */
+f32 ui_pad_axis(Ui *ui, int axis);                /* -1..1 (triggers 0..1), with a dead zone */
+f32 ui_pad_axis_of(Ui *ui, int pad, int axis);
+void ui_pad_raw(Ui *ui);                          /* call each frame: this app reads controllers itself */
 void ui_set_cursor(Ui *ui, u32 shape);
 void ui_request_frame(Ui *ui);
 

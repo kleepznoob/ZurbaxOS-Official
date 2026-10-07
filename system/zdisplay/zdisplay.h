@@ -315,6 +315,15 @@ void server_frame_done(void);
 void server_pointer_event(Window *w, u32 kind, u32 button);
 void server_scroll_event(Window *w, f32 dx, f32 dy, u32 source, u32 phase);
 void server_key_event(Window *w, u32 code, u32 state, const char *text);
+void server_gamepad_event(Window *w, const MsgGamepad *m);
+/* Game controllers (input_evdev.c) */
+void input_gamepads_focus(Window *w, bool focused);
+int input_gamepads(char names[][64], int max);
+void input_activity(void);
+void input_fake_pad(int button, bool down, int axis, f32 value);   /* headless tests */
+/* The Applications launcher with arrow keys or a controller (shell_ui.c) */
+void launcher_nav(int dx, int dy);
+void launcher_activate(void);
 void server_focus_event(Window *w, bool focused);
 void client_disconnect(Client *c);
 

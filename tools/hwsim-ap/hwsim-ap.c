@@ -7,7 +7,7 @@
  * runs the authenticator side of the 4-way handshake, changes the group key
  * once a little later, and hands out 192.168.77.10 by DHCP. An empty password
  * makes an open network. Progress goes to the kernel log. Test builds start it
- * as /system/bin/ztest-hook; it is never part of a release. */
+ * from /system/test; it is never part of a release. */
 #include "../../system/znet/nl.c"
 #include "../../system/znet/wpa.c"
 

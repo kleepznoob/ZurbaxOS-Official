@@ -149,13 +149,13 @@ static void draw_tile(Ui *ui, Rect r, int v, f32 scale)
 
 static void frame(Ui *ui, Rect r)
 {
-	if (key_hit(ui, KEY_LEFT) || key_hit(ui, KEY_A))
+	if (key_hit(ui, KEY_LEFT) || key_hit(ui, KEY_A) || pad_hit(ui, PAD_LEFT))
 		move(-1, 0);
-	if (key_hit(ui, KEY_RIGHT) || key_hit(ui, KEY_D))
+	if (key_hit(ui, KEY_RIGHT) || key_hit(ui, KEY_D) || pad_hit(ui, PAD_RIGHT))
 		move(1, 0);
-	if (key_hit(ui, KEY_UP) || key_hit(ui, KEY_W))
+	if (key_hit(ui, KEY_UP) || key_hit(ui, KEY_W) || pad_hit(ui, PAD_UP))
 		move(0, -1);
-	if (key_hit(ui, KEY_DOWN) || key_hit(ui, KEY_S))
+	if (key_hit(ui, KEY_DOWN) || key_hit(ui, KEY_S) || pad_hit(ui, PAD_DOWN))
 		move(0, 1);
 	g.anim = maxf(0, g.anim - ui->dt * 9);
 	f32 size = minf(r.w - 40, r.h - 90);
@@ -236,5 +236,5 @@ static void preview(Ui *ui, Rect r)
 	}
 }
 
-const Game GAME_2048 = { "2048", "2048", "Slide and merge your way to 2048.", "Arrow keys, WASD or swipe with the mouse", start, frame, preview,
+const Game GAME_2048 = { "2048", "2048", "Slide and merge your way to 2048.", "Arrow keys, WASD or swipe with the mouse", "D-pad or left stick to slide", start, frame, preview,
 			 0xffc98a3a, 0xff7a4a14 };

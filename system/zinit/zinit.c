@@ -331,6 +331,21 @@ static void watch_devices(void)
 	loop_add_fd(loop, fd, EPOLLIN, on_uevent, NULL);
 }
 
+static void start_test_hooks(void)
+{
+	DirList hooks = { 0 };
+	if (!dir_list("/system/test", &hooks, false))
+		return;
+	for (usize i = 0; i < hooks.len; i++) {
+		char *path = path_join("/system/test", hooks.data[i].name);
+		char *argv[] = { hooks.data[i].name, NULL };
+		int pid = proc_spawn(path, argv, service_env, NULL);
+		log_msg(pid > 0 ? "test hook %s started" : "cannot start test hook %s", hooks.data[i].name);
+		mem_free(path);
+	}
+	dir_list_free(&hooks);
+}
+
 int main(int argc, char **argv)
 {
 	UNUSED(argc), UNUSED(argv);
@@ -366,14 +381,12 @@ int main(int argc, char **argv)
 
 	for (usize i = 0; i < ARRAY_LEN(services); i++)
 		service_start(&services[i]);
-	/* Test builds carry a helper (a simulated access point, say) that runs
-	 * only when the kernel is told "zurbax.test"; releases have neither. */
+	/* Test builds carry helpers (a simulated access point, a virtual
+	 * controller) in /system/test that run only when the kernel is told
+	 * "zurbax.test"; releases have neither. */
 	cmdline = file_read("/proc/cmdline", NULL);
-	if (cmdline && str_find(cmdline, "zurbax.test") && file_exists("/system/bin/ztest-hook")) {
-		static char *const hook_argv[] = { "ztest-hook", NULL };
-		static Service hook = { "test hook", "/system/bin/ztest-hook", hook_argv, false };
-		service_start(&hook);
-	}
+	if (cmdline && str_find(cmdline, "zurbax.test"))
+		start_test_hooks();
 	mem_free(cmdline);
 	log_msg("started%s", live_session ? " (live session)" : "");
 	for (;;) {

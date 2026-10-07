@@ -102,13 +102,13 @@ static void paint_apple(Ui *ui, f32 cx, f32 cy, f32 r)
 
 static void frame(Ui *ui, Rect r)
 {
-	if (key_hit(ui, KEY_UP) || key_hit(ui, KEY_W))
+	if (key_hit(ui, KEY_UP) || key_hit(ui, KEY_W) || pad_hit(ui, PAD_UP))
 		turn(0, -1);
-	if (key_hit(ui, KEY_DOWN) || key_hit(ui, KEY_S))
+	if (key_hit(ui, KEY_DOWN) || key_hit(ui, KEY_S) || pad_hit(ui, PAD_DOWN))
 		turn(0, 1);
-	if (key_hit(ui, KEY_LEFT) || key_hit(ui, KEY_A))
+	if (key_hit(ui, KEY_LEFT) || key_hit(ui, KEY_A) || pad_hit(ui, PAD_LEFT))
 		turn(-1, 0);
-	if (key_hit(ui, KEY_RIGHT) || key_hit(ui, KEY_D))
+	if (key_hit(ui, KEY_RIGHT) || key_hit(ui, KEY_D) || pad_hit(ui, PAD_RIGHT))
 		turn(1, 0);
 	if (!s.over && !game_paused && s.started) {
 		s.step_t += ui->dt;
@@ -173,7 +173,8 @@ static void frame(Ui *ui, Rect r)
 	} else if (!s.started) {
 		Rect m = center_in(field, 320, 44);
 		ui_round(ui, m, 22, color_hex("#00000060"));
-		ui_text_in(ui, ui_font(ui, 15, 700), m, "Press an arrow key to start", COLOR_WHITE, ALIGN_CENTER);
+		ui_text_in(ui, ui_font(ui, 15, 700), m, pad_connected(ui) ? "Press a direction to start" : "Press an arrow key to start", COLOR_WHITE,
+			   ALIGN_CENTER);
 	}
 }
 
@@ -193,5 +194,5 @@ static void preview(Ui *ui, Rect r)
 	paint_apple(ui, ox + 8.5f * cs, oy + 1.5f * cs, cs * 0.38f);
 }
 
-const Game GAME_SNAKE = { "snake", "Snake", "Eat the apples. Don't bite yourself.", "Arrow keys or WASD to steer", start, frame, preview, 0xff1f7a45,
+const Game GAME_SNAKE = { "snake", "Snake", "Eat the apples. Don't bite yourself.", "Arrow keys or WASD to steer", "D-pad or left stick to steer", start, frame, preview, 0xff1f7a45,
 			  0xff0d3a20 };

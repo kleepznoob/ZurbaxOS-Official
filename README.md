@@ -33,6 +33,14 @@ notifications with sounds, a lock screen and screenshots (Print Screen).
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
 French, Spanish) are built in.
 
+**Game controllers.** Xbox, PlayStation, Switch Pro, Steam and other USB
+controllers work the moment they're plugged in, up to four at once. The
+Guide button opens the applications menu, and the D-pad, A and B move
+around it. Every app can be used with a controller: the D-pad and left
+stick act as the arrow keys, A as Enter and B as Escape. The Arcade's games
+have proper controller layouts, and Settings → Gaming shows a live picture
+of each controller to test its buttons and sticks.
+
 **First start.** The Welcome assistant covers keyboard, time zone, an
 account and a look. Every step can be skipped. When started from the USB
 stick, it offers to try Zurbax or install it.
@@ -51,7 +59,7 @@ boot menu. It takes about a minute.
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
 | Help | A searchable guide to Zurbax |
-| Arcade | Blocks, Snake, 2048, Mines and Breakout, with best scores |
+| Arcade | Blocks, Snake, 2048, Mines and Breakout, with best scores; keyboard, mouse or controller |
 | Music | Albums, songs and artists from your Music folder (FLAC, Ogg Vorbis, WAV) |
 | Weather | Live forecasts with an hourly strip, the week and details |
 | Photos | Viewer for PNG, JPEG, GIF and BMP |
@@ -117,7 +125,7 @@ artifact).
 | `apps/` | The apps |
 | `store/` | Apps offered in Harbor, packaged by `mkimage repo` |
 | `kernel/` | Kernel configuration and build script |
-| `tools/` | Image builder, QEMU test drivers, development helpers |
+| `tools/` | Image builder, QEMU test drivers (with a simulated access point and a virtual controller), development helpers |
 | `data/` | Icons, wallpaper, trusted root certificates, Harbor's trusted keys |
 | `tests/` | Test suites and fixtures |
 

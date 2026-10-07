@@ -2,8 +2,9 @@
  * Input devices: reads Linux evdev nodes directly.
  *
  * Keyboards, mice, touchpads (multi-touch, tap to click, two-finger
- * scrolling with momentum, clickpad right-click areas), touchscreens, the
- * power button and the lid switch. New devices are picked up as they appear.
+ * scrolling with momentum, clickpad right-click areas), touchscreens, game
+ * controllers, the power button and the lid switch. New devices are picked
+ * up as they appear.
  */
 #include "zdisplay.h"
 
@@ -23,13 +24,22 @@ struct input_absinfo {
 #define EVIOCGPROP(len) IOC(IOC_READ, 'E', 0x09, len)
 #define EVIOCGBIT(ev, len) IOC(IOC_READ, 'E', 0x20 + (ev), len)
 #define EVIOCGABS(abs) IOR('E', 0x40 + (abs), struct input_absinfo)
+#define EVIOCGRAB IOW('E', 0x90, int)
 
 enum { EV_SYN = 0, EV_KEY = 1, EV_REL = 2, EV_ABS = 3, EV_MSC = 4, EV_SW = 5, EV_LED = 0x11 };
 enum { SYN_REPORT = 0, SYN_DROPPED = 3 };
 enum { REL_X = 0, REL_Y = 1, REL_HWHEEL = 6, REL_WHEEL = 8, REL_WHEEL_HI_RES = 11, REL_HWHEEL_HI_RES = 12 };
 enum {
-	ABS_X = 0, ABS_Y = 1, ABS_MT_SLOT = 0x2f, ABS_MT_POSITION_X = 0x35, ABS_MT_POSITION_Y = 0x36,
+	ABS_X = 0, ABS_Y = 1, ABS_Z = 2, ABS_RX = 3, ABS_RY = 4, ABS_RZ = 5, ABS_GAS = 9, ABS_BRAKE = 10,
+	ABS_HAT0X = 0x10, ABS_HAT0Y = 0x11, ABS_MT_SLOT = 0x2f, ABS_MT_POSITION_X = 0x35, ABS_MT_POSITION_Y = 0x36,
 	ABS_MT_TRACKING_ID = 0x39,
+};
+/* Game controller buttons (the kernel's gamepad layout, Documentation/input/gamepad.rst) */
+enum {
+	BTN_JOYSTICK = 0x120, BTN_GAMEPAD = 0x130, BTN_SOUTH = 0x130, BTN_EAST = 0x131, BTN_C = 0x132, BTN_NORTH = 0x133,
+	BTN_WEST = 0x134, BTN_Z = 0x135, BTN_TL = 0x136, BTN_TR = 0x137, BTN_TL2 = 0x138, BTN_TR2 = 0x139,
+	BTN_SELECT = 0x13a, BTN_START = 0x13b, BTN_MODE = 0x13c, BTN_THUMBL = 0x13d, BTN_THUMBR = 0x13e,
+	BTN_DPAD_UP = 0x220, BTN_DPAD_DOWN = 0x221, BTN_DPAD_LEFT = 0x222, BTN_DPAD_RIGHT = 0x223,
 };
 enum { INPUT_PROP_DIRECT = 1, INPUT_PROP_BUTTONPAD = 2 };
 enum { SW_LID = 0 };
@@ -37,7 +47,7 @@ enum { LED_NUML = 0, LED_CAPSL = 1 };
 
 /* ---- Devices ------------------------------------------------------------------------ */
 
-enum { DEV_KEYBOARD = 1, DEV_MOUSE = 2, DEV_TOUCHPAD = 4, DEV_TOUCHSCREEN = 8, DEV_SWITCH = 16, DEV_TABLET = 32 };
+enum { DEV_KEYBOARD = 1, DEV_MOUSE = 2, DEV_TOUCHPAD = 4, DEV_TOUCHSCREEN = 8, DEV_SWITCH = 16, DEV_TABLET = 32, DEV_GAMEPAD = 64 };
 
 #define MAX_SLOTS 5
 
@@ -78,7 +88,18 @@ typedef struct Device {
 	/* touchscreen */
 	bool touch_down;
 	bool abs_dirty;
+	/* game controller */
+	int pad;                    /* slot, 0..PAD_MAX-1 */
+	bool xbox;                  /* xpad: BTN_X/BTN_Y are the left/top buttons */
+	bool joystick;              /* old-style joystick buttons (BTN_TRIGGER...) */
+	bool triggers_on_z;         /* ABS_Z/ABS_RZ are triggers, not a second stick */
+	struct input_absinfo pad_abs[12];
+	u32 pad_buttons, hat_buttons;
+	f32 pad_axes[PAD_AXES];
+	bool pad_dirty;
 } Device;
+
+static Device *pads[PAD_MAX];
 
 static Device *devices[32];
 static int ndevices;
@@ -90,8 +111,14 @@ static bool test_bit(const u8 *bits, u32 n)
 	return bits[n / 8] & (1u << (n % 8));
 }
 
+static void pad_announce(Device *d, bool connected);
+
 static void device_close(Device *d)
 {
+	if (d->kind & DEV_GAMEPAD) {
+		pad_announce(d, false);
+		pads[d->pad] = NULL;
+	}
 	loop_del_fd(S.loop, d->fd);
 	sys_close(d->fd);
 	for (int i = 0; i < ndevices; i++)
@@ -257,8 +284,245 @@ static u32 mouse_button(u32 code)
 	}
 }
 
+/* ---- Game controllers ------------------------------------------------------------------ */
+
+static void pad_message(const Device *d, bool connected, MsgGamepad *m)
+{
+	memset(m, 0, sizeof *m);
+	m->pad = (u32)d->pad;
+	m->connected = connected;
+	if (connected) {
+		m->buttons = d->pad_buttons | d->hat_buttons;
+		memcpy(m->axes, d->pad_axes, sizeof m->axes);
+	}
+	str_copy(m->name, d->name, sizeof m->name);
+}
+
+static void pad_announce(Device *d, bool connected)
+{
+	MsgGamepad m;
+	pad_message(d, connected, &m);
+	if (S.focus)
+		server_gamepad_event(S.focus, &m);
+}
+
+void input_gamepads_focus(Window *w, bool focused)
+{
+	/* the newly focused window learns what's plugged in; the old one lets go of everything */
+	for (int i = 0; i < PAD_MAX; i++) {
+		if (!pads[i])
+			continue;
+		MsgGamepad m;
+		pad_message(pads[i], true, &m);
+		if (!focused) {
+			m.buttons = 0;
+			memset(m.axes, 0, sizeof m.axes);
+		}
+		server_gamepad_event(w, &m);
+	}
+}
+
+int input_gamepads(char names[][64], int max)
+{
+	int n = 0;
+	for (int i = 0; i < PAD_MAX && n < max; i++)
+		if (pads[i])
+			str_copy(names[n++], pads[i]->name, 64);
+	return n;
+}
+
+static int pad_button(const Device *d, u32 code)
+{
+	if (d->joystick && code >= BTN_JOYSTICK && code < BTN_JOYSTICK + 12) {
+		static const int order[12] = { PAD_A, PAD_B, PAD_X, PAD_Y, PAD_LB, PAD_RB, PAD_LT, PAD_RT, PAD_BACK, PAD_START, PAD_LS, PAD_RS };
+		return order[code - BTN_JOYSTICK];
+	}
+	switch (code) {
+	case BTN_SOUTH: return PAD_A;
+	case BTN_EAST: return PAD_B;
+	case BTN_NORTH: return d->xbox ? PAD_X : PAD_Y;
+	case BTN_WEST: return d->xbox ? PAD_Y : PAD_X;
+	case BTN_TL: return PAD_LB;
+	case BTN_TR: return PAD_RB;
+	case BTN_TL2: return PAD_LT;
+	case BTN_TR2: return PAD_RT;
+	case BTN_SELECT: return PAD_BACK;
+	case BTN_START: return PAD_START;
+	case BTN_MODE: return PAD_GUIDE;
+	case BTN_THUMBL: return PAD_LS;
+	case BTN_THUMBR: return PAD_RS;
+	case BTN_DPAD_UP: return PAD_UP;
+	case BTN_DPAD_DOWN: return PAD_DOWN;
+	case BTN_DPAD_LEFT: return PAD_LEFT;
+	case BTN_DPAD_RIGHT: return PAD_RIGHT;
+	default: return -1;
+	}
+}
+
+/* The shell uses controllers too: Guide opens Applications, and while it's
+ * open the D-pad moves through the apps, A starts one and B closes it. */
+static bool pad_shell(Device *d, int b, bool down)
+{
+	if (!down || S.locked)
+		return false;
+	if (b == PAD_GUIDE && !S.setup_mode) {
+		S.launcher_open = !S.launcher_open;
+		if (S.launcher_open)
+			shell_reload_apps();
+		shell_mark_dirty();
+		return true;
+	}
+	if (!S.launcher_open)
+		return false;
+	switch (b) {
+	case PAD_UP: launcher_nav(0, -1); break;
+	case PAD_DOWN: launcher_nav(0, 1); break;
+	case PAD_LEFT: launcher_nav(-1, 0); break;
+	case PAD_RIGHT: launcher_nav(1, 0); break;
+	case PAD_A: launcher_activate(); break;
+	case PAD_B: S.launcher_open = false; break;
+	default: return false;
+	}
+	shell_mark_dirty();
+	return true;
+}
+
+static void pad_key(Device *d, u32 code, i32 value)
+{
+	int b = pad_button(d, code);
+	if (b < 0 || value == 2)
+		return;
+	u32 bit = 1u << b;
+	bool down = value != 0;
+	if (pad_shell(d, b, down))
+		return;
+	d->pad_buttons = down ? (d->pad_buttons | bit) : (d->pad_buttons & ~bit);
+	d->pad_dirty = true;
+}
+
+static f32 pad_norm(const struct input_absinfo *a, i32 v, bool centered)
+{
+	f32 range = (f32)MAX(1, a->maximum - a->minimum);
+	f32 x = ((f32)v - (f32)a->minimum) / range;   /* 0..1 */
+	if (!centered)
+		return clampf(x, 0, 1);
+	x = x * 2 - 1;
+	/* the hardware's own dead zone around the centre */
+	f32 flat = (f32)a->flat * 2 / range;
+	if (fabsf(x) < flat)
+		return 0;
+	return clampf(x, -1, 1);
+}
+
+static void pad_abs(Device *d, u32 code, i32 value)
+{
+	if (code == ABS_HAT0X || code == ABS_HAT0Y) {
+		u32 neg = 1u << (code == ABS_HAT0X ? PAD_LEFT : PAD_UP), pos = 1u << (code == ABS_HAT0X ? PAD_RIGHT : PAD_DOWN);
+		d->hat_buttons &= ~(neg | pos);
+		if (value < 0)
+			d->hat_buttons |= neg;
+		else if (value > 0)
+			d->hat_buttons |= pos;
+		/* the shell's turn first */
+		if (value != 0 && pad_shell(d, value < 0 ? (code == ABS_HAT0X ? PAD_LEFT : PAD_UP) : (code == ABS_HAT0X ? PAD_RIGHT : PAD_DOWN), true))
+			d->hat_buttons &= ~(neg | pos);
+		d->pad_dirty = true;
+		return;
+	}
+	if (code > ABS_BRAKE)
+		return;
+	const struct input_absinfo *a = &d->pad_abs[code];
+	switch (code) {
+	case ABS_X: d->pad_axes[PAD_LX] = pad_norm(a, value, true); break;
+	case ABS_Y: d->pad_axes[PAD_LY] = pad_norm(a, value, true); break;
+	case ABS_RX: d->pad_axes[PAD_RX] = pad_norm(a, value, true); break;
+	case ABS_RY: d->pad_axes[PAD_RY] = pad_norm(a, value, true); break;
+	case ABS_Z:
+		if (d->triggers_on_z)
+			d->pad_axes[PAD_LTRIGGER] = pad_norm(a, value, false);
+		else
+			d->pad_axes[PAD_RX] = pad_norm(a, value, true);
+		break;
+	case ABS_RZ:
+		if (d->triggers_on_z)
+			d->pad_axes[PAD_RTRIGGER] = pad_norm(a, value, false);
+		else
+			d->pad_axes[PAD_RY] = pad_norm(a, value, true);
+		break;
+	case ABS_BRAKE: d->pad_axes[PAD_LTRIGGER] = pad_norm(a, value, false); break;
+	case ABS_GAS: d->pad_axes[PAD_RTRIGGER] = pad_norm(a, value, false); break;
+	default: return;
+	}
+	d->pad_dirty = true;
+}
+
+static void pad_syn(Device *d)
+{
+	if (!d->pad_dirty)
+		return;
+	d->pad_dirty = false;
+	/* analog triggers count as pressed past half way */
+	d->pad_buttons = (d->pad_axes[PAD_LTRIGGER] > 0.5f) ? (d->pad_buttons | 1u << PAD_LT) : d->pad_buttons;
+	d->pad_buttons = (d->pad_axes[PAD_RTRIGGER] > 0.5f) ? (d->pad_buttons | 1u << PAD_RT) : d->pad_buttons;
+	input_activity();
+	pad_announce(d, true);
+}
+
+static void pad_setup(Device *d, const u8 *absbits, const u8 *keybits)
+{
+	int slot = -1;
+	for (int i = 0; i < PAD_MAX && slot < 0; i++)
+		if (!pads[i])
+			slot = i;
+	if (slot < 0) {
+		d->kind &= ~(u32)DEV_GAMEPAD;
+		return;
+	}
+	d->pad = slot;
+	pads[slot] = d;
+	d->joystick = !test_bit(keybits, BTN_SOUTH) && test_bit(keybits, BTN_JOYSTICK);
+	for (u32 a = 0; a <= ABS_BRAKE; a++)
+		if (test_bit(absbits, a))
+			sys_ioctl(d->fd, EVIOCGABS(a), &d->pad_abs[a]);
+	/* with a right stick on RX/RY, Z and RZ are the triggers */
+	d->triggers_on_z = test_bit(absbits, ABS_RX) && test_bit(absbits, ABS_RY);
+	/* xpad (Xbox controllers) reports the left and top buttons as BTN_X and BTN_Y */
+	char link[160], target[160] = "";
+	fmt(link, sizeof link, "/sys/class/input/%s/device/device/driver", path_base(d->path));
+	long n = sys_readlink(link, target, sizeof target - 1);
+	if (n > 0) {
+		target[n] = 0;
+		d->xbox = str_eq(path_base(target), "xpad");
+	}
+	pad_announce(d, true);
+}
+
+/* A controller with no hardware behind it, for the headless test desktop. */
+void input_fake_pad(int button, bool down, int axis, f32 value)
+{
+	static Device fake = { .fd = -1, .kind = DEV_GAMEPAD, .pad = -1, .name = "Virtual Controller" };
+	if (fake.pad < 0) {
+		for (int i = 0; i < PAD_MAX && fake.pad < 0; i++)
+			if (!pads[i])
+				fake.pad = i, pads[i] = &fake;
+		if (fake.pad < 0)
+			return;
+	}
+	if (button >= 0 && button < PAD_BUTTONS && !pad_shell(&fake, button, down)) {
+		u32 bit = 1u << button;
+		fake.pad_buttons = down ? (fake.pad_buttons | bit) : (fake.pad_buttons & ~bit);
+	}
+	if (axis >= 0 && axis < PAD_AXES)
+		fake.pad_axes[axis] = clampf(value, -1, 1);
+	pad_announce(&fake, true);
+}
+
 static void handle_key(Device *d, u32 code, i32 value)
 {
+	if (d->kind & DEV_GAMEPAD) {
+		pad_key(d, code, value);
+		return;
+	}
 	if (code < 0x100) {
 		if (code == KEY_POWER && value == 1) {
 			/* The power button opens the session menu; a long press is left to the firmware. */
@@ -296,6 +560,10 @@ static void handle_key(Device *d, u32 code, i32 value)
 
 static void handle_abs(Device *d, u32 code, i32 value)
 {
+	if (d->kind & DEV_GAMEPAD) {
+		pad_abs(d, code, value);
+		return;
+	}
 	if (d->kind & DEV_TOUCHPAD) {
 		switch (code) {
 		case ABS_MT_SLOT: d->slot = CLAMP(value, 0, MAX_SLOTS - 1); break;
@@ -331,6 +599,10 @@ static void handle_abs(Device *d, u32 code, i32 value)
 
 static void handle_syn(Device *d)
 {
+	if (d->kind & DEV_GAMEPAD) {
+		pad_syn(d);
+		return;
+	}
 	if (d->rel_x != 0 || d->rel_y != 0) {
 		f32 speed = sqrtf(d->rel_x * d->rel_x + d->rel_y * d->rel_y);
 		f32 k = S.set.mouse_accel ? 1.0f + clampf((speed - 3) * 0.06f, 0, 1.4f) : 1.0f;
@@ -454,6 +726,10 @@ static void device_open(const char *path)
 		d->kind |= DEV_TABLET;
 	if (test_bit(evbits, EV_SW) && test_bit(swbits, SW_LID))
 		d->kind |= DEV_SWITCH;
+	/* game controllers: the gamepad buttons, or an old-style joystick with axes */
+	if (test_bit(evbits, EV_KEY) && (test_bit(keybits, BTN_GAMEPAD) || (test_bit(keybits, BTN_JOYSTICK) && abs_xy)) &&
+	    !(d->kind & (DEV_TOUCHPAD | DEV_TOUCHSCREEN)))
+		d->kind = DEV_GAMEPAD;
 	d->clickpad = test_bit(props, INPUT_PROP_BUTTONPAD);
 
 	if (d->kind & (DEV_TOUCHPAD | DEV_TOUCHSCREEN | DEV_TABLET)) {
@@ -471,6 +747,8 @@ static void device_open(const char *path)
 	}
 	devices[ndevices++] = d;
 	loop_add_fd(S.loop, fd, EPOLLIN, on_device, d);
+	if (d->kind & DEV_GAMEPAD)
+		pad_setup(d, absbits, keybits);
 	caps_shown = ~0u;
 	update_leds();
 }
