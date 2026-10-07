@@ -338,6 +338,23 @@ static Rect dock_rect(int *out_n)
 	return rect_inset(shell_dock_bar(n), -6, 0);
 }
 
+/* Is (x, y) on the dock? Each bubble owns the column from just above it to
+ * the bottom edge; the space above the lower, outer bubbles stays the
+ * windows'. */
+static bool dock_hit(f32 x, f32 y)
+{
+	char ids[32][48];
+	int n = shell_dock_items(ids, 32);
+	f32 half = dock_step(n) / 2;
+	for (int i = 0; i < n; i++) {
+		f32 cx, cy;
+		shell_dock_center(n, i, &cx, &cy);
+		if (fabsf(x - cx) <= half && y >= cy - DOCK_BUBBLE / 2.0f - 10)
+			return true;
+	}
+	return false;
+}
+
 f32 shell_dock_height(void)
 {
 	return DOCK_BOTTOM + DOCK_BUBBLE + DOCK_LIFT / 2.0f;
@@ -503,8 +520,7 @@ static bool shell_wants_pointer(void)
 		return true;
 	if (S.py < shell_panel_height())
 		return true;
-	Rect d = dock_rect(NULL);
-	if (S.dock_hide_k < 0.5f && rect_contains(rect_inset(d, -4, -4), S.px, S.py))
+	if (S.dock_hide_k < 0.5f && dock_hit(S.px, S.py))
 		return true;
 	return false;
 }
