@@ -321,6 +321,14 @@ static void on_uevent(Loop *l, int fd, u32 events, void *data)
 		}
 		if (add && devname)
 			device_perms(devname);
+		/* Then tell the Linux layer's libudev (libudev-zero), now that the
+		 * node is ready: it listens on netlink group 4 for the event's
+		 * KEY=value lines, without the kernel's "add@/devices/..." header. */
+		usize head = strlen(buf) + 1;
+		if (head < (usize)n) {
+			struct { u16 family, pad; u32 pid, groups; } to = { AF_NETLINK, 0, 0, 4 };
+			sys_sendto(fd, buf + head, (usize)n - head, MSG_DONTWAIT, &to, sizeof to);
+		}
 	}
 }
 
