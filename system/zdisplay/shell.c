@@ -177,17 +177,24 @@ void shell_launch(const char *app_id, const char *arg)
 		nenv++;
 	char **envp = NEW_ARRAY(char *, nenv + 8);
 	int ne = 0;
-	char home[160], user[96], lang[64], tzv[80];
+	char home[160], user[96], lang[64], tzv[80], wayland[200], screen[48];
 	fmt(home, sizeof home, "HOME=%s", S.set.home);
 	fmt(user, sizeof user, "USER=%s", S.set.user_name);
 	fmt(lang, sizeof lang, "LANG=%s", "en_US.UTF-8");
 	fmt(tzv, sizeof tzv, "TZ=%s", S.set.timezone);
+	/* Standard Linux programs (through layerrun) find the Wayland socket, and
+	 * learn the screen's real size for a full-screen X server. */
+	fmt(wayland, sizeof wayland, "WAYLAND_DISPLAY=%s", wl_socket_path());
+	fmt(screen, sizeof screen, "ZOS_SCREEN=%dx%d", S.out->width, S.out->height);
 	envp[ne++] = home;
 	envp[ne++] = user;
 	envp[ne++] = lang;
 	envp[ne++] = tzv;
+	envp[ne++] = wayland;
+	envp[ne++] = screen;
 	for (char **e = environ; *e; e++)
-		if (!str_starts(*e, "HOME=") && !str_starts(*e, "USER=") && !str_starts(*e, "LANG=") && !str_starts(*e, "TZ="))
+		if (!str_starts(*e, "HOME=") && !str_starts(*e, "USER=") && !str_starts(*e, "LANG=") && !str_starts(*e, "TZ=") &&
+		    !str_starts(*e, "WAYLAND_DISPLAY=") && !str_starts(*e, "ZOS_SCREEN="))
 			envp[ne++] = *e;
 	envp[ne] = NULL;
 	if (!dir_exists(S.set.home)) {
@@ -248,8 +255,9 @@ f32 shell_panel_height(void)
 }
 
 /* ---- Dock geometry -------------------------------------------------------------------
- * elementary style: a short shelf along the bottom edge with rounded top corners;
- * the icons stand on it and rise above it. */
+ * The Arc: round glass bubbles along a gentle curve at the bottom of the
+ * screen, the middle ones higher, like the sun over the horizon. There's no
+ * shelf or bar: the bubbles float over the wallpaper. */
 
 int shell_dock_items(char ids[][48], int max)
 {
@@ -277,19 +285,48 @@ int shell_dock_items(char ids[][48], int max)
 	return n;
 }
 
+/* Bubbles close up when there are many, so the arc always fits. */
+static f32 dock_step(int n)
+{
+	return n > 0 ? minf(DOCK_STEP, (S.sw - 80) / (f32)n) : DOCK_STEP;
+}
+
+static f32 dock_lift(int n)
+{
+	return n > 1 ? minf(DOCK_LIFT, 5.0f * (f32)(n - 1)) : 0;
+}
+
+/* A point on the arc: position i (fractional between bubbles) of n. */
+void shell_dock_point(int n, f32 i, f32 *x, f32 *y)
+{
+	f32 mid = (f32)(n - 1) / 2, u = n > 1 ? (i - mid) / (mid + 0.5f) : 0;
+	*x = S.sw / 2 + (i - mid) * dock_step(n);
+	*y = S.sh - DOCK_BOTTOM - DOCK_BUBBLE / 2.0f - dock_lift(n) * (1 - u * u);
+}
+
+void shell_dock_center(int n, int i, f32 *cx, f32 *cy)
+{
+	shell_dock_point(n, (f32)i, cx, cy);
+	*cx = roundf(*cx), *cy = roundf(*cy);
+}
+
+/* The whole arc: from the first bubble to the last, from the top of the
+ * middle one down to the bottom edge. */
 Rect shell_dock_bar(int n)
 {
-	f32 w = (f32)n * DOCK_ICON + (f32)MAX(n - 1, 0) * DOCK_SPACING + 2 * DOCK_PAD;
-	return rect(roundf((S.sw - w) / 2), S.sh - DOCK_SHELF, w, DOCK_SHELF);
+	f32 w = (f32)MAX(n - 1, 0) * dock_step(n) + DOCK_BUBBLE;
+	f32 top = S.sh - DOCK_BOTTOM - DOCK_BUBBLE - dock_lift(n);
+	return rect(roundf((S.sw - w) / 2), top, w, S.sh - top);
 }
 
 Rect shell_dock_slot(int n, int i)
 {
-	Rect bar = shell_dock_bar(n);
-	return rect(bar.x + DOCK_PAD + (f32)i * (DOCK_ICON + DOCK_SPACING), S.sh - DOCK_BOTTOM - DOCK_ICON, DOCK_ICON, DOCK_ICON);
+	f32 cx, cy;
+	shell_dock_center(n, i, &cx, &cy);
+	return rect(cx - DOCK_BUBBLE / 2.0f, cy - DOCK_BUBBLE / 2.0f, DOCK_BUBBLE, DOCK_BUBBLE);
 }
 
-/* Everything the dock covers: the shelf and the icons rising above it. */
+/* Everything the dock covers. */
 static Rect dock_rect(int *out_n)
 {
 	char ids[32][48];
@@ -298,14 +335,12 @@ static Rect dock_rect(int *out_n)
 		*out_n = n;
 	if (n == 0)
 		return rect(S.sw / 2, S.sh, 0, 0);
-	Rect bar = shell_dock_bar(n);
-	f32 top = S.sh - DOCK_BOTTOM - DOCK_ICON - 4;
-	return rect(bar.x, top, bar.w, S.sh - top);
+	return rect_inset(shell_dock_bar(n), -6, 0);
 }
 
 f32 shell_dock_height(void)
 {
-	return DOCK_BOTTOM + DOCK_ICON + 10;
+	return DOCK_BOTTOM + DOCK_BUBBLE + DOCK_LIFT / 2.0f;
 }
 
 Rect shell_dock_icon_rect(const char *app_id)
@@ -315,8 +350,7 @@ Rect shell_dock_icon_rect(const char *app_id)
 	for (int i = 0; i < n; i++)
 		if (str_eq(ids[i], app_id))
 			return shell_dock_slot(n, i);
-	Rect bar = shell_dock_bar(MAX(n, 1));
-	return rect(bar.x, S.sh, DOCK_ICON, DOCK_ICON);
+	return rect(S.sw / 2 - DOCK_BUBBLE / 2.0f, S.sh, DOCK_BUBBLE, DOCK_BUBBLE);
 }
 
 /* ---- Drawing dispatch (in zui frame) ------------------------------------------------- */
@@ -409,6 +443,12 @@ void shell_mark_dirty(void)
 {
 	dirty = true;
 	request_frame();
+}
+
+/* Nothing of the shell is on screen this frame (after shell_prepare). */
+bool shell_idle(void)
+{
+	return nsurfaces == 0;
 }
 
 void shell_surface(Rect r)

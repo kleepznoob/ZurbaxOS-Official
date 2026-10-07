@@ -333,11 +333,42 @@ static void draw_window(Canvas *frame, Window *w)
 		blit_scaled(frame, img, rect(0, 0, (f32)img->width, (f32)img->height), pr, opacity);
 }
 
+/* A full-screen program alone on screen, with nothing of the shell over it,
+ * goes straight to the display from its own GPU buffer. */
+static bool scanning;
+
+static bool try_scanout(void)
+{
+	Window *w = S.focus;
+	bool ok = S.out->flip_to && w && w->wl && S.nwin > 0 && S.windows[S.nwin - 1] == w && (w->states & STATE_FULLSCREEN) &&
+		  !w->minimized && !w->closing && w->appear >= 1 && !w->animating_rect && !S.splash && !S.locked && S.lock_k <= 0 &&
+		  !S.capturing && !S.selecting_area && (S.hw_cursor || S.cursor == CURSOR_HIDDEN) && shell_idle() && wl_window_scanout(w);
+	if (ok) {
+		if (!scanning)
+			eprint("zdisplay: %s goes straight to the screen\n", w->app_id[0] ? w->app_id : "a program");
+		scanning = true;
+		S.full_damage = false;
+		S.ndamage = 0;
+		S.frames_composed++;
+		server_frame_done();
+		return true;
+	}
+	if (scanning) {
+		/* back to composing: the last composed frame is out of date */
+		eprint("zdisplay: composing again\n");
+		scanning = false;
+		damage_all();
+	}
+	return false;
+}
+
 void compose_frame(void)
 {
 	Canvas *frame = S.frame;
 	Rect full = rect(0, 0, (f32)frame->width, (f32)frame->height);
 	shell_prepare();
+	if (try_scanout())
+		return;
 	Rect rects[16];
 	int n;
 	if (S.full_damage) {

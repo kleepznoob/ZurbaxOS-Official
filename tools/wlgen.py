@@ -46,6 +46,9 @@ INTERFACES = [
     (P + "/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "zxdg_toplevel_decoration_v1", 1),
     (P + "/unstable/xdg-output/xdg-output-unstable-v1.xml", "zxdg_output_manager_v1", 3),
     (P + "/unstable/xdg-output/xdg-output-unstable-v1.xml", "zxdg_output_v1", 3),
+    (P + "/stable/linux-dmabuf/linux-dmabuf-v1.xml", "zwp_linux_dmabuf_v1", 4),
+    (P + "/stable/linux-dmabuf/linux-dmabuf-v1.xml", "zwp_linux_buffer_params_v1", 4),
+    (P + "/stable/linux-dmabuf/linux-dmabuf-v1.xml", "zwp_linux_dmabuf_feedback_v1", 4),
 ]
 
 CODES = {"int": "i", "uint": "u", "fixed": "f", "string": "s", "object": "o", "new_id": "n", "array": "a", "fd": "h"}

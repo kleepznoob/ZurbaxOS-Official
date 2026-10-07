@@ -34,8 +34,16 @@ boot loader in between.
 
 **Desktop.** A top bar with an applications menu, clock, quick settings
 (Wi-Fi networks, sound, brightness, night light, Do Not Disturb) and power
-menu. A dock with running indicators that hides out of the way, plus
-notifications with sounds, a lock screen and screenshots (Print Screen).
+menu. The dock is the Arc: apps sit in round glass bubbles along a gentle
+curve at the bottom of the screen, higher in the middle like the sun over
+the horizon, strung on a golden thread. Running apps wear a golden ring with
+a pip per window, the app in front glows under a raindrop, and a starting
+app has a golden arc running round it; the dock steps aside for windows
+that need the room. The lock screen shows the wallpaper as it is, the date
+over a large clock, waiting notifications on frosted glass, and you with a
+password field at the bottom; it softly blurs the picture while you type,
+and unlocking lifts it all away. Plus notifications with sounds and
+screenshots (Print Screen).
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
 French, Spanish) are built in. Wallpapers: the Lake at Dusk photo (the default), Golden
 Rain, and five painted landscapes, all drawn to fit any screen.
@@ -58,7 +66,24 @@ windows: they move, resize, maximize, go full screen, show their menus and
 cursors and sit in the dock like ZOS apps, and they type with the keyboard
 layout chosen in Settings. Games can lock the pointer and read raw mouse
 motion for mouse-look. A full-screen game that keeps a smaller picture is
-shown centred at its own aspect ratio.
+shown centred at its own aspect ratio. Programs that draw with the GPU share
+their buffers with zdisplay (linux-dmabuf), and a full-screen game alone on
+screen goes straight to the display from its own buffer, with no copy.
+
+**Steam.** The Steam app starts Valve's Steam client, and through it Proton
+for Windows games, full screen in Big Picture or as a desktop window. Steam
+is a standard Linux program, so it runs from the Linux layer: glibc,
+Xwayland, Mesa's GPU drivers and the rest, built from upstream sources by
+`layer/build.sh` and kept apart from ZOS in `/data/layers/steam`.
+`layerrun` starts programs inside the layer through a user namespace, with
+no privileges, and the Steam app checks that everything is in place first
+(see "Not there yet" for the state of the layer).
+
+**Graphics drivers.** The kernel carries AMD's and Intel's GPU drivers with
+their firmware (Radeon RX 400 series and newer, Ryzen graphics, Steam Deck;
+Intel 6th generation and newer, Arc), so screens run at their native
+resolution and refresh rate and GPUs save power; machines without one of
+these use the firmware's framebuffer.
 
 **First start.** The Welcome assistant covers keyboard, time zone, an
 account and a look. Every step can be skipped. When started from the USB
@@ -128,7 +153,8 @@ make run        # boot build/zos.img in QEMU with UEFI firmware
 
 A C compiler and `make` are enough for the system itself. Building the
 kernel also needs the usual kernel build tools (`bc`, `flex`, `bison`,
-`libelf`, `libssl` headers). `kernel/build.sh` downloads Linux on first use.
+`libelf`, `libssl` headers). `kernel/build.sh` downloads Linux on first use,
+and `make image` fetches the Wi-Fi and GPU firmware from linux-firmware.
 
 To try it on a real PC, burn `build/zos.iso` to a DVD, or write it to a
 USB stick with balenaEtcher, Rufus or `dd`, and boot from it in UEFI mode.
@@ -148,10 +174,11 @@ The Installer finds the system on whichever one ZOS started from.
 | `libzn/` | Networking: crypto, X.509, TLS 1.3, DNS, HTTP |
 | `libza/` | Audio files: WAV, FLAC, Ogg Vorbis, tags and cover art |
 | `libzd/` | Disks: GPT, FAT32, ext4, ISO 9660 with El Torito, cpio |
-| `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, harborctl, the Flint shell, sudo, fetch, play |
+| `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, harborctl, layerrun, the Flint shell, sudo, fetch, play |
 | `apps/` | The apps |
 | `store/` | Apps offered in Harbor, packaged by `mkimage repo` |
-| `kernel/` | Kernel configuration and build script |
+| `kernel/` | Kernel configuration, build script and the list of GPU firmware |
+| `layer/` | The Linux layer for Steam: upstream sources (pinned) and how to build them |
 | `tools/` | Image builder, QEMU test drivers (with a simulated access point and a virtual controller), the Wayland protocol table generator (`wlgen.py`), development helpers |
 | `data/` | Icons, wallpaper, trusted root certificates, Harbor's trusted keys |
 | `tests/` | Test suites and fixtures |
@@ -166,7 +193,15 @@ The Installer finds the system on whichever one ZOS started from.
   WebP pictures don't show yet.
 - **MP3 and AAC playback.** These need the formats' large fixed tables;
   FLAC, Ogg Vorbis and WAV play.
-- **Hardware 3D.** The desktop and Glide are drawn in software, so they
-  work on any GPU through the firmware's framebuffer. Big 3D games would
-  need GPU drivers in user space, which ZOS doesn't have.
-- **Windows programs.** `.exe` files don't run.
+- **The Linux layer.** `layer/build.sh` builds glibc (64- and 32-bit) and
+  GCC's runtime so far; Mesa, Xwayland, the X libraries, the Vulkan loader,
+  audio and the Steam launcher are still to be added, so the Steam app
+  reports the layer as missing. ZOS's side (Wayland, GPU buffers, direct
+  scanout, layerrun, the Steam app, the kernel's drivers, namespaces and
+  ntsync) is in place and tested.
+- **Hardware 3D in ZOS's own apps.** The desktop and Glide are drawn in
+  software, so they work on any GPU.
+- **NVIDIA graphics.** NVIDIA's driver is a kernel module, and the ZOS
+  kernel has no module loader; on laptops with NVIDIA and AMD/Intel
+  graphics, the AMD or Intel GPU drives the screen.
+- **Windows programs outside Steam.** `.exe` files don't run on their own.

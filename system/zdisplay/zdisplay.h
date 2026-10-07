@@ -18,12 +18,14 @@
 #define RESIZE_MARGIN 8
 #define CURSOR_CUSTOM 12            /* after the protocol's shapes: S.cursor_custom */
 
-/* Dock: icon size, gap between icons, shelf padding and height, icon distance from the bottom edge. */
-#define DOCK_ICON 48
-#define DOCK_SPACING 6
-#define DOCK_PAD 10
-#define DOCK_SHELF 38
-#define DOCK_BOTTOM 8
+/* The dock, an arc of round bubbles along the bottom: bubble size, the app
+ * icon inside, centre-to-centre step, the outer bubbles' gap above the
+ * bottom edge, and how much higher the middle of the arc sits. */
+#define DOCK_BUBBLE 58
+#define DOCK_ICON 40
+#define DOCK_STEP 68
+#define DOCK_BOTTOM 14
+#define DOCK_LIFT 24
 
 /* ---- Output backends ---------------------------------------------------------- */
 
@@ -44,6 +46,13 @@ struct Output {
 	int fd;                     /* pollable fd for flip events, or -1 */
 	void (*on_fd)(Output *o);
 	bool flip_pending;
+	/* Programs' GPU buffers (linux-dmabuf). device: the GPU's device number,
+	 * 0 when there is none to share buffers with. A buffer imported as a
+	 * framebuffer can go straight to the screen with flip_to. */
+	u64 device;
+	u32 (*fb_import)(Output *o, int dmabuf, u32 width, u32 height, u32 offset, u32 stride, u64 modifier);
+	void (*fb_release)(Output *o, u32 fb);
+	bool (*flip_to)(Output *o, u32 fb);
 };
 
 Output *output_drm_open(void);
@@ -360,6 +369,7 @@ void shell_mark_dirty(void);
 void shell_surface(Rect r);               /* a shell surface occupies r this frame */
 bool shell_pointer(u32 kind, u32 button); /* true: consumed by the shell */
 bool shell_scroll(f32 dx, f32 dy, u32 source, u32 phase);
+bool shell_idle(void);                    /* nothing of the shell on screen this frame */
 bool shell_key(u32 code, u32 state, u32 mods, const char *text);
 void shell_tick(void);
 bool shell_animating(void);
@@ -374,6 +384,8 @@ Rect shell_dock_icon_rect(const char *app_id);
 int shell_dock_items(char ids[][48], int max);
 Rect shell_dock_bar(int n);
 Rect shell_dock_slot(int n, int i);
+void shell_dock_center(int n, int i, f32 *cx, f32 *cy);
+void shell_dock_point(int n, f32 i, f32 *x, f32 *y);
 f32 shell_panel_height(void);
 f32 shell_dock_height(void);
 void shell_session_action(u32 action);
@@ -406,6 +418,7 @@ void splash_finish(void);
 
 /* wayland.c: the Wayland protocol, for standard Linux programs (Xwayland, games) */
 void wl_server_init(void);
+const char *wl_socket_path(void);         /* for programs' WAYLAND_DISPLAY */
 void wl_flush(void);                      /* before waiting: sends what's queued */
 void wl_frame_done(void);                 /* after each composed frame */
 void wl_window_draw(Canvas *frame, Window *w, Rect physical, f32 opacity);
@@ -422,6 +435,8 @@ void wl_keymap_changed(void);
 void wl_relative_motion(f32 dx, f32 dy, f32 raw_dx, f32 raw_dy);
 bool wl_pointer_locked(void);
 void wl_confine(f32 *x, f32 *y);
+bool wl_window_scanout(Window *w);        /* its GPU buffer straight to the screen */
+void wl_flip_complete(void);              /* the output finished a flip */
 /* wm.c: a window for a Wayland surface */
 Window *window_create_wl(void *surface, const char *title, const char *app_id, f32 w, f32 h, u32 flags, Window *parent, f32 x, f32 y);
 

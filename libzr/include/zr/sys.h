@@ -19,7 +19,7 @@ enum {
 #define AT_FDCWD (-100)
 enum { AT_SYMLINK_NOFOLLOW = 0x100, AT_REMOVEDIR = 0x200, AT_EMPTY_PATH = 0x1000 };
 enum { SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2 };
-enum { F_GETFD = 1, F_SETFD = 2, F_GETFL = 3, F_SETFL = 4, FD_CLOEXEC = 1, F_DUPFD_CLOEXEC = 1030, F_ADD_SEALS = 1033 };
+enum { F_DUPFD = 0, F_GETFD = 1, F_SETFD = 2, F_GETFL = 3, F_SETFL = 4, FD_CLOEXEC = 1, F_DUPFD_CLOEXEC = 1030, F_ADD_SEALS = 1033 };
 enum { F_SEAL_SEAL = 1, F_SEAL_SHRINK = 2, F_SEAL_GROW = 4, F_SEAL_WRITE = 8 };
 enum { R_OK = 4, W_OK = 2, X_OK = 1, F_OK = 0 };
 
@@ -446,6 +446,8 @@ static inline long sys_rt_sigprocmask(int how, const u64 *set, u64 *old) { retur
 static inline long sys_futex(int *addr, int op, int val, const struct timespec *timeout) { return SC(4, SYS_futex, (long)addr, op, val, (long)timeout); }
 static inline long sys_mount(const char *src, const char *dst, const char *type, unsigned long flags, const void *data) { return SC(5, SYS_mount, (long)src, (long)dst, (long)type, (long)flags, (long)data); }
 static inline long sys_umount(const char *path, int flags) { return SC(2, SYS_umount2, (long)path, flags); }
+static inline long sys_unshare(int flags) { return SC(1, SYS_unshare, flags); }
+static inline long sys_pivot_root(const char *new_root, const char *put_old) { return SC(2, SYS_pivot_root, (long)new_root, (long)put_old); }
 static inline long sys_reboot(int cmd) { return SC(4, SYS_reboot, REBOOT_MAGIC1, REBOOT_MAGIC2, cmd, 0); }
 
 static inline long sys_socket(int domain, int type, int proto) { return SC(3, SYS_socket, domain, type, proto); }

@@ -98,11 +98,19 @@ typedef struct {
 
 typedef struct {
 	WlResource *res;     /* NULL once the client destroyed it */
-	WlPool *pool;
+	WlPool *pool;        /* shared memory, or NULL for a GPU buffer */
 	i32 offset, width, height, stride;
-	u32 format;
-	int users;           /* surfaces showing it */
+	u32 format;          /* as wl_shm numbers them: 0 ARGB, 1 XRGB */
+	int users;           /* surfaces showing it, and the screen while it's scanned out */
 	bool release_after_frame;
+	/* GPU buffers (linux-dmabuf) */
+	int dmabuf;          /* -1 for shared memory */
+	u64 modifier;
+	u8 *map;             /* mapped when zdisplay has to read it */
+	usize map_size;
+	bool map_failed;
+	u32 fb;              /* framebuffer for direct scanout, 0 none yet */
+	bool no_scanout;     /* the GPU said no */
 } WlBuffer;
 
 enum { ROLE_NONE, ROLE_TOPLEVEL, ROLE_POPUP, ROLE_CURSOR, ROLE_SUBSURFACE };
@@ -214,9 +222,12 @@ static struct {
 	WlConstraint *constraints[64];
 	int nconstraints;
 	u32 idle_timer;      /* fires frame callbacks when nothing on screen changes */
+	/* GPU buffers on screen: the one flipped to, and the one showing */
+	WlBuffer *flip_buffer, *shown;
+	int format_table;    /* linux-dmabuf feedback: the formats and modifiers, in a sealed memfd */
 	Canvas *cursor;      /* the image of the cursor surface in use */
 	WlSurface *cursor_surface;
-} W = { .listen_fd = -1, .keymap_fd = -1 };
+} W = { .listen_fd = -1, .keymap_fd = -1, .format_table = -1 };
 
 static u32 next_serial(void)
 {
@@ -452,7 +463,15 @@ static void buffer_maybe_free(WlBuffer *b)
 {
 	if (b->res || b->users > 0 || b->release_after_frame)
 		return;
-	pool_unref(b->pool);
+	if (b->pool) {
+		pool_unref(b->pool);
+	} else {
+		if (b->map)
+			sys_munmap(b->map, b->map_size);
+		if (b->fb)
+			S.out->fb_release(S.out, b->fb);
+		sys_close(b->dmabuf);
+	}
 	mem_free(b);
 }
 
@@ -497,6 +516,7 @@ static void pool_dispatch(WlResource *r, u32 op, WlArg *a)
 		}
 		WlBuffer *b = NEW(WlBuffer);
 		b->pool = p, b->offset = offset, b->width = w, b->height = h, b->stride = stride, b->format = format;
+		b->dmabuf = -1;
 		p->refs++;
 		b->res = res_new(r->client, a[0].u, &wl_buffer_interface, 1, buffer_dispatch, b);
 		if (b->res)
@@ -1110,6 +1130,167 @@ void wl_keymap_changed(void)
 			event(W.clients[i]->keyboards[k], WL_KEYBOARD_EV_KEYMAP, "uhu", 1, W.keymap_fd, W.keymap_size);
 }
 
+/* ---- GPU buffers (linux-dmabuf) --------------------------------------------------------------- */
+
+/* zdisplay composes on the processor, so it asks for linear 32-bit buffers:
+ * it can read those, and the display can show them as they are. */
+#define FOURCC_ARGB8888 0x34325241u /* 'AR24' */
+#define FOURCC_XRGB8888 0x34325258u /* 'XR24' */
+#define MOD_LINEAR 0ull
+#define MOD_INVALID 0x00ffffffffffffffull /* "whatever the driver does implicitly" */
+
+enum { PARAMS_ALREADY_USED, PARAMS_PLANE_IDX, PARAMS_PLANE_SET, PARAMS_INCOMPLETE, PARAMS_INVALID_FORMAT,
+       PARAMS_INVALID_DIMENSIONS, PARAMS_OUT_OF_BOUNDS };
+
+typedef struct {
+	int fd;
+	u32 offset, stride;
+	u64 modifier;
+	bool used;
+} WlParams;
+
+static void params_destroyed(WlResource *r)
+{
+	WlParams *p = r->data;
+	if (p->fd >= 0)
+		sys_close(p->fd);
+	mem_free(p);
+}
+
+static void params_dispatch(WlResource *r, u32 op, WlArg *a)
+{
+	WlParams *p = r->data;
+	switch (op) {
+	case ZWP_LINUX_BUFFER_PARAMS_V1_DESTROY:
+		res_destroy(r);
+		return;
+	case ZWP_LINUX_BUFFER_PARAMS_V1_ADD: {
+		int fd = a[0].fd;
+		u32 code = p->used ? PARAMS_ALREADY_USED : a[1].u != 0 ? PARAMS_PLANE_IDX : p->fd >= 0 ? PARAMS_PLANE_SET : 99;
+		if (code != 99) {
+			sys_close(fd);
+			protocol_error(r->client, r->id, code, "only one plane, set once");
+			return;
+		}
+		p->fd = fd, p->offset = a[2].u, p->stride = a[3].u, p->modifier = (u64)a[4].u << 32 | a[5].u;
+		return;
+	}
+	case ZWP_LINUX_BUFFER_PARAMS_V1_CREATE:
+		/* buffers made by the server: programs use create_immed, this says no */
+		p->used = true;
+		event(r, ZWP_LINUX_BUFFER_PARAMS_V1_EV_FAILED, "");
+		return;
+	case ZWP_LINUX_BUFFER_PARAMS_V1_CREATE_IMMED: {
+		i32 w = (i32)a[1].u, h = (i32)a[2].u;
+		u32 format = a[3].u;
+		if (p->used || p->fd < 0) {
+			protocol_error(r->client, r->id, p->used ? PARAMS_ALREADY_USED : PARAMS_INCOMPLETE, "no plane to make a buffer from");
+			return;
+		}
+		p->used = true;
+		if ((format != FOURCC_ARGB8888 && format != FOURCC_XRGB8888) || (p->modifier != MOD_LINEAR && p->modifier != MOD_INVALID)) {
+			protocol_error(r->client, r->id, PARAMS_INVALID_FORMAT, "format or modifier not offered");
+			return;
+		}
+		if (w <= 0 || h <= 0 || w > 16384 || h > 16384 || p->stride < (u32)w * 4) {
+			protocol_error(r->client, r->id, PARAMS_INVALID_DIMENSIONS, "bad buffer size");
+			return;
+		}
+		long size = sys_lseek(p->fd, 0, SEEK_END);
+		if (size >= 0 && (u64)p->offset + (u64)p->stride * (u64)h > (u64)size) {
+			protocol_error(r->client, r->id, PARAMS_OUT_OF_BOUNDS, "buffer bigger than its memory");
+			return;
+		}
+		WlBuffer *b = NEW(WlBuffer);
+		b->dmabuf = p->fd, b->offset = (i32)p->offset, b->stride = (i32)p->stride, b->width = w, b->height = h;
+		b->format = format == FOURCC_XRGB8888 ? 1 : 0;
+		b->modifier = p->modifier;
+		p->fd = -1;
+		b->res = res_new(r->client, a[0].u, &wl_buffer_interface, 1, buffer_dispatch, b);
+		if (b->res) {
+			b->res->destroy = buffer_destroyed;
+		} else {
+			sys_close(b->dmabuf);
+			mem_free(b);
+		}
+		return;
+	}
+	}
+}
+
+static void feedback_dispatch(WlResource *r, u32 op, WlArg *a)
+{
+	plain_destroy(r, op, a); /* destroy is its only request */
+}
+
+/* Where to render and in what: the display's GPU, linear XRGB or ARGB. */
+static void feedback_send(WlResource *f)
+{
+	if (W.format_table < 0) {
+		struct {
+			u32 format, pad;
+			u64 modifier;
+		} table[2] = { { FOURCC_XRGB8888, 0, MOD_LINEAR }, { FOURCC_ARGB8888, 0, MOD_LINEAR } };
+		int fd = (int)sys_memfd_create("zos-dmabuf-formats", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+		if (fd < 0 || !write_all(fd, table, sizeof table)) {
+			if (fd >= 0)
+				sys_close(fd);
+			return;
+		}
+		sys_fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE | F_SEAL_SEAL);
+		W.format_table = fd;
+	}
+	u64 dev = S.out->device;
+	u16 indices[2] = { 0, 1 };
+	event(f, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_FORMAT_TABLE, "hu", W.format_table, 32u);
+	event(f, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_MAIN_DEVICE, "a", &dev, 8u);
+	event(f, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_TARGET_DEVICE, "a", &dev, 8u);
+	event(f, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_FORMATS, "a", indices, (u32)sizeof indices);
+	event(f, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_FLAGS, "u", 0);
+	event(f, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_DONE, "");
+	event(f, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_DONE, "");
+}
+
+static void dmabuf_dispatch(WlResource *r, u32 op, WlArg *a)
+{
+	switch (op) {
+	case ZWP_LINUX_DMABUF_V1_DESTROY:
+		res_destroy(r);
+		break;
+	case ZWP_LINUX_DMABUF_V1_CREATE_PARAMS: {
+		WlParams *p = NEW(WlParams);
+		p->fd = -1;
+		WlResource *pr = res_new(r->client, a[0].u, &zwp_linux_buffer_params_v1_interface, r->version, params_dispatch, p);
+		if (pr)
+			pr->destroy = params_destroyed;
+		else
+			mem_free(p);
+		break;
+	}
+	case ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK:
+	case ZWP_LINUX_DMABUF_V1_GET_SURFACE_FEEDBACK: {
+		WlResource *f = res_new(r->client, a[0].u, &zwp_linux_dmabuf_feedback_v1_interface, r->version, feedback_dispatch, NULL);
+		if (f)
+			feedback_send(f);
+		break;
+	}
+	}
+}
+
+static void bind_dmabuf(WlClient *c, u32 id, u32 v)
+{
+	WlResource *r = res_new(c, id, &zwp_linux_dmabuf_v1_interface, v, dmabuf_dispatch, NULL);
+	if (!r || v >= 4)
+		return; /* version 4 programs ask for feedback instead */
+	u32 formats[2] = { FOURCC_XRGB8888, FOURCC_ARGB8888 };
+	for (int i = 0; i < 2; i++) {
+		if (v >= 3)
+			event(r, ZWP_LINUX_DMABUF_V1_EV_MODIFIER, "uuu", formats[i], (u32)(MOD_LINEAR >> 32), (u32)MOD_LINEAR);
+		else
+			event(r, ZWP_LINUX_DMABUF_V1_EV_FORMAT, "u", formats[i]);
+	}
+}
+
 /* ---- Globals and the registry ---------------------------------------------------------------- */
 
 static void bind_compositor(WlClient *c, u32 id, u32 v) { res_new(c, id, &wl_compositor_interface, v, compositor_dispatch, NULL); }
@@ -1169,15 +1350,22 @@ static const struct {
 	{ &zxdg_decoration_manager_v1_interface, bind_decoration_manager },
 	{ &zwp_relative_pointer_manager_v1_interface, bind_relative_pointer_manager },
 	{ &zwp_pointer_constraints_v1_interface, bind_pointer_constraints },
+	{ &zwp_linux_dmabuf_v1_interface, bind_dmabuf },
 };
+
+/* GPU buffers only when the display runs on a GPU driver. */
+static bool global_offered(u32 i)
+{
+	return GLOBALS[i].iface != &zwp_linux_dmabuf_v1_interface || (S.out && S.out->device);
+}
 
 static void registry_dispatch(WlResource *r, u32 op, WlArg *a)
 {
 	if (op != WL_REGISTRY_BIND)
 		return;
 	u32 name = a[0].u, version = a[2].u, id = a[3].u;
-	if (name == 0 || name > ARRAY_LEN(GLOBALS) || !a[1].s || !str_eq(a[1].s, GLOBALS[name - 1].iface->name) || version == 0 ||
-	    version > (u32)GLOBALS[name - 1].iface->version) {
+	if (name == 0 || name > ARRAY_LEN(GLOBALS) || !global_offered(name - 1) || !a[1].s || !str_eq(a[1].s, GLOBALS[name - 1].iface->name) ||
+	    version == 0 || version > (u32)GLOBALS[name - 1].iface->version) {
 		protocol_error(r->client, r->id, 0, "invalid global");
 		return;
 	}
@@ -1197,7 +1385,8 @@ static void display_dispatch(WlResource *r, u32 op, WlArg *a)
 		if (!reg)
 			return;
 		for (u32 i = 0; i < ARRAY_LEN(GLOBALS); i++)
-			event(reg, WL_REGISTRY_EV_GLOBAL, "usu", i + 1, GLOBALS[i].iface->name, (u32)GLOBALS[i].iface->version);
+			if (global_offered(i))
+				event(reg, WL_REGISTRY_EV_GLOBAL, "usu", i + 1, GLOBALS[i].iface->name, (u32)GLOBALS[i].iface->version);
 	}
 }
 
@@ -1459,15 +1648,23 @@ void wl_frame_done(void)
 	W.nto_release = 0;
 }
 
+static char socket_path[160];
+
+const char *wl_socket_path(void)
+{
+	return socket_path;
+}
+
 void wl_server_init(void)
 {
 	const char *path = env_get("ZOS_WAYLAND_SOCKET");
-	char buf[160];
 	if (!path || !*path) {
 		const char *rt = env_get("XDG_RUNTIME_DIR");
-		fmt(buf, sizeof buf, "%s/wayland-0", rt && *rt ? rt : "/run/zurbax");
-		path = buf;
+		fmt(socket_path, sizeof socket_path, "%s/wayland-0", rt && *rt ? rt : "/run/zurbax");
+	} else {
+		str_copy(socket_path, path, sizeof socket_path);
 	}
+	path = socket_path;
 	char *dir = path_dir(path);
 	dir_make(dir, 0755);
 	mem_free(dir);
@@ -1527,11 +1724,46 @@ static void to_surface(Window *w, f32 x, f32 y, f32 *sx, f32 *sy)
 	*sy = (f32)gy + (y - c.y) * (c.h > 0 ? (f32)gh / c.h : 1);
 }
 
+struct dma_buf_sync {
+	u64 flags;
+};
+#define DMA_BUF_IOCTL_SYNC IOW('b', 0, struct dma_buf_sync)
+enum { DMA_BUF_SYNC_READ = 1, DMA_BUF_SYNC_START = 0, DMA_BUF_SYNC_END = 4 };
+
+/* The buffer's first pixel, mapping a GPU buffer on first use. */
+static u8 *buffer_pixels(WlBuffer *b)
+{
+	if (b->pool)
+		return b->pool->map ? b->pool->map + b->offset : NULL;
+	if (!b->map && !b->map_failed) {
+		usize size = (usize)b->offset + (usize)b->stride * (usize)b->height;
+		void *m = sys_mmap(NULL, size, PROT_READ, MAP_SHARED, b->dmabuf, 0);
+		if ((unsigned long)m > -4096ul) {
+			b->map_failed = true;
+			eprint("zdisplay: cannot read a program's GPU buffer\n");
+		} else {
+			b->map = m, b->map_size = size;
+		}
+	}
+	return b->map ? b->map + b->offset : NULL;
+}
+
+/* Reading a GPU buffer: the driver finishes rendering into it and makes it
+ * coherent for the processor first. */
+static void buffer_access(WlBuffer *b, bool start)
+{
+	if (b && !b->pool && b->map) {
+		struct dma_buf_sync sync = { DMA_BUF_SYNC_READ | (start ? DMA_BUF_SYNC_START : DMA_BUF_SYNC_END) };
+		sys_ioctl(b->dmabuf, DMA_BUF_IOCTL_SYNC, &sync);
+	}
+}
+
 /* The geometry's pixels in the buffer. */
 static bool buffer_area(const WlSurface *s, Canvas *src, i32 *x, i32 *y, i32 *w, i32 *h)
 {
 	WlBuffer *b = s->buffer;
-	if (!b || !b->pool->map)
+	u8 *pixels = b ? buffer_pixels(b) : NULL;
+	if (!pixels)
 		return false;
 	i32 sw = wl_surface_width(s), sh = wl_surface_height(s);
 	if (sw <= 0 || sh <= 0)
@@ -1543,7 +1775,7 @@ static bool buffer_area(const WlSurface *s, Canvas *src, i32 *x, i32 *y, i32 *w,
 	*y = CLAMP((i32)roundf((f32)gy * ky), 0, b->height - 1);
 	*w = CLAMP((i32)roundf((f32)gw * kx), 1, b->width - *x);
 	*h = CLAMP((i32)roundf((f32)gh * ky), 1, b->height - *y);
-	*src = canvas_wrap(b->pool->map + b->offset, b->width, b->height, b->stride / 4);
+	*src = canvas_wrap(pixels, b->width, b->height, b->stride / 4);
 	return true;
 }
 
@@ -1566,7 +1798,7 @@ static const Canvas *opaque_copy(WlSurface *s, const Canvas *src, i32 x, i32 y, 
 	return s->opaque;
 }
 
-void wl_window_draw(Canvas *frame, Window *w, Rect pr, f32 opacity)
+static void draw_surface(Canvas *frame, Window *w, Rect pr, f32 opacity)
 {
 	WlSurface *s = w->wl;
 	Canvas src;
@@ -1611,6 +1843,17 @@ void wl_window_draw(Canvas *frame, Window *w, Rect pr, f32 opacity)
 	}
 }
 
+void wl_window_draw(Canvas *frame, Window *w, Rect pr, f32 opacity)
+{
+	WlSurface *s = w->wl;
+	WlBuffer *b = s ? s->buffer : NULL;
+	if (b && !b->pool)
+		buffer_pixels(b);
+	buffer_access(b, true);
+	draw_surface(frame, w, pr, opacity);
+	buffer_access(b, false);
+}
+
 /* A copy of the window's picture, for the closing animation. */
 static Canvas *window_snapshot(Window *w)
 {
@@ -1621,12 +1864,14 @@ static Canvas *window_snapshot(Window *w)
 		return NULL;
 	Canvas *c = canvas_new(bw, bh);
 	bool opaque = s->buffer->format == 1;
+	buffer_access(s->buffer, true);
 	for (i32 r = 0; r < bh; r++) {
 		const u32 *in = canvas_row(&src, y + r) + x;
 		u32 *out = canvas_row(c, r);
 		for (i32 i = 0; i < bw; i++)
 			out[i] = opaque ? in[i] | 0xff000000u : in[i];
 	}
+	buffer_access(s->buffer, false);
 	return c;
 }
 
@@ -2806,4 +3051,52 @@ static void drop_broken_clients(void)
 			protocol_error(W.pools[i]->client, 1, 2 /* wl_shm invalid_fd */, "shared memory shrank under the compositor");
 			i = -1; /* the pool list changed */
 		}
+}
+
+/* ---- Programs' GPU buffers straight to the screen ------------------------------------------------- */
+
+/* The full-screen window alone on screen shows its own buffer: no copy, no
+ * compositing, which is what a game wants. False: compose as usual. */
+bool wl_window_scanout(Window *w)
+{
+	WlSurface *s = w->wl;
+	WlBuffer *b = s ? s->buffer : NULL;
+	if (!b || b->pool || b->no_scanout || !S.out->flip_to || W.flip_buffer)
+		return false;
+	if (b->width != S.out->width || b->height != S.out->height || content_rect(w, w->rect).w < w->rect.w - 0.5f)
+		return false;
+	i32 gx, gy, gw, gh;
+	geometry(s, &gx, &gy, &gw, &gh);
+	if (gx != 0 || gy != 0 || gw != wl_surface_width(s) || gh != wl_surface_height(s))
+		return false;
+	if (b == W.shown)
+		return true; /* already there */
+	if (!b->fb) {
+		b->fb = S.out->fb_import(S.out, b->dmabuf, (u32)b->width, (u32)b->height, (u32)b->offset, (u32)b->stride, b->modifier);
+		if (!b->fb) {
+			b->no_scanout = true;
+			return false;
+		}
+	}
+	if (!S.out->flip_to(S.out, b->fb))
+		return false;
+	b->users++; /* the screen holds it until the next flip is done */
+	W.flip_buffer = b;
+	return true;
+}
+
+/* A flip finished: the buffer that was on screen before goes back to its program. */
+void wl_flip_complete(void)
+{
+	WlBuffer *old = W.shown;
+	W.shown = W.flip_buffer; /* NULL after a composed frame */
+	W.flip_buffer = NULL;
+	if (!old || old == W.shown)
+		return;
+	old->users--;
+	if (old->users == 0 && !old->release_after_frame) {
+		if (old->res)
+			event(old->res, WL_BUFFER_EV_RELEASE, "");
+		buffer_maybe_free(old);
+	}
 }

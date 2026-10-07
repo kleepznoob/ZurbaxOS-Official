@@ -109,7 +109,7 @@ test: $(TESTS) devroot
 # whole OS: firmware loads it directly, with no boot loader in between.
 EFI_FILE := $(OUT)/kernel/arch/x86/boot/bzImage
 image: all
-	@python3 tools/fetch-firmware.py $(OUT)/firmware || echo "   note: no Wi-Fi firmware fetched (offline?)"
+	@python3 tools/fetch-firmware.py $(OUT)/firmware || echo "   note: no Wi-Fi or GPU firmware fetched (offline?)"
 	@$(OUT)/tools/mkimage cpio $(OUT)/system.cpio
 	@kernel/build.sh $(OUT)/system.cpio
 	@$(OUT)/tools/mkimage disk $(OUT)/zos.img $(EFI_FILE)

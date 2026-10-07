@@ -251,29 +251,65 @@ static struct {
 	f64 started;
 } bouncing;
 
-/* The shelf: rounded on top, flush with the bottom edge of the screen. */
-static void dock_shelf(Ui *ui, Rect bar)
+#define GOLD color_hex("#f5b83a")
+
+/* A glass bubble: a dome of light over a dark (or pale) disc, with a rim. */
+static void dock_bubble(Ui *ui, f32 cx, f32 cy, f32 r, f32 hover)
 {
 	Theme *t = &ui->theme;
-	f32 s = ui->scale;
-	Rect d = ui_to_device(ui, bar);
+	ui_shadow(ui, rect(cx - r, cy - r + 2, 2 * r, 2 * r), r, 12, 4, color_hex("#00000048"));
+	Rect d = ui_to_device(ui, rect(cx - r, cy - r, 2 * r, 2 * r));
 	Path p = { 0 };
-	path_round_rect4(&p, rect(d.x, d.y, d.w, d.h + 8 * s), 8 * s, 8 * s, 0, 0);
-	/* A soft shadow above, so it sits on the wallpaper. */
-	ui_shadow(ui, rect(bar.x + 4, bar.y + 2, bar.w - 8, bar.h), 8, 10, -1, color_hex("#00000030"));
-	Paint fill = t->dark ? paint_linear(0, d.y, 0, d.y + d.h, color_hex("#3a3b40e0"), color_hex("#26272be8"))
-			     : paint_linear(0, d.y, 0, d.y + d.h, color_hex("#fbfbfcd0"), color_hex("#e9eaeee0"));
+	path_circle(&p, d.x + d.w / 2, d.y + d.h / 2, d.w / 2);
+	Paint fill = t->dark ? paint_radial(d.x + d.w / 2, d.y + d.h * 0.3f, d.w * 0.8f, color_mix(color_hex("#4a4c55ec"), color_hex("#5c5f6af0"), hover),
+					    color_hex("#16171ce8"))
+			     : paint_radial(d.x + d.w / 2, d.y + d.h * 0.3f, d.w * 0.8f, color_hex("#fffffff2"),
+					    color_mix(color_hex("#d9dce4e8"), color_hex("#e8eaf0f0"), hover));
 	fill_path(ui->canvas, &p, mat_identity(), &fill, FILL_NONZERO);
-	Paint edge = paint_solid(t->dark ? color_hex("#000000a0") : color_hex("#00000052"));
-	StrokeStyle st = { 1 * s, CAP_BUTT, JOIN_ROUND, 4 };
-	stroke_path(ui->canvas, &p, mat_identity(), &edge, &st);
 	path_free(&p);
-	/* A bright line just inside the top edge, like light catching glass. */
-	Path hl = { 0 };
-	path_round_rect4(&hl, rect(d.x + 1 * s, d.y + 1 * s, d.w - 2 * s, d.h + 8 * s), 7 * s, 7 * s, 0, 0);
-	Paint hi = paint_solid(t->dark ? color_hex("#ffffff1a") : color_hex("#ffffffc0"));
-	stroke_path(ui->canvas, &hl, mat_identity(), &hi, &st);
-	path_free(&hl);
+	/* the rim, and light catching the top of the glass */
+	Path rim = { 0 };
+	path_circle(&rim, cx, cy, r - 0.5f);
+	ui_path_stroke(ui, &rim, 1, t->dark ? color_hex("#000000a0") : color_hex("#0000002c"));
+	path_free(&rim);
+	Path shine = { 0 };
+	path_arc(&shine, cx, cy, r - 2, r - 2, PI_F * 1.15f, PI_F * 1.85f);
+	ui_path_stroke(ui, &shine, 1.5f, t->dark ? color_hex("#ffffff30") : color_hex("#ffffffe0"));
+	path_free(&shine);
+}
+
+/* A raindrop, the mark of the app in front. */
+static void dock_drop(Ui *ui, f32 cx, f32 tip, f32 h, Color c)
+{
+	Path p = { 0 };
+	f32 w = h * 0.62f;
+	path_move(&p, cx, tip);
+	path_cubic(&p, cx + w * 0.15f, tip + h * 0.3f, cx + w / 2, tip + h * 0.48f, cx + w / 2, tip + h * 0.7f);
+	path_cubic(&p, cx + w / 2, tip + h * 0.88f, cx + w * 0.26f, tip + h, cx, tip + h);
+	path_cubic(&p, cx - w * 0.26f, tip + h, cx - w / 2, tip + h * 0.88f, cx - w / 2, tip + h * 0.7f);
+	path_cubic(&p, cx - w / 2, tip + h * 0.48f, cx - w * 0.15f, tip + h * 0.3f, cx, tip);
+	path_close(&p);
+	ui_path_fill(ui, &p, c);
+	path_free(&p);
+}
+
+/* The golden thread the bubbles hang on: the arc itself. */
+static void dock_thread(Ui *ui, int n, f32 drop, f32 alpha)
+{
+	if (n < 2)
+		return;
+	Path p = { 0 };
+	for (int k = 0; k <= 4 * (n - 1); k++) {
+		f32 x, y;
+		shell_dock_point(n, (f32)k / 4, &x, &y);
+		if (k == 0)
+			path_move(&p, x, y + drop);
+		else
+			path_line(&p, x, y + drop);
+	}
+	ui_path_stroke(ui, &p, 6, color_scale_alpha(color_hex("#f5b83a22"), alpha));
+	ui_path_stroke(ui, &p, 1.6f, color_scale_alpha(color_hex("#ffd884a0"), alpha));
+	path_free(&p);
 }
 
 static u64 dock_menu_opened_frame;
@@ -355,75 +391,83 @@ static void dock_menu_draw(Ui *ui, Rect anchor)
 
 void dock_draw(Ui *ui)
 {
-	Theme *t = &ui->theme;
 	char ids[32][48];
 	int n = shell_dock_items(ids, 32);
 	if (n == 0)
 		return;
 	f32 k = S.dock_hide_k * S.dock_hide_k * (3 - 2 * S.dock_hide_k);
-	f32 drop = roundf(k * (DOCK_ICON + DOCK_BOTTOM + 14));
+	f32 drop = roundf(k * (DOCK_BUBBLE + DOCK_BOTTOM + DOCK_LIFT + 18));
 	Rect bar = shell_dock_bar(n);
-	shell_surface(rect(bar.x - 120, S.sh - DOCK_ICON - DOCK_BOTTOM - 70, bar.w + 240, DOCK_ICON + DOCK_BOTTOM + 70));
+	Rect area = rect(bar.x - 120, bar.y - 70, bar.w + 240, S.sh - bar.y + 70);
 	if (S.dock_hide_k >= 0.999f && !S.dock_menu[0])
-		return;
-	bar.y += drop;
-	dock_shelf(ui, bar);
+		return; /* gone: nothing drawn (the spot it left is repainted as a previous surface) */
+	shell_surface(area);
+	dock_thread(ui, n, drop, 1 - k);
 
 	const char *hover_name = NULL;
 	Rect hover_rect = { 0 }, menu_anchor = { 0 };
+	bool near = ui_mouse_in(ui, rect(bar.x - 40, bar.y - 40, bar.w + 80, S.sh - bar.y + 40));
 	for (int i = 0; i < n; i++) {
-		Rect slot = shell_dock_slot(n, i);
-		slot.y += drop;
+		f32 cx, cy;
+		shell_dock_center(n, i, &cx, &cy);
+		cy += drop;
+		Rect slot = rect(cx - DOCK_BUBBLE / 2.0f, cy - DOCK_BUBBLE / 2.0f, DOCK_BUBBLE, DOCK_BUBBLE);
 		ui_push_id_str(ui, ids[i]);
 		UiId id = ui_id(ui, "dock");
-		Rect hit = rect(slot.x - DOCK_SPACING / 2.0f, slot.y - 4, slot.w + DOCK_SPACING, S.sh - slot.y + 4);
-		UiInteract it = ui_interact(ui, id, hit);
-		f32 hover = ui_fade(ui, id, it.hovered && !S.dock_menu[0], 0.15f);
-		/* A launching app bounces until its window appears (or a moment passes). */
-		f32 bounce = 0;
-		if (str_eq(bouncing.id, ids[i])) {
-			f64 bt = S.now - bouncing.started;
-			Window *fw;
-			if (bt > 3.0 || app_window_count(ids[i], &fw) > 0)
-				bouncing.id[0] = 0;
-			else {
-				f32 phase = fmodf((f32)bt, 0.6f) / 0.6f;
-				bounce = sinf(phase * PI_F) * 16;
-				ui->redraw = true;
-			}
-		}
-		/* Optional magnification as the pointer passes. */
-		f32 grow = 0;
-		if (S.set.dock_magnify && ui_mouse_in(ui, rect(bar.x - 40, slot.y - 30, bar.w + 80, S.sh - slot.y + 30))) {
-			f32 dx = fabsf(ui->mx - (slot.x + slot.w / 2)) / (DOCK_ICON * 2.2f);
-			grow = maxf(0, 1 - dx * dx) * 18;
+		f32 half = minf(DOCK_STEP, (S.sw - 80) / (f32)n) / 2;
+		UiInteract it = ui_interact(ui, id, rect(cx - half, slot.y - 6, 2 * half, S.sh - slot.y + 6));
+		f32 hover = ui_fade(ui, id, it.hovered && !S.dock_menu[0], 0.14f);
+		/* the bubble lifts and grows under the pointer; with "grow" on, its neighbours swell too */
+		f32 grow = 0.10f * hover;
+		if (S.set.dock_magnify && near && !S.dock_menu[0]) {
+			f32 dx = fabsf(ui->mx - cx) / (DOCK_STEP * 2.4f);
+			grow = maxf(grow, maxf(0, 1 - dx * dx) * 0.28f);
 			ui->redraw = true;
 		}
-		Rect ir = rect(slot.x - grow / 2, slot.y - grow - bounce + (it.held ? 1 : 0), slot.w + grow, slot.h + grow);
-		/* Hover: a soft light on the shelf under the icon. */
-		if (hover > 0) {
-			Rect d = ui_to_device(ui, rect(slot.x - 6, bar.y, slot.w + 12, bar.h));
-			Paint glow = paint_radial(d.x + d.w / 2, d.y + d.h, d.w * 0.75f,
-						  color_scale_alpha(t->dark ? color_hex("#ffffff40") : color_hex("#ffffffff"), hover),
-						  color_hex("#ffffff00"));
-			fill_rect_paint(ui->canvas, d, &glow);
-		}
+		if (it.held)
+			grow -= 0.05f;
+		f32 r = DOCK_BUBBLE / 2.0f * (1 + grow), by = cy - 7 * hover;
+		dock_bubble(ui, cx, by, r, hover);
 		const AppInfo *a = shell_app(ids[i]);
-		ui_app_icon(ui, ir, a ? a->icon : ids[i]);
-		/* Running indicators: one dot per window, up to three. */
+		f32 is = DOCK_ICON * (1 + grow);
+		ui_app_icon(ui, rect(cx - is / 2, by - is / 2, is, is), a ? a->icon : ids[i]);
+		/* running: a golden ring, a pip for each window (up to three); the
+		 * app in front glows and wears a raindrop */
 		Window *first;
 		int count = app_window_count(ids[i], &first);
 		bool focused = first && S.focus && str_eq(S.focus->app_id, ids[i]);
-		for (int w = 0; w < MIN(count, 3); w++) {
-			f32 dx = ((f32)w - (f32)(MIN(count, 3) - 1) / 2) * 7;
-			f32 cx = slot.x + slot.w / 2 + dx, cy = S.sh - 3.5f + drop;
-			Color core = focused ? t->accent : (t->dark ? color_hex("#e8e8ea") : color_hex("#3b3d42"));
-			ui_circle(ui, cx, cy, 3.6f, t->dark ? color_hex("#00000060") : color_hex("#ffffffb0"));
-			ui_circle(ui, cx, cy, 2.1f, core);
+		if (count > 0) {
+			Path ring = { 0 };
+			path_circle(&ring, cx, by, r + 3.5f);
+			if (focused)
+				ui_path_stroke(ui, &ring, 7, color_hex("#f5b83a40"));
+			ui_path_stroke(ui, &ring, focused ? 2.6f : 2, color_scale_alpha(GOLD, focused ? 1 : 0.75f));
+			path_free(&ring);
+			for (int w = 0; w < MIN(count, 3); w++) {
+				f32 ang = PI_F / 2 + ((f32)w - (f32)(MIN(count, 3) - 1) / 2) * 0.32f;
+				ui_circle(ui, cx + cosf(ang) * (r + 3.5f), by + sinf(ang) * (r + 3.5f), 2.6f, color_hex("#fff4d6"));
+			}
+			if (focused)
+				dock_drop(ui, cx, by - r - 17, 10, GOLD);
+		}
+		/* starting: a golden arc runs round the bubble until the window appears */
+		if (str_eq(bouncing.id, ids[i])) {
+			f64 bt = S.now - bouncing.started;
+			Window *fw;
+			if (bt > 4.0 || app_window_count(ids[i], &fw) > 0) {
+				bouncing.id[0] = 0;
+			} else {
+				f32 a0 = (f32)bt * 7;
+				Path arc = { 0 };
+				path_arc(&arc, cx, by, r + 3.5f, r + 3.5f, a0, a0 + PI_F * 0.7f);
+				ui_path_stroke(ui, &arc, 3, GOLD);
+				path_free(&arc);
+				ui->redraw = true;
+			}
 		}
 		if (it.hovered && !S.dock_menu[0]) {
 			hover_name = a ? a->name : ids[i];
-			hover_rect = ir;
+			hover_rect = rect(cx - r, by - r, 2 * r, 2 * r);
 		}
 		if (str_eq(S.dock_menu, ids[i]))
 			menu_anchor = slot;
@@ -455,12 +499,13 @@ void dock_draw(Ui *ui)
 			dock_menu_draw(ui, menu_anchor);
 	}
 	if (hover_name) {
+		/* the name in a capsule above the bubble */
 		Font f = ui_font(ui, 13, 600);
-		f32 tw = ui_text_width(ui, f, hover_name) + 22;
-		Rect tip = rect(roundf(hover_rect.x + hover_rect.w / 2 - tw / 2), hover_rect.y - 38, tw, 28);
-		ui_shadow(ui, tip, 6, 8, 2, color_hex("#00000040"));
-		ui_round(ui, tip, 6, color_hex("#1e1f22e8"));
-		ui_border(ui, tip, 6, 1, color_hex("#ffffff14"));
+		f32 tw = ui_text_width(ui, f, hover_name) + 26;
+		Rect tip = rect(roundf(hover_rect.x + hover_rect.w / 2 - tw / 2), hover_rect.y - 54, tw, 28);
+		ui_shadow(ui, tip, 14, 10, 3, color_hex("#00000045"));
+		ui_round(ui, tip, 14, color_hex("#1b1c21ee"));
+		ui_border(ui, tip, 14, 1, color_hex("#f5b83a55"));
 		ui_text_in(ui, f, tip, hover_name, COLOR_WHITE, ALIGN_CENTER);
 	}
 }
@@ -943,7 +988,11 @@ void switcher_draw(Ui *ui)
 	}
 }
 
-/* ---- Lock screen ---------------------------------------------------------------------- */
+/* ---- Lock screen ----------------------------------------------------------------------
+ * The wallpaper as it is, the date over a large clock, waiting notifications
+ * on frosted glass, and at the bottom the user with a password field. Moving
+ * the mouse or typing softly blurs the picture behind, to bring the password
+ * forward; left alone, it clears again. Unlocking slides everything up. */
 
 static StrBuf lock_password;
 static f64 lock_error_at;
@@ -959,81 +1008,224 @@ bool lockscreen_key(Ui *ui, u32 code, u32 mods, const char *text)
 	return false;
 }
 
+/* Frosted glass: the blurred wallpaper behind r, lightened. */
+static void glass(Ui *ui, Rect r, f32 radius, f32 alpha, Color tint)
+{
+	Rect d = ui_to_device(ui, r);
+	blit_scaled_round(ui->canvas, S.wallpaper_blur, d, d, radius * S.scale, alpha);
+	ui_round(ui, r, radius, color_scale_alpha(tint, alpha));
+	ui_border(ui, r, radius, 1, color_scale_alpha(color_hex("#ffffff2e"), alpha));
+}
+
+static void lock_text_center(Ui *ui, Font f, f32 cx, f32 baseline, const char *s, f32 alpha)
+{
+	panel_text(ui, f, cx - ui_text_width(ui, f, s) / 2, baseline, s, alpha);
+}
+
+static void ago(i64 when, char *out, usize cap)
+{
+	i64 d = time_unix() - when;
+	if (d < 60)
+		str_copy(out, "now", cap);
+	else if (d < 3600)
+		fmt(out, cap, "%dm ago", (int)(d / 60));
+	else if (d < 86400)
+		fmt(out, cap, "%dh ago", (int)(d / 3600));
+	else
+		fmt(out, cap, "%dd ago", (int)(d / 86400));
+}
+
+/* Waiting notifications under the clock, newest first; returns the height used. */
+static f32 lock_notices(Ui *ui, f32 cx, f32 y, f32 k)
+{
+	const Notice *list[3];
+	int n = 0, more = 0;
+	for (int i = S.nnotices - 1; i >= 0; i--) {
+		if (S.notices[i].dismissed)
+			continue;
+		if (n < 3)
+			list[n++] = &S.notices[i];
+		else
+			more++;
+	}
+	f32 w = minf(400, S.sw - 48), h = 64, x = cx - w / 2;
+	for (int i = 0; i < n; i++) {
+		Rect card = rect(x, y + (f32)i * (h + 8), w, h);
+		glass(ui, card, 18, k, color_hex("#ffffff24"));
+		const AppInfo *a = shell_app(list[i]->app);
+		ui_app_icon(ui, rect(card.x + 14, card.y + 14, 36, 36), a ? a->icon : list[i]->icon);
+		char when[16];
+		ago(list[i]->time, when, sizeof when);
+		Font tf = ui_font(ui, 13, 700), bf = ui_font(ui, 13, 400), sf = ui_font(ui, 11, 500);
+		f32 ww = ui_text_width(ui, sf, when);
+		ui_text(ui, sf, card.x + card.w - 14 - ww, card.y + 24, when, color_scale_alpha(color_hex("#ffffffb0"), k));
+		ui_push_clip(ui, rect(card.x + 62, card.y, card.w - 62 - 22 - ww, card.h));
+		ui_text(ui, tf, card.x + 62, card.y + 26, list[i]->title, color_scale_alpha(COLOR_WHITE, k));
+		ui_pop_clip(ui);
+		ui_push_clip(ui, rect(card.x + 62, card.y, card.w - 76, card.h));
+		ui_text(ui, bf, card.x + 62, card.y + 46, list[i]->body[0] ? list[i]->body : (a ? a->name : ""),
+			color_scale_alpha(color_hex("#ffffffd8"), k));
+		ui_pop_clip(ui);
+	}
+	f32 used = (f32)n * (h + 8);
+	if (more) {
+		char m[48];
+		fmt(m, sizeof m, "%d more", more);
+		lock_text_center(ui, ui_font(ui, 12, 600), cx, y + used + 14, m, k * 0.8f);
+		used += 22;
+	}
+	return used;
+}
+
+static void lock_status(Ui *ui, f32 k)
+{
+	f32 x = S.sw - 20, base = 26;
+	Font small = ui_font(ui, 13, 600);
+	Color white = color_scale_alpha(COLOR_WHITE, k);
+	if (S.battery >= 0) {
+		char pct[8];
+		fmt(pct, sizeof pct, "%d%%", S.battery);
+		x -= ui_text_width(ui, small, pct);
+		panel_text(ui, small, x, base, pct, k);
+		x -= 26;
+		ui_icon(ui, rect(x, base - 14, 20, 20), S.charging ? "battery-charging" : S.battery > 80 ? "battery-full" : S.battery > 45 ? "battery-good"
+						      : S.battery > 15 ? "battery-low" : "battery-caution", white);
+		x -= 14;
+	}
+	x -= 20;
+	ui_icon(ui, rect(x, base - 14, 20, 20),
+		S.wifi_connected && S.net_wired ? "network-wired"
+		: S.wifi_connected ? (S.wifi_strength > 66 ? "network-wireless" : S.wifi_strength > 33 ? "network-wireless-good" : "network-wireless-weak")
+				   : "network-wireless-none",
+		white);
+	x -= 12;
+	char layout[8] = "US";
+	for (int i = 0; i < 2 && S.set.keyboard_layout[i]; i++)
+		layout[i] = (char)to_upper(S.set.keyboard_layout[i]);
+	x -= ui_text_width(ui, small, layout);
+	panel_text(ui, small, x, base, layout, k * 0.9f);
+}
+
+/* Sleep, Restart and Shut Down, bottom right. */
+static void lock_power(Ui *ui, f32 k)
+{
+	static const struct { const char *icon, *label; u32 action; } items[] = {
+		{ "system-sleep", "Sleep", SESSION_SLEEP },
+		{ "system-restart", "Restart", SESSION_RESTART },
+		{ "system-shutdown", "Shut Down", SESSION_SHUTDOWN },
+	};
+	f32 size = 40, gap = 30, y = S.sh - 86;
+	f32 x = S.sw - 28 - (3 * size + 2 * gap) - 10;
+	for (int i = 0; i < 3; i++) {
+		Rect b = rect(x + (f32)i * (size + gap), y, size, size);
+		UiInteract it = ui_interact(ui, ui_id(ui, items[i].label), rect_inset(b, -14, -6));
+		f32 hover = ui_fade(ui, ui_id(ui, items[i].label), it.hovered, 0.12f);
+		glass(ui, b, size / 2, k, color_mix(color_hex("#ffffff1c"), color_hex("#ffffff48"), hover));
+		ui_icon(ui, rect(b.x + 10, b.y + 10, 20, 20), items[i].icon, color_scale_alpha(COLOR_WHITE, k));
+		lock_text_center(ui, ui_font(ui, 11, 600), b.x + size / 2, b.y + size + 17, items[i].label, k * (0.7f + 0.3f * hover));
+		if (it.clicked)
+			shell_session_action(items[i].action);
+	}
+}
+
 void lockscreen_draw(Ui *ui)
 {
-	S.lock_k = ui_anim(ui, ui_id(ui, "lock-k"), S.locked ? 1.0f : 0.0f, 10);
+	S.lock_k = ui_anim(ui, ui_id(ui, "lock-k"), S.locked ? 1.0f : 0.0f, 9);
 	f32 k = S.lock_k;
 	if (k <= 0.001f)
 		return;
 	shell_surface(rect(0, 0, S.sw, S.sh));
-	/* Blurred wallpaper with a gentle dark veil. */
-	Rect full = rect(0, 0, S.sw, S.sh);
-	Rect d = ui_to_device(ui, full);
-	blit_scaled(ui->canvas, S.wallpaper_blur, rect(0, 0, (f32)S.wallpaper_blur->width, (f32)S.wallpaper_blur->height), d, k);
-	ui_fill(ui, full, color_scale_alpha(color_hex("#00000040"), k));
-	f32 rise = (1 - k) * 30;
+	/* the picture: clear at rest, blurred and dimmed while someone is at the keyboard */
+	bool attention = S.now - S.last_input < 8 || lock_password.len > 0 || S.now - lock_error_at < 3;
+	f32 focus = ui_anim(ui, ui_id(ui, "lock-focus"), attention ? 1.0f : 0.0f, 6);
+	if (attention)
+		ui->wake_at = S.last_input + 8.05;
+	Rect full = rect(0, 0, S.sw, S.sh), d = ui_to_device(ui, full);
+	blit_scaled(ui->canvas, S.wallpaper, rect(0, 0, (f32)S.wallpaper->width, (f32)S.wallpaper->height), d, k);
+	if (focus > 0.001f) {
+		blit_scaled(ui->canvas, S.wallpaper_blur, rect(0, 0, (f32)S.wallpaper_blur->width, (f32)S.wallpaper_blur->height), d, k * focus);
+		ui_fill(ui, full, color_scale_alpha(color_hex("#00000038"), k * focus));
+	}
+	/* a soft shade behind the clock and the user keeps white text readable on any picture */
+	Paint top = paint_linear(0, 0, 0, S.sh * 0.42f * S.scale, color_scale_alpha(color_hex("#0000004a"), k), color_hex("#00000000"));
+	fill_rect_paint(ui->canvas, rect(d.x, d.y, d.w, d.h * 0.42f), &top);
+	Paint bottom = paint_linear(0, S.sh * 0.6f * S.scale, 0, S.sh * S.scale, color_hex("#00000000"), color_scale_alpha(color_hex("#00000058"), k));
+	fill_rect_paint(ui->canvas, rect(d.x, d.y + d.h * 0.6f, d.w, d.h * 0.4f), &bottom);
+	/* unlocking lifts it all away */
+	f32 lift = (1 - k) * (1 - k) * S.sh * 0.18f;
+	f32 cx = S.sw / 2;
 
 	Civil c;
 	civil_local(time_unix(), &c);
-	char clock[16];
+	char clock[16], date[64];
 	if (S.set.clock_24h)
-		fmt(clock, sizeof clock, "%02d:%02d", c.hour, c.min);
+		fmt(clock, sizeof clock, "%d:%02d", c.hour, c.min);
 	else
 		fmt(clock, sizeof clock, "%d:%02d", c.hour % 12 ? c.hour % 12 : 12, c.min);
-	char date[64];
-	fmt(date, sizeof date, "%s, %s %d", WEEKDAY_NAMES[c.wday], MONTH_NAMES[c.month - 1], c.day);
-	Font big = ui_font(ui, 96, 300);
-	f32 cy = S.sh * 0.22f - rise;
+	fmt(date, sizeof date, "%s %d %s", WEEKDAY_NAMES[c.wday], c.day, MONTH_NAMES[c.month - 1]);
+	f32 date_base = maxf(64, S.sh * 0.11f) - lift;
+	lock_text_center(ui, ui_font(ui, 22, 600), cx, date_base, date, k * 0.92f);
+	Font big = ui_font(ui, S.sh < 700 ? 104 : 136, 650);
+	f32 clock_base = date_base + 26 + font_cap_height(big);
 	f32 cw = ui_text_width(ui, big, clock);
-	ui_text(ui, big, (S.sw - cw) / 2 + 1, cy + font_cap_height(big) + 2, clock, color_scale_alpha(color_hex("#00000050"), k));
-	ui_text(ui, big, (S.sw - cw) / 2, cy + font_cap_height(big), clock, color_scale_alpha(COLOR_WHITE, k));
-	Font df = ui_font(ui, 20, 500);
-	f32 dw = ui_text_width(ui, df, date);
-	panel_text(ui, df, (S.sw - dw) / 2, cy + font_cap_height(big) + 44, date, k);
+	ui_text(ui, big, cx - cw / 2, clock_base + 3, clock, color_scale_alpha(color_hex("#00000038"), k));
+	ui_text(ui, big, cx - cw / 2, clock_base, clock, color_scale_alpha(color_hex("#fffffff2"), k));
+	/* wake for the next minute */
+	f64 next_minute = S.now + (f64)(60 - c.sec) + 0.05;
+	if (ui->wake_at <= 0 || ui->wake_at > next_minute)
+		ui->wake_at = next_minute;
+	lock_notices(ui, cx, clock_base + 40, k);
 
-	/* User and password */
-	f32 uy = S.sh * 0.58f + rise;
-	ui_avatar(ui, rect(S.sw / 2 - 40, uy - 90, 80, 80), S.set.full_name);
-	Font nf = ui_font(ui, 18, 600);
-	f32 nw = ui_text_width(ui, nf, S.set.full_name);
-	panel_text(ui, nf, (S.sw - nw) / 2, uy + 22, S.set.full_name, k);
+	/* the user, and the password */
+	f32 field_y = S.sh - 112 + lift * 0.5f;
+	f32 av = 64;
+	ui_avatar(ui, rect(cx - av / 2, field_y - av - 40, av, av), S.set.full_name[0] ? S.set.full_name : S.set.user_name);
+	lock_text_center(ui, ui_font(ui, 15, 700), cx, field_y - 14, S.set.full_name[0] ? S.set.full_name : S.set.user_name, k);
 	if (S.set.has_password) {
 		f32 shake = 0;
 		if (S.now - lock_error_at < 0.45) {
-			shake = sinf((f32)(S.now - lock_error_at) * 60) * 10 * (1 - (f32)(S.now - lock_error_at) / 0.45f);
+			f32 t = (f32)(S.now - lock_error_at);
+			shake = sinf(t * 60) * 10 * (1 - t / 0.45f);
 			ui->redraw = true;
 		}
-		Rect field = rect(S.sw / 2 - 140 + shake, uy + 42, 280, 38);
-		int ev = ui_entry(ui, field, "lock-password", &lock_password, "Password", ENTRY_PASSWORD | ENTRY_AUTOFOCUS);
+		Rect pill = rect(cx - 120 + shake, field_y, 240, 34);
+		glass(ui, pill, 17, k, color_hex("#ffffff30"));
+		/* white text on the glass, whatever the theme */
+		Theme saved = ui->theme;
+		ui->theme.text = COLOR_WHITE;
+		ui->theme.text_dim = ui->theme.text_faint = color_hex("#ffffffa8");
+		ui->theme.accent = COLOR_WHITE;
+		Rect entry = rect(pill.x + 14, pill.y + 1, pill.w - 14 - 36, pill.h - 2);
+		int ev = ui_entry(ui, entry, "lock-password", &lock_password, "Enter Password", ENTRY_PASSWORD | ENTRY_AUTOFOCUS | ENTRY_FLAT);
+		ui->theme = saved;
 		ui->focus = ui_id(ui, "lock-password");
-		if (ev & ENTRY_SUBMIT) {
+		/* the arrow: unlock with the mouse */
+		Rect go = rect(pill.x + pill.w - 31, pill.y + 4, 26, 26);
+		bool have = lock_password.len > 0;
+		UiInteract it = ui_interact(ui, ui_id(ui, "lock-go"), go);
+		if (have) {
+			ui_round(ui, go, 13, color_scale_alpha(color_hex(it.hovered ? "#ffffff60" : "#ffffff40"), k));
+			ui_icon(ui, rect(go.x + 5, go.y + 5, 16, 16), "go-forward", color_scale_alpha(COLOR_WHITE, k));
+		}
+		if ((ev & ENTRY_SUBMIT) || (have && it.clicked)) {
 			if (shell_check_password(sb_str(&lock_password))) {
 				S.locked = false;
-				sb_clear(&lock_password);
 			} else {
 				lock_error_at = S.now;
-				sb_clear(&lock_password);
 			}
+			sb_clear(&lock_password);
 		}
-		if (S.now - lock_error_at < 2.5) {
-			Font ef = ui_font(ui, 13, 500);
-			const char *msg = "Incorrect password";
-			panel_text(ui, ef, (S.sw - ui_text_width(ui, ef, msg)) / 2, uy + 108, msg, k);
-		}
+		const char *hint = S.now - lock_error_at < 2.5 ? "Incorrect password. Try again."
+				   : (S.mods & MOD_CAPS) ? "Caps Lock is on"
+				   : "Type your password, then press Enter";
+		lock_text_center(ui, ui_font(ui, 12, 600), cx, field_y + 58, hint, k * (S.now - lock_error_at < 2.5 ? 1 : 0.78f));
 	} else {
-		Font hf = ui_font(ui, 14, 500);
-		const char *msg = "Press any key or click to unlock";
-		panel_text(ui, hf, (S.sw - ui_text_width(ui, hf, msg)) / 2, uy + 64, msg, k * 0.85f);
-		if (ui->pressed[BUTTON_LEFT])
+		lock_text_center(ui, ui_font(ui, 13, 600), cx, field_y + 22, "Click or press any key to unlock", k * 0.85f);
+		if (ui->pressed[BUTTON_LEFT] && ui->my < S.sh - 110)
 			S.locked = false;
 	}
-	/* Status at the bottom. */
-	if (S.battery >= 0) {
-		char b[32];
-		fmt(b, sizeof b, "%d%%", S.battery);
-		Font bf = ui_font(ui, 13, 600);
-		panel_text(ui, bf, S.sw - 24 - ui_text_width(ui, bf, b), S.sh - 24, b, k);
-	}
+	lock_status(ui, k);
+	lock_power(ui, k);
 }
 
 /* ---- OSD -------------------------------------------------------------------------------- */

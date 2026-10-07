@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Fetches the firmware ZOS's Wi-Fi drivers load, for the system image.
+"""Fetches the firmware ZOS's Wi-Fi and GPU drivers load, for the system image.
 
     tools/fetch-firmware.py OUTDIR
 
-Wi-Fi chips run vendor firmware that the kernel hands them at start-up; it
-comes from the linux-firmware project (redistributable, unmodified). This
-fetches the files for the chips common in laptops from the last few years,
-compresses them with xz (the kernel unpacks them as it loads them, so they
-take less memory), and adds the wireless regulatory database. Files already
-fetched are kept; delete OUTDIR to start over.
+Wi-Fi chips and GPUs run vendor firmware that the kernel hands them at
+start-up; it comes from the linux-firmware project (redistributable,
+unmodified). This fetches the files for the Wi-Fi chips common in laptops
+from the last few years and for the AMD and Intel GPUs in
+kernel/gpu-firmware.txt, compresses them with xz (the kernel unpacks them as
+it loads them, so they take less memory), and adds the wireless regulatory
+database. Files already fetched are kept; delete OUTDIR to start over.
 """
-import lzma, os, re, sys, urllib.request
+import concurrent.futures, lzma, os, re, sys, urllib.request
 
 FIRMWARE = "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/"
 REGDB = "https://git.kernel.org/pub/scm/linux/kernel/git/wens/wireless-regdb.git/plain/"
@@ -83,13 +84,33 @@ def resolve(name, files):
     return best and (best[1], best[2])
 
 
+def gpu_wanted():
+    """The GPU drivers' files (kernel/gpu-firmware.txt)."""
+    listing = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "kernel", "gpu-firmware.txt")
+    with open(listing) as f:
+        return [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
+
+def fetch(path, dest):
+    """One file, xz-compressed as the kernel's loader expects (CRC32, 1 MiB dictionary)."""
+    if os.path.exists(dest):
+        return os.path.getsize(dest)
+    data = get(FIRMWARE + path)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest + ".tmp", "wb") as f:
+        f.write(lzma.compress(data, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32,
+                              filters=[{"id": lzma.FILTER_LZMA2, "preset": 9, "dict_size": 1 << 20}]))
+    os.rename(dest + ".tmp", dest)
+    return os.path.getsize(dest)
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     out = sys.argv[1]
     os.makedirs(out, exist_ok=True)
     files = index()
-    total = 0
+    jobs = []
     for name in WANTED:
         r = resolve(name, files)
         if not r:
@@ -98,15 +119,18 @@ def main():
         path, local = (r, name) if isinstance(r, str) else r
         if not isinstance(r, str):
             local = os.path.join(os.path.dirname(name), local)
-        dest = os.path.join(out, local + ".xz")
-        if not os.path.exists(dest):
-            data = get(FIRMWARE + path)
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            with open(dest + ".tmp", "wb") as f:
-                f.write(lzma.compress(data, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32,
-                                      filters=[{"id": lzma.FILTER_LZMA2, "preset": 9, "dict_size": 1 << 20}]))
-            os.rename(dest + ".tmp", dest)
-        total += os.path.getsize(dest)
+        jobs.append((path, os.path.join(out, local + ".xz")))
+    # GPU drivers list every file they might want; linux-firmware lacks a few
+    missing = 0
+    for name in gpu_wanted():
+        if name in files:
+            jobs.append((files[name], os.path.join(out, name + ".xz")))
+        else:
+            missing += 1
+    if missing:
+        print(f"   note: {missing} GPU firmware files the drivers mention aren't in linux-firmware (optional ones)")
+    with concurrent.futures.ThreadPoolExecutor(8) as pool:
+        total = sum(pool.map(lambda job: fetch(*job), jobs))
     for name in ("regulatory.db", "regulatory.db.p7s"):
         dest = os.path.join(out, name)
         if not os.path.exists(dest):

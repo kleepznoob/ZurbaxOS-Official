@@ -261,34 +261,40 @@ static void on_control(Loop *l, int fd, u32 events, void *data)
 
 /* ---- Device permissions -------------------------------------------------------------------- */
 
-/* Cameras belong to the video group and game controllers to input; the
- * desktop gives its user those groups. Nodes appear at boot and on hotplug. */
+/* Cameras and the GPUs' render nodes belong to the video group, game
+ * controllers to input; the desktop gives its user those groups. Wine's
+ * synchronization device (ntsync) is for everyone, as elsewhere. Nodes
+ * appear at boot and on hotplug. */
 static void device_perms(const char *name)
 {
-	u32 gid = 0;
-	if (str_starts(name, "video") || str_starts(name, "media") || str_starts(name, "v4l-subdev"))
+	u32 gid = 0, mode = 0660;
+	if (str_starts(name, "video") || str_starts(name, "media") || str_starts(name, "v4l-subdev") || str_starts(name, "dri/renderD"))
 		gid = GID_VIDEO;
 	else if (str_starts(name, "input/js") || str_starts(name, "input/event") || str_starts(name, "hidraw") || str_starts(name, "uinput"))
 		gid = GID_INPUT;
-	if (!gid)
+	else if (str_eq(name, "ntsync"))
+		mode = 0666;
+	else
 		return;
 	char path[128];
 	fmt(path, sizeof path, "/dev/%s", name);
 	sys_chown(path, 0, gid);
-	sys_chmod(path, 0660);
+	sys_chmod(path, mode);
 }
 
 static void coldplug(void)
 {
-	static const char *const dirs[] = { "/dev", "/dev/input" };
+	static const char *const dirs[] = { "", "input/", "dri/" };
 	for (usize d = 0; d < ARRAY_LEN(dirs); d++) {
+		char dir[32];
+		fmt(dir, sizeof dir, "/dev/%s", dirs[d]);
 		DirList dl = { 0 };
-		if (!dir_list(dirs[d], &dl, false))
+		if (!dir_list(dir, &dl, false))
 			continue;
 		vec_each(&dl, e)
 		{
 			char name[96];
-			fmt(name, sizeof name, "%s%s", d ? "input/" : "", e->name);
+			fmt(name, sizeof name, "%s%s", dirs[d], e->name);
 			device_perms(name);
 		}
 		dir_list_free(&dl);

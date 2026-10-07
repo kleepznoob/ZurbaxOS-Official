@@ -390,6 +390,39 @@ static const WlMessage zxdg_output_v1_requests[] = {
 };
 static const WlInterface zxdg_output_v1_interface = { "zxdg_output_v1", 3, zxdg_output_v1_requests, 1, 5 };
 
+/* zwp_linux_dmabuf_v1, version 4 */
+#define ZWP_LINUX_DMABUF_V1_VERSION 4
+enum { ZWP_LINUX_DMABUF_V1_DESTROY, ZWP_LINUX_DMABUF_V1_CREATE_PARAMS, ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK, ZWP_LINUX_DMABUF_V1_GET_SURFACE_FEEDBACK };
+enum { ZWP_LINUX_DMABUF_V1_EV_FORMAT, ZWP_LINUX_DMABUF_V1_EV_MODIFIER };
+static const WlMessage zwp_linux_dmabuf_v1_requests[] = {
+	{ "destroy", "", NULL, 1 },
+	{ "create_params", "n", "zwp_linux_buffer_params_v1", 1 },
+	{ "get_default_feedback", "n", "zwp_linux_dmabuf_feedback_v1", 4 },
+	{ "get_surface_feedback", "no", "zwp_linux_dmabuf_feedback_v1", 4 },
+};
+static const WlInterface zwp_linux_dmabuf_v1_interface = { "zwp_linux_dmabuf_v1", 4, zwp_linux_dmabuf_v1_requests, 4, 2 };
+
+/* zwp_linux_buffer_params_v1, version 4 */
+#define ZWP_LINUX_BUFFER_PARAMS_V1_VERSION 4
+enum { ZWP_LINUX_BUFFER_PARAMS_V1_DESTROY, ZWP_LINUX_BUFFER_PARAMS_V1_ADD, ZWP_LINUX_BUFFER_PARAMS_V1_CREATE, ZWP_LINUX_BUFFER_PARAMS_V1_CREATE_IMMED };
+enum { ZWP_LINUX_BUFFER_PARAMS_V1_EV_CREATED, ZWP_LINUX_BUFFER_PARAMS_V1_EV_FAILED };
+static const WlMessage zwp_linux_buffer_params_v1_requests[] = {
+	{ "destroy", "", NULL, 1 },
+	{ "add", "huuuuu", NULL, 1 },
+	{ "create", "iiuu", NULL, 1 },
+	{ "create_immed", "niiuu", "wl_buffer", 2 },
+};
+static const WlInterface zwp_linux_buffer_params_v1_interface = { "zwp_linux_buffer_params_v1", 4, zwp_linux_buffer_params_v1_requests, 4, 2 };
+
+/* zwp_linux_dmabuf_feedback_v1, version 4 */
+#define ZWP_LINUX_DMABUF_FEEDBACK_V1_VERSION 4
+enum { ZWP_LINUX_DMABUF_FEEDBACK_V1_DESTROY };
+enum { ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_DONE, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_FORMAT_TABLE, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_MAIN_DEVICE, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_DONE, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_TARGET_DEVICE, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_FORMATS, ZWP_LINUX_DMABUF_FEEDBACK_V1_EV_TRANCHE_FLAGS };
+static const WlMessage zwp_linux_dmabuf_feedback_v1_requests[] = {
+	{ "destroy", "", NULL, 1 },
+};
+static const WlInterface zwp_linux_dmabuf_feedback_v1_interface = { "zwp_linux_dmabuf_feedback_v1", 4, zwp_linux_dmabuf_feedback_v1_requests, 1, 7 };
+
 static const WlInterface *const WL_INTERFACES[] = {
 	&wl_display_interface,
 	&wl_registry_interface,
@@ -427,4 +460,7 @@ static const WlInterface *const WL_INTERFACES[] = {
 	&zxdg_toplevel_decoration_v1_interface,
 	&zxdg_output_manager_v1_interface,
 	&zxdg_output_v1_interface,
+	&zwp_linux_dmabuf_v1_interface,
+	&zwp_linux_buffer_params_v1_interface,
+	&zwp_linux_dmabuf_feedback_v1_interface,
 };

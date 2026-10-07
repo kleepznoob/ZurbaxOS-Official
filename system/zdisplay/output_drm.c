@@ -114,6 +114,21 @@ struct drm_event {
 	u32 type, length;
 };
 
+struct drm_mode_fb_cmd2 {
+	u32 fb_id, width, height, pixel_format, flags;
+	u32 handles[4], pitches[4], offsets[4];
+	u64 modifier[4];
+};
+
+struct drm_prime_handle {
+	u32 handle, flags;
+	i32 fd;
+};
+
+struct drm_gem_close {
+	u32 handle, pad;
+};
+
 #define DRM_IOCTL_VERSION IOWR('d', 0x00, struct drm_version)
 #define DRM_IOCTL_GET_CAP IOWR('d', 0x0c, struct drm_get_cap)
 #define DRM_IOCTL_SET_MASTER IO('d', 0x1e)
@@ -132,8 +147,14 @@ struct drm_event {
 #define DRM_IOCTL_MODE_MAP_DUMB IOWR('d', 0xB3, struct drm_mode_map_dumb)
 #define DRM_IOCTL_MODE_DESTROY_DUMB IOWR('d', 0xB4, struct drm_mode_destroy_dumb)
 #define DRM_IOCTL_MODE_CURSOR2 IOWR('d', 0xBB, struct drm_mode_cursor2)
+#define DRM_IOCTL_MODE_ADDFB2 IOWR('d', 0xB8, struct drm_mode_fb_cmd2)
+#define DRM_IOCTL_PRIME_FD_TO_HANDLE IOWR('d', 0x2e, struct drm_prime_handle)
+#define DRM_IOCTL_GEM_CLOSE IOW('d', 0x09, struct drm_gem_close)
+#define DRM_FORMAT_XRGB8888 0x34325258u /* 'XR24' */
+#define DRM_MODE_FB_MODIFIERS 2
+#define DRM_FORMAT_MOD_INVALID 0x00ffffffffffffffull
 
-enum { DRM_CAP_DUMB_BUFFER = 0x1, DRM_CAP_CURSOR_WIDTH = 0x8, DRM_CAP_CURSOR_HEIGHT = 0x9 };
+enum { DRM_CAP_DUMB_BUFFER = 0x1, DRM_CAP_CURSOR_WIDTH = 0x8, DRM_CAP_CURSOR_HEIGHT = 0x9, DRM_CAP_ADDFB2_MODIFIERS = 0x10 };
 enum { DRM_MODE_TYPE_PREFERRED = 1 << 3 };
 enum { DRM_MODE_CONNECTED = 1 };
 enum { DRM_MODE_CURSOR_BO = 1, DRM_MODE_CURSOR_MOVE = 2 };
@@ -164,6 +185,8 @@ typedef struct {
 	u32 cursor_w, cursor_h;
 	int gamma_size;
 	char driver[32];
+	bool showing_client;      /* a program's buffer is on screen (flip_to) */
+	bool modifiers;           /* framebuffers can name a tiling layout */
 } Drm;
 
 static int drm_ioctl(int fd, unsigned long req, void *arg)
@@ -270,6 +293,11 @@ static bool drm_present(Output *o, const Canvas *frame, const Rect *damage, int 
 	}
 	if (o->flip_pending)
 		return false;
+	if (d->showing_client) {
+		/* back from a program's own buffer: both of ours are out of date */
+		d->showing_client = false;
+		d->prev_full = true;
+	}
 	int back = d->front ^ 1;
 	DumbBuf *b = &d->buf[back];
 	/* The back buffer holds the frame before last; bring it up to date with
@@ -320,6 +348,7 @@ static void drm_on_fd(Output *o)
 			break;
 		if (e->type == DRM_EVENT_FLIP_COMPLETE) {
 			o->flip_pending = false;
+			wl_flip_complete();
 			request_frame();
 		}
 		off += e->length;
@@ -372,6 +401,59 @@ static void drm_set_gamma(Output *o, f32 r, f32 g, f32 b)
 }
 
 /* ---- Device discovery ------------------------------------------------------------ */
+
+/* ---- Programs' GPU buffers on screen ------------------------------------------------- */
+
+/* Makes a framebuffer from a program's buffer (one plane, 32-bit pixels).
+ * The framebuffer keeps the memory alive; 0 if the GPU can't show it. */
+static u32 drm_fb_import(Output *o, int dmabuf, u32 width, u32 height, u32 offset, u32 stride, u64 modifier)
+{
+	Drm *d = o->impl;
+	struct drm_prime_handle p = { .fd = dmabuf };
+	int r = drm_ioctl(d->fd, DRM_IOCTL_PRIME_FD_TO_HANDLE, &p);
+	if (r < 0) {
+		eprint("zdisplay: the GPU can't take a program's buffer: %s\n", err_str(r));
+		return 0;
+	}
+	struct drm_mode_fb_cmd2 f = { .width = width, .height = height, .pixel_format = DRM_FORMAT_XRGB8888 };
+	f.handles[0] = p.handle, f.pitches[0] = stride, f.offsets[0] = offset;
+	/* linear is what a framebuffer without a modifier is; other layouts need
+	 * a driver that understands modifiers */
+	if (modifier != DRM_FORMAT_MOD_INVALID && modifier != 0) {
+		if (!d->modifiers)
+			return 0;
+		f.flags = DRM_MODE_FB_MODIFIERS;
+		f.modifier[0] = modifier;
+	}
+	r = drm_ioctl(d->fd, DRM_IOCTL_MODE_ADDFB2, &f);
+	struct drm_gem_close c = { .handle = p.handle };
+	drm_ioctl(d->fd, DRM_IOCTL_GEM_CLOSE, &c);
+	if (r < 0)
+		eprint("zdisplay: the display can't show a program's buffer: %s\n", err_str(r));
+	return r < 0 ? 0 : f.fb_id;
+}
+
+static void drm_fb_release(Output *o, u32 fb)
+{
+	Drm *d = o->impl;
+	drm_ioctl(d->fd, DRM_IOCTL_MODE_RMFB, &fb);
+}
+
+static bool drm_flip_to(Output *o, u32 fb)
+{
+	Drm *d = o->impl;
+	if (!d->can_flip || !d->mode_set || o->flip_pending)
+		return false;
+	struct drm_mode_crtc_page_flip f = { .crtc_id = d->crtc, .fb_id = fb, .flags = DRM_MODE_PAGE_FLIP_EVENT };
+	int r = drm_ioctl(d->fd, DRM_IOCTL_MODE_PAGE_FLIP, &f);
+	if (r < 0) {
+		eprint("zdisplay: flipping to a program's buffer failed: %s\n", err_str(r));
+		return false;
+	}
+	d->showing_client = true;
+	o->flip_pending = true;
+	return true;
+}
 
 static void driver_name(int fd, char *out, usize cap)
 {
@@ -502,6 +584,16 @@ static Output *try_card(const char *path, bool allow_simple)
 	o->set_gamma = drm_set_gamma;
 	o->fd = fd;
 	o->on_fd = drm_on_fd;
+	/* a real GPU driver can take programs' buffers (the firmware framebuffer can't) */
+	cap = (struct drm_get_cap){ .capability = DRM_CAP_ADDFB2_MODIFIERS };
+	d->modifiers = drm_ioctl(fd, DRM_IOCTL_GET_CAP, &cap) >= 0 && cap.value;
+	struct stat st;
+	if (!str_eq(d->driver, "simpledrm") && sys_fstat(fd, &st) == 0) {
+		o->device = st.st_rdev;
+		o->fb_import = drm_fb_import;
+		o->fb_release = drm_fb_release;
+		o->flip_to = drm_flip_to;
+	}
 	return o;
 fail:
 	dumb_destroy(d, &d->buf[0]);

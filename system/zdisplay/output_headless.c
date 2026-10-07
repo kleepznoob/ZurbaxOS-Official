@@ -122,6 +122,15 @@ static void run_command(int fd, char *line)
 			if (!shell_key(0, KEY_PRESSED, 0, ch))
 				server_key_event(S.focus, 0, KEY_PRESSED, ch);
 		}
+	} else if (str_eq(cmd, "notify")) {
+		/* "notify APP TITLE|BODY", as an app would */
+		char *sp = (char *)str_chr(arg, ' ');
+		if (sp)
+			*sp++ = 0;
+		char *bar = sp ? (char *)str_chr(sp, '|') : NULL;
+		if (bar)
+			*bar++ = 0;
+		shell_notify(arg, arg, sp ? sp : "", bar ? bar : "");
 	} else if (str_eq(cmd, "launch")) {
 		char *sp = (char *)str_chr(arg, ' ');
 		if (sp)

@@ -128,7 +128,7 @@ static int make_cpio(const char *out, char **hooks, int nhooks)
 	}
 	dir_list_free(&apps);
 	add_tree("data", "system/share", NULL);
-	/* Wi-Fi firmware and the regulatory database, where the kernel looks (tools/fetch-firmware.py) */
+	/* Wi-Fi and GPU firmware and the regulatory database, where the kernel looks (tools/fetch-firmware.py) */
 	if (dir_exists("build/firmware")) {
 		check(cpio_dir(&cw, "lib", 0755), "lib");
 		check(cpio_dir(&cw, "lib/firmware", 0755), "lib/firmware");
