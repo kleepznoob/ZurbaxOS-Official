@@ -1,14 +1,14 @@
 /*
  * Welcome — the first-boot assistant (and a short tour later on).
  *
- * Keyboard, time zone, an account and a look, one page each, over the
- * blurred wallpaper. Every step can be skipped: without an account Zurbax
+ * Keyboard, Wi-Fi (when there's no cable), time zone, an account and a look,
+ * one page each, over the blurred wallpaper. Every step can be skipped: without an account Zurbax
  * simply starts with a user that has no password. Booted from the install
  * USB stick it offers to try Zurbax or install it.
  */
 #include "zui.h"
 
-enum { P_WELCOME, P_KEYBOARD, P_TIMEZONE, P_ACCOUNT, P_LOOK, P_DONE, P_COUNT };
+enum { P_WELCOME, P_KEYBOARD, P_NETWORK, P_TIMEZONE, P_ACCOUNT, P_LOOK, P_DONE, P_COUNT };
 
 static const char *const LAYOUT_IDS[] = { "us", "gb", "ro", "de", "fr", "es" };
 static const char *const LAYOUT_TITLES[] = { "English (US)", "English (UK)", "Romanian", "German", "French", "Spanish" };
@@ -29,6 +29,10 @@ typedef struct {
 	u32 pending;
 	char error[160];
 	bool finishing;
+	/* Wi-Fi */
+	char pick[65];        /* the network whose password is being typed */
+	StrBuf wifi_pass;
+	f64 last_scan;
 } Welcome;
 
 static Welcome wl;
@@ -39,9 +43,20 @@ static void save(Ui *ui)
 	ui_settings_changed(ui);
 }
 
+/* The Wi-Fi page is for computers with Wi-Fi and no cable. */
+static bool wifi_page_wanted(void)
+{
+	Conf *c = conf_load("/run/zurbax/network.status");
+	bool want = conf_get_bool(c, "wifi_available", false) && !str_eq(conf_get(c, "kind", ""), "ethernet");
+	conf_free(c);
+	return want;
+}
+
 static void go(Ui *ui, int page)
 {
 	wl.dir = page > wl.page ? 1 : -1;
+	if (page == P_NETWORK && !wifi_page_wanted())
+		page += wl.dir;
 	wl.page = CLAMP(page, 0, P_COUNT - 1);
 	wl.changed_at = wl.now;
 	ui->redraw = true;
@@ -133,6 +148,92 @@ static void form_keyboard(Ui *ui, Rect r)
 	list_choice(ui, &r, LAYOUT_TITLES, LAYOUT_IDS, 6, "keyboard_layout", "us");
 	cut_top(&r, 8);
 	ui_entry(ui, cut_top(&r, 34), "test", &wl.test, "Type here to test your keyboard", ENTRY_AUTOFOCUS);
+}
+
+static void form_network(Ui *ui, Rect r)
+{
+	Theme *t = &ui->theme;
+	Conf *c = conf_load("/run/zurbax/network.status");
+	const char *state = conf_get(c, "wifi_state", "idle");
+	bool radio = str_eq(conf_get(c, "wifi", "off"), "on");
+	char line[160] = "";
+	const char *icon = NULL;
+	Color col = t->text_dim;
+	if (!radio) {
+		str_copy(line, "Wi-Fi is off.", sizeof line);
+	} else if (str_eq(state, "connected")) {
+		fmt(line, sizeof line, "Connected to %s", conf_get(c, "wifi_ssid", ""));
+		icon = "check", col = t->success;
+	} else if (str_eq(state, "connecting")) {
+		fmt(line, sizeof line, "Connecting to %s…", conf_get(c, "wifi_ssid", ""));
+	} else if (conf_get(c, "wifi_error", NULL)) {
+		fmt(line, sizeof line, "Couldn't connect: %s", conf_get(c, "wifi_error", ""));
+		icon = "error", col = t->danger;
+	}
+	conf_free(c);
+	ui_heading(ui, cut_top(&r, 28), "Choose a Network");
+	Rect st = cut_top(&r, 26);
+	if (icon)
+		ui_icon(ui, rect(st.x, st.y + 5, 16, 16), icon, col);
+	ui_text_in(ui, ui_font(ui, 13, 500), rect(st.x + (icon ? 24 : 0), st.y, st.w, st.h), line, col, ALIGN_START);
+	cut_top(&r, 6);
+	if (!radio) {
+		if (ui_button(ui, rect(r.x, r.y, 160, 36), "Turn Wi-Fi On"))
+			wifi_command("radio on");
+		return;
+	}
+	if (wl.now - wl.last_scan > 10) {
+		wl.last_scan = wl.now;
+		wifi_command("scan");
+	}
+	WifiNet nets[24];
+	int n = wifi_networks(nets, 24);
+	Rect list = r;
+	ui_card(ui, list);
+	if (!n) {
+		ui_spinner(ui, center_in(list, 24, 24));
+		ui->wake_at = ui->now + 0.5;
+		return;
+	}
+	f32 y = ui_scroll_begin(ui, pad(list, 4), "nets");
+	for (int i = 0; i < n; i++) {
+		WifiNet *w = &nets[i];
+		bool ok = wifi_supported(w);
+		bool picked = str_eq(wl.pick, w->hex) && !w->connected;
+		f32 h = picked ? 96 : 44;
+		Rect row = rect(list.x + 4, y, list.w - 8, h);
+		y += h;
+		ui_push_id_str(ui, w->hex);
+		UiInteract in = ui_row(ui, rect(row.x, row.y, row.w, 44), ui_id(ui, "n"), w->connected || picked);
+		Color fg = ok ? t->text : t->text_faint;
+		ui_icon(ui, rect(row.x + 12, row.y + 12, 20, 20), wifi_signal_icon(w->signal), fg);
+		ui_text_in(ui, ui_font(ui, 13, w->connected ? 700 : 500), rect(row.x + 44, row.y, row.w - 90, 44), w->ssid, fg, ALIGN_START);
+		if (!str_eq(w->security, "open"))
+			ui_icon(ui, rect(row.x + row.w - 30, row.y + 15, 14, 14), "lock", t->text_faint);
+		if (in.clicked && ok && !w->connected) {
+			if (w->saved || str_eq(w->security, "open")) {
+				wifi_connect(w->hex, NULL);
+				wl.pick[0] = 0;
+			} else {
+				str_copy(wl.pick, w->hex, sizeof wl.pick);
+				sb_clear(&wl.wifi_pass);
+			}
+		}
+		if (picked) {
+			Rect pr = rect(row.x + 12, row.y + 50, row.w - 24 - 90, 36);
+			int ev = ui_entry(ui, pr, "wifi-pass", &wl.wifi_pass, "Password", ENTRY_PASSWORD | ENTRY_AUTOFOCUS);
+			bool good = wl.wifi_pass.len >= 8;
+			if ((ui_button_suggested(ui, rect(pr.x + pr.w + 8, pr.y, 82, 36), "Join") || (ev & ENTRY_SUBMIT)) && good) {
+				wifi_connect(w->hex, sb_str(&wl.wifi_pass));
+				memset(wl.wifi_pass.data, 0, wl.wifi_pass.len);
+				sb_clear(&wl.wifi_pass);
+				wl.pick[0] = 0;
+			}
+		}
+		ui_pop_id(ui);
+	}
+	ui_scroll_end(ui, y - list.y);
+	ui->wake_at = ui->now + 1;   /* the service's state changes on its own */
 }
 
 static void form_timezone(Ui *ui, Rect r)
@@ -324,6 +425,10 @@ static void frame(Ui *ui)
 		page_intro(ui, left, "keyboard", false, "Keyboard", "Choose the layout printed on your keys. AltGr types ș ț ă î â on any of them.");
 		form_keyboard(ui, right);
 		break;
+	case P_NETWORK:
+		page_intro(ui, left, "network-wireless", false, "Wi-Fi", "Connect to the internet for the weather, mail, the web and new apps. You can do this later too.");
+		form_network(ui, right);
+		break;
 	case P_TIMEZONE:
 		page_intro(ui, left, "location", false, "Time Zone", "Pick your city so the clock and calendar are right.");
 		form_timezone(ui, right);
@@ -372,7 +477,7 @@ static void frame(Ui *ui)
 			}
 			go(ui, wl.page + 1);
 		}
-		if (ui_key_pressed(ui, KEY_ENTER, 0) && can && !ui_is_focused(ui, "test"))
+		if (ui_key_pressed(ui, KEY_ENTER, 0) && can && !ui_is_focused(ui, "test") && !ui_is_focused(ui, "wifi-pass"))
 			go(ui, wl.page + 1);
 	}
 	if (wl.setup && wl.page == P_WELCOME) {

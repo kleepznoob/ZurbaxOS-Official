@@ -311,6 +311,11 @@ static void dump_scan(void)
 	nlm_u32(&m, NL80211_ATTR_IFINDEX, (u32)ifindex());
 	genl_call(&W.cmd, &m, scan_cb, NULL);
 	sort_nets();
+	static int last_count = -1;
+	if (W.nnets != last_count) {
+		log_msg("%d Wi-Fi network%s in range", W.nnets, W.nnets == 1 ? "" : "s");
+		last_count = W.nnets;
+	}
 	W.last_dump = time_mono_ms();
 	/* keep the signal of the network we're on fresh */
 	for (int i = 0; i < W.nnets; i++)

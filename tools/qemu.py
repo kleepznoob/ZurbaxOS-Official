@@ -77,6 +77,7 @@ def main():
     stick = disk = vars_file = audio_wav = kernel = None
     debug = False
     extra_cmdline = ""
+    nic = True
     while args and args[0].startswith("--"):
         opt = args.pop(0)
         if opt == "--stick":
@@ -91,6 +92,8 @@ def main():
             audio_wav = args.pop(0)
         elif opt == "--kernel":
             kernel = args.pop(0)
+        elif opt == "--no-nic":
+            nic = False
         elif opt == "--cmdline":
             extra_cmdline += " " + args.pop(0)
     os.makedirs(out, exist_ok=True)
@@ -107,8 +110,8 @@ def main():
            "-drive", f"if=pflash,format=raw,file={vars_file}",
            "-device", "virtio-vga", "-device", "qemu-xhci,id=xhci", "-device", "usb-tablet", "-device", "usb-kbd",
            "-display", "none", "-serial", "file:" + os.path.join(out, "serial.log"),
-           "-qmp", f"unix:{qmp_path},server,nowait", "-no-reboot",
-           "-nic", "user,model=virtio-net-pci"]
+           "-qmp", f"unix:{qmp_path},server,nowait", "-no-reboot"]
+    cmd += ["-nic", "user,model=virtio-net-pci"] if nic else ["-nic", "none"]
     if stick:
         cmd += ["-drive", f"if=none,id=stick,format=raw,file={stick},snapshot=on",
                 "-device", "usb-storage,bus=xhci.0,drive=stick,removable=on,bootindex=1"]
