@@ -604,6 +604,11 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 			shell_screenshot();
 			return true;
 		}
+		/* F11: full screen for the window in front (and game mode with it) */
+		if (code == KEY_F11 && !mods && S.focus && !(S.focus->flags & WIN_POPUP) && (S.focus->flags & WIN_RESIZABLE)) {
+			window_fullscreen(S.focus, !(S.focus->states & STATE_FULLSCREEN));
+			return true;
+		}
 		if ((mods & MOD_CTRL) && (mods & MOD_ALT) && code >= KEY_LEFT && code <= KEY_DOWN) {
 			Window *w = S.focus;
 			if (w) {

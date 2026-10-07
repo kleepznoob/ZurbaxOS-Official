@@ -107,6 +107,7 @@ static void physics(f32 dt)
 			k.lives--;
 			k.shake = 1;
 			sound_play("lose");
+			rumble(0.9f, 0.4f, 350);
 			if (k.lives <= 0) {
 				k.over = true;
 				k.new_best = submit_score("breakout", k.score);

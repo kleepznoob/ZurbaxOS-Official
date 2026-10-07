@@ -30,6 +30,8 @@ bool pad_hit(Ui *ui, int button);
 bool pad_repeat(Ui *ui, int button);
 bool pad_held(Ui *ui, int button);
 bool pad_connected(Ui *ui);
+/* Shakes the controllers: strong (heavy motor) and weak (light buzz), 0..1. */
+void rumble(f32 strong, f32 weak, u32 ms);
 
 /* A dimmed panel over the game with a title, a line and a button; returns
  * true when the button (or Enter / Space, or A / Start) is pressed. */

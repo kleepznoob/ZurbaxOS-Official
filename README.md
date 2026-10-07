@@ -37,9 +37,12 @@ French, Spanish) are built in.
 controllers work the moment they're plugged in, up to four at once. The
 Guide button opens the applications menu, and the D-pad, A and B move
 around it. Every app can be used with a controller: the D-pad and left
-stick act as the arrow keys, A as Enter and B as Escape. The Arcade's games
-have proper controller layouts, and Settings → Gaming shows a live picture
-of each controller to test its buttons and sticks.
+stick act as the arrow keys, A as Enter and B as Escape. Games can make
+controllers vibrate, the top bar shows when one is connected, and a notice
+gives its battery level. The Arcade's games have proper controller
+layouts, and Settings → Gaming shows a live picture of each controller to
+test its buttons, sticks and vibration. F11 makes any window full screen,
+which also turns on game mode.
 
 **First start.** The Welcome assistant covers keyboard, time zone, an
 account and a look. Every step can be skipped. When started from the USB

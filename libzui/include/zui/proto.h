@@ -39,6 +39,7 @@ enum {
 	MSG_SESSION,        /* lock, logout, restart, shut down, sleep */
 	MSG_WIN_SET_SIZE,   /* the app asks for a new size (e.g. switching modes) */
 	MSG_ACCOUNT,        /* change the user's name or password (Settings) */
+	MSG_RUMBLE,         /* shake a game controller (the focused app only) */
 
 	/* server -> app */
 	MSG_WELCOME = 64,
@@ -337,4 +338,14 @@ typedef struct {
 	u32 buttons;           /* bit per PAD_* button */
 	f32 axes[PAD_AXES];
 	char name[64];
+	i32 battery;           /* percent, -1 when it doesn't say (wired) */
+	u32 rumble;            /* it has vibration motors */
 } MsgGamepad;
+
+/* app -> server: shake a controller. */
+typedef struct {
+	MsgHeader h;
+	i32 pad;               /* -1 for every controller */
+	u16 strong, weak;      /* heavy (low) and light (high) motors, 0..65535 */
+	u32 ms;
+} MsgRumble;

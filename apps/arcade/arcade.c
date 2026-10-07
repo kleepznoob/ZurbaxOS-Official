@@ -111,6 +111,12 @@ bool pad_connected(Ui *ui)
 	return ui_pad_count(ui) > 0;
 }
 
+void rumble(f32 strong, f32 weak, u32 ms)
+{
+	if (the_ui && ui_pad_count(the_ui))
+		ui_pad_rumble(the_ui, -1, strong, weak, ms);
+}
+
 bool game_overlay(Ui *ui, Rect r, const char *title, const char *sub, const char *button)
 {
 	ui_round(ui, r, 12, color_hex("#0b0d14c0"));

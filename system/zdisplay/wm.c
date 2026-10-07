@@ -216,6 +216,23 @@ void window_set_rect(Window *w, Rect r, bool animate)
 	damage_window(w);
 }
 
+void window_fullscreen(Window *w, bool on)
+{
+	if (on == !!(w->states & STATE_FULLSCREEN))
+		return;
+	if (on) {
+		w->saved = w->rect;
+		w->states |= STATE_FULLSCREEN;
+		window_set_rect(w, rect(0, 0, S.sw, S.sh), false);
+	} else {
+		w->states &= ~(u32)STATE_FULLSCREEN;
+		window_set_rect(w, w->saved, false);
+	}
+	window_configure(w);
+	damage_all();
+	game_mode_update();
+}
+
 void window_maximize(Window *w, bool on)
 {
 	shell_mark_dirty(); /* the dock and panel reflect window state */

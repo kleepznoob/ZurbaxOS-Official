@@ -65,6 +65,7 @@ void settings_load(void)
 	s->game_mode = conf_get_bool(c, "game_mode", true);
 	s->show_fps = conf_get_bool(c, "show_fps", false);
 	s->mouse_accel = conf_get_bool(c, "mouse_accel", true);
+	s->pad_rumble = conf_get_bool(c, "pad_rumble", true);
 	s->alert_sounds = conf_get_bool(c, "alert_sounds", true);
 	S.volume = (int)conf_get_int(c, "volume", 60);
 	conf_free(c);

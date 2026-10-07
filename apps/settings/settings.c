@@ -885,10 +885,11 @@ static void page_gaming(Ui *ui, Rect r)
 	b.h = 100000;
 	f32 top = b.y;
 	page_title(ui, &b, "Gaming", "Get the most out of this computer when you play.");
-	Rect rows = card_rows(ui, &b, 3, 64);
+	Rect rows = card_rows(ui, &b, 4, 64);
 	switch_row(ui, &rows, 64, false, "Game Mode", "Full speed for the processor and no notifications while a game is full screen",
 		   "game_mode", true);
 	switch_row(ui, &rows, 64, false, "Frame rate counter", "Shows frames per second in the corner of the screen", "show_fps", false);
+	switch_row(ui, &rows, 64, false, "Controller vibration", "Lets games shake your controller when something happens", "pad_rumble", true);
 	switch_row(ui, &rows, 64, true, "Mouse acceleration", "Turn off for precise aiming", "mouse_accel", true);
 	section(ui, &b, "Windows Programs");
 	Rect card = cut_top(&b, 92);
@@ -941,6 +942,19 @@ static void page_gaming(Ui *ui, Rect r)
 		} else {
 			ui_text_in(ui, ui_font(ui, 12, 400), rect(head.x, head.y, head.w, 30), "Press buttons to test them", t->text_dim, ALIGN_END);
 		}
+		/* battery and a vibration test along the bottom */
+		Rect foot = rect(in.x, in.y + in.h - 32, in.w, 32);
+		int level = ui->pads[shown_pad].battery;
+		if (level >= 0) {
+			char bat[32];
+			fmt(bat, sizeof bat, "Battery %d%%", level);
+			ui_icon(ui, rect(foot.x, foot.y + 7, 18, 18), level > 80 ? "battery-full" : level > 45 ? "battery-good" : level > 15 ? "battery-low" : "battery-caution",
+				level < 20 ? color_hex("#e5484d") : t->text_dim);
+			ui_text_in(ui, ui_font(ui, 12, 600), rect(foot.x + 26, foot.y, 160, 32), bat, level < 20 ? color_hex("#e5484d") : t->text_dim, ALIGN_START);
+		}
+		if (ui->pads[shown_pad].rumble && ui_button(ui, rect(foot.x + foot.w - 140, foot.y, 140, 32), "Test Vibration"))
+			ui_pad_rumble(ui, shown_pad, 0.8f, 0.6f, 400);
+		in.h -= 36;
 		controller_test(ui, in, shown_pad);
 	}
 	cut_top(&b, 14);

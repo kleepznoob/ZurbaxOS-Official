@@ -110,6 +110,7 @@ int main(int argc, char **argv)
 	}
 	sig_ignore(SIGPIPE);
 	S.loop = loop_new();
+	S.started_ms = time_mono_ms();
 	settings_load();
 	if (scale_arg > 0)
 		S.set.scale_override = scale_arg;

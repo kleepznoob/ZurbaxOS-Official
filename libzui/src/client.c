@@ -126,6 +126,10 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 	case MSG_GAMEPAD: {
 		const MsgGamepad *m = (const MsgGamepad *)buf;
 		ui_input_gamepad(ui, m->pad, m->connected, m->buttons, m->axes, m->name);
+		if (m->pad < PAD_MAX) {
+			ui->pads[m->pad].battery = m->battery;
+			ui->pads[m->pad].rumble = m->rumble;
+		}
 		c->dirty = true;
 		break;
 	}
@@ -359,6 +363,15 @@ void ui_notify(Ui *ui, const char *title, const char *body, const char *icon)
 	str_copy(m.title, title, sizeof m.title);
 	str_copy(m.body, body ? body : "", sizeof m.body);
 	send_msg(c, &m, MSG_NOTIFY, sizeof m, NULL, 0);
+}
+
+void ui_pad_rumble(Ui *ui, int pad, f32 strong, f32 weak, u32 ms)
+{
+	Client *c = ui->driver;
+	if (!c || !ui->window_focused)
+		return;
+	MsgRumble m = { .pad = pad, .strong = (u16)(clampf(strong, 0, 1) * 65535), .weak = (u16)(clampf(weak, 0, 1) * 65535), .ms = ms };
+	send_msg(c, &m, MSG_RUMBLE, sizeof m, NULL, 0);
 }
 
 void ui_launch(Ui *ui, const char *app_id, const char *arg)

@@ -103,6 +103,8 @@ typedef struct Ui {
 		u32 buttons;        /* bit per PAD_* button, held now */
 		u32 hit;            /* went down since the last frame */
 		f32 axes[PAD_AXES];
+		int battery;        /* percent, -1 if unknown */
+		bool rumble;        /* can vibrate */
 	} pads[PAD_MAX];
 	u64 pad_raw_frame;      /* the last frame the app said it reads controllers itself */
 	u32 pad_keys;           /* keys made from controller input that are held (translation) */
@@ -201,6 +203,9 @@ bool ui_pad_held(Ui *ui, int pad, int button);    /* one controller (local multi
 f32 ui_pad_axis(Ui *ui, int axis);                /* -1..1 (triggers 0..1), with a dead zone */
 f32 ui_pad_axis_of(Ui *ui, int pad, int axis);
 void ui_pad_raw(Ui *ui);                          /* call each frame: this app reads controllers itself */
+/* Shakes a controller (pad -1: all of them) for ms milliseconds; strong is
+ * the heavy motor, weak the light buzz, each 0..1. Only while focused. */
+void ui_pad_rumble(Ui *ui, int pad, f32 strong, f32 weak, u32 ms);
 void ui_set_cursor(Ui *ui, u32 shape);
 void ui_request_frame(Ui *ui);
 

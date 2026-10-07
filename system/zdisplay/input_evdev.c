@@ -26,6 +26,24 @@ struct input_absinfo {
 #define EVIOCGABS(abs) IOR('E', 0x40 + (abs), struct input_absinfo)
 #define EVIOCGRAB IOW('E', 0x90, int)
 
+/* Force feedback: just the rumble effect (two motors). */
+struct ff_effect {
+	u16 type;
+	i16 id;
+	u16 direction;
+	u16 trigger_button, trigger_interval;
+	u16 replay_length, replay_delay;
+	union {
+		struct {
+			u16 strong, weak;
+		} rumble;
+		u64 align[4];  /* the kernel's union is 32 bytes, 8-aligned */
+	} u;
+};
+_Static_assert(sizeof(struct ff_effect) == 48, "struct ff_effect must match the kernel's");
+#define EVIOCSFF IOW('E', 0x80, struct ff_effect)
+enum { EV_FF = 0x15, FF_RUMBLE = 0x50 };
+
 enum { EV_SYN = 0, EV_KEY = 1, EV_REL = 2, EV_ABS = 3, EV_MSC = 4, EV_SW = 5, EV_LED = 0x11 };
 enum { SYN_REPORT = 0, SYN_DROPPED = 3 };
 enum { REL_X = 0, REL_Y = 1, REL_HWHEEL = 6, REL_WHEEL = 8, REL_WHEEL_HI_RES = 11, REL_HWHEEL_HI_RES = 12 };
@@ -97,6 +115,11 @@ typedef struct Device {
 	u32 pad_buttons, hat_buttons;
 	f32 pad_axes[PAD_AXES];
 	bool pad_dirty;
+	bool rumble;                /* has rumble motors */
+	i16 ff_id;                  /* the uploaded rumble effect, -1 before the first */
+	char battery[160];          /* its battery's capacity file in sysfs, if any */
+	int battery_level;          /* last read, with when */
+	u64 battery_at;
 } Device;
 
 static Device *pads[PAD_MAX];
@@ -118,6 +141,12 @@ static void device_close(Device *d)
 	if (d->kind & DEV_GAMEPAD) {
 		pad_announce(d, false);
 		pads[d->pad] = NULL;
+		if (d->fd >= 0) {
+			char body[160];
+			fmt(body, sizeof body, "%s was unplugged or turned off.", d->name);
+			shell_notify("settings", "gamepad", "Controller disconnected", body);
+		}
+		shell_mark_dirty();
 	}
 	loop_del_fd(S.loop, d->fd);
 	sys_close(d->fd);
@@ -286,6 +315,8 @@ static u32 mouse_button(u32 code)
 
 /* ---- Game controllers ------------------------------------------------------------------ */
 
+int input_pad_battery(int pad);
+
 static void pad_message(const Device *d, bool connected, MsgGamepad *m)
 {
 	memset(m, 0, sizeof *m);
@@ -296,6 +327,8 @@ static void pad_message(const Device *d, bool connected, MsgGamepad *m)
 		memcpy(m->axes, d->pad_axes, sizeof m->axes);
 	}
 	str_copy(m->name, d->name, sizeof m->name);
+	m->battery = d->pad >= 0 ? input_pad_battery(d->pad) : -1;
+	m->rumble = d->rumble;
 }
 
 static void pad_announce(Device *d, bool connected)
@@ -494,7 +527,71 @@ static void pad_setup(Device *d, const u8 *absbits, const u8 *keybits)
 		target[n] = 0;
 		d->xbox = str_eq(path_base(target), "xpad");
 	}
+	/* rumble motors */
+	u8 ffbits[16] = { 0 };
+	sys_ioctl(d->fd, EVIOCGBIT(EV_FF, sizeof ffbits), ffbits);
+	d->rumble = test_bit(ffbits, FF_RUMBLE);
+	d->ff_id = -1;
+	/* a battery: wireless controllers report one next to their HID device */
+	char dir[160];
+	fmt(dir, sizeof dir, "/sys/class/input/%s/device/device/power_supply", path_base(d->path));
+	DirList ps = { 0 };
+	if (dir_list(dir, &ps, false)) {
+		for (usize i = 0; i < ps.len && !d->battery[0]; i++) {
+			char cap[160];
+			fmt(cap, sizeof cap, "%s/%s/capacity", dir, ps.data[i].name);
+			if (file_exists(cap))
+				str_copy(d->battery, cap, sizeof d->battery);
+		}
+		dir_list_free(&ps);
+	}
 	pad_announce(d, true);
+	/* say so, unless it was already plugged in when the desktop started */
+	if (time_mono_ms() - S.started_ms > 8000) {
+		char body[160];
+		int level = input_pad_battery(slot);
+		if (level >= 0)
+			fmt(body, sizeof body, "%s is ready. Battery %d%%.", d->name, level);
+		else
+			fmt(body, sizeof body, "%s is ready to play.", d->name);
+		shell_notify("settings", "gamepad", "Controller connected", body);
+	}
+	/* a short buzz to show it's working */
+	input_pad_rumble(slot, 0.25f, 0.35f, 160);
+	shell_mark_dirty(); /* the top bar shows a controller */
+}
+
+void input_pad_rumble(int pad, f32 strong, f32 weak, u32 ms)
+{
+	for (int i = 0; i < PAD_MAX; i++) {
+		Device *d = pads[i];
+		if ((pad >= 0 && i != pad) || !d || d->fd < 0 || !d->rumble || !S.set.pad_rumble)
+			continue;
+		struct ff_effect e = { .type = FF_RUMBLE, .id = d->ff_id, .replay_length = (u16)MIN(ms, 5000u) };
+		e.u.rumble.strong = (u16)(clampf(strong, 0, 1) * 65535);
+		e.u.rumble.weak = (u16)(clampf(weak, 0, 1) * 65535);
+		if (sys_ioctl(d->fd, EVIOCSFF, &e) < 0)
+			continue;
+		d->ff_id = e.id;
+		struct input_event play = { .type = EV_FF, .code = (u16)e.id, .value = 1 };
+		sys_write(d->fd, &play, sizeof play);
+	}
+}
+
+int input_pad_battery(int pad)
+{
+	Device *d = pad >= 0 && pad < PAD_MAX ? pads[pad] : NULL;
+	if (!d || !d->battery[0])
+		return -1;
+	/* read at most every half minute: messages go out on every button press */
+	u64 now = time_mono_ms();
+	if (!d->battery_at || now - d->battery_at > 30000) {
+		char *s = file_read_line(d->battery);
+		d->battery_level = s ? (int)str_to_int(s, NULL) : -1;
+		d->battery_at = now;
+		mem_free(s);
+	}
+	return d->battery_level;
 }
 
 /* A controller with no hardware behind it, for the headless test desktop. */
@@ -515,6 +612,7 @@ void input_fake_pad(int button, bool down, int axis, f32 value)
 	if (axis >= 0 && axis < PAD_AXES)
 		fake.pad_axes[axis] = clampf(value, -1, 1);
 	pad_announce(&fake, true);
+	shell_mark_dirty();
 }
 
 static void handle_key(Device *d, u32 code, i32 value)

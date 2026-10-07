@@ -212,6 +212,11 @@ void panel_draw(Ui *ui)
 		x -= 12;
 		STATUS_ICON("notifications-disabled");
 	}
+	char pad_names[PAD_MAX][64];
+	if (input_gamepads(pad_names, PAD_MAX) > 0) {
+		x -= 12;
+		STATUS_ICON("gamepad");
+	}
 	x -= 10;
 #undef STATUS_ICON
 	panel_status_btn = rect(x, 0, right - x, PANEL_HEIGHT);

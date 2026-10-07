@@ -113,6 +113,7 @@ static void lock_piece(void)
 		b.level = 1 + b.lines / 10;
 		b.clear_t = 0.22;
 		sound_play(full == 4 ? "win" : "coin");
+		rumble(full == 4 ? 0.8f : 0.2f * (f32)full, 0.5f, full == 4 ? 300 : 120);
 	} else {
 		sound_play("pop");
 		next_piece();

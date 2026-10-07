@@ -149,23 +149,8 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 			break;
 		case ACTION_MINIMIZE: window_minimize(w, true); break;
 		case ACTION_CLOSE: window_close_request(w); break;
-		case ACTION_FULLSCREEN:
-			if (!(w->states & STATE_FULLSCREEN)) {
-				w->saved = w->rect;
-				w->states |= STATE_FULLSCREEN;
-				window_set_rect(w, rect(0, 0, S.sw, S.sh), false);
-				window_configure(w);
-				damage_all();
-			}
-			break;
-		case ACTION_UNFULLSCREEN:
-			if (w->states & STATE_FULLSCREEN) {
-				w->states &= ~(u32)STATE_FULLSCREEN;
-				window_set_rect(w, w->saved, false);
-				window_configure(w);
-				damage_all();
-			}
-			break;
+		case ACTION_FULLSCREEN: window_fullscreen(w, true); break;
+		case ACTION_UNFULLSCREEN: window_fullscreen(w, false); break;
 		case ACTION_RAISE:
 			if (w->minimized)
 				window_minimize(w, false);
@@ -193,6 +178,13 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 				S.cursor = w->cursor;
 				cursor_update();
 			}
+		}
+		break;
+	case MSG_RUMBLE:
+		/* only the app in front may shake the controllers */
+		if (len >= sizeof(MsgRumble) && S.focus && S.focus->client == c && S.set.pad_rumble) {
+			const MsgRumble *m = (const MsgRumble *)buf;
+			input_pad_rumble(m->pad, (f32)m->strong / 65535, (f32)m->weak / 65535, m->ms);
 		}
 		break;
 	case MSG_NOTIFY:

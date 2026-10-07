@@ -381,6 +381,7 @@ static void crash(void)
 	burst(G.pos, color_hex("#fff4d6"), 50, 18);
 	sound_play("hit");
 	sound_play("lose");
+	rumble(1, 0.7f, 480);
 	G.new_best = submit_score("glide", G.score);
 }
 
@@ -431,6 +432,7 @@ static void step(f32 dt, f32 sx, f32 sy, bool want_boost, bool demo)
 					G.boost = minf(1, G.boost + 0.3f);
 					G.flash = 1;
 					sound_play("coin");
+					rumble(0, 0.45f, 90);
 				}
 			} else {
 				G.streak = 0;

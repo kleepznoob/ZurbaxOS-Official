@@ -157,6 +157,7 @@ typedef struct {
 	bool game_mode;
 	bool show_fps;
 	bool mouse_accel;
+	bool pad_rumble;            /* controllers may vibrate */
 	bool alert_sounds;
 	bool setup_done;            /* the first-boot assistant has finished */
 } Settings;
@@ -253,6 +254,7 @@ typedef struct {
 	u32 frames_composed;         /* for the frame rate counter */
 	f32 fps;
 	bool gaming;                 /* game mode active: a full-screen window has focus */
+	u64 started_ms;              /* when the display server started (monotonic) */
 	/* screenshots */
 	bool capturing;              /* composing a frame for a screenshot: no cursor */
 	bool selecting_area;         /* the user is dragging out an area to capture */
@@ -292,6 +294,7 @@ void window_focus(Window *w);
 void window_raise(Window *w);
 void window_set_rect(Window *w, Rect r, bool animate);
 void window_maximize(Window *w, bool on);
+void window_fullscreen(Window *w, bool on);
 void window_tile(Window *w, int side); /* -1 left, 1 right */
 void window_minimize(Window *w, bool on);
 void window_configure(Window *w);
@@ -321,6 +324,8 @@ void input_gamepads_focus(Window *w, bool focused);
 int input_gamepads(char names[][64], int max);
 void input_activity(void);
 void input_fake_pad(int button, bool down, int axis, f32 value);   /* headless tests */
+void input_pad_rumble(int pad, f32 strong, f32 weak, u32 ms);       /* pad -1: all */
+int input_pad_battery(int pad);                                     /* percent, or -1 if unknown */
 /* The Applications launcher with arrow keys or a controller (shell_ui.c) */
 void launcher_nav(int dx, int dy);
 void launcher_activate(void);
