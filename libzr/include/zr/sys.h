@@ -448,6 +448,7 @@ static inline long sys_mount(const char *src, const char *dst, const char *type,
 static inline long sys_umount(const char *path, int flags) { return SC(2, SYS_umount2, (long)path, flags); }
 static inline long sys_unshare(int flags) { return SC(1, SYS_unshare, flags); }
 static inline long sys_pivot_root(const char *new_root, const char *put_old) { return SC(2, SYS_pivot_root, (long)new_root, (long)put_old); }
+static inline long sys_chroot(const char *path) { return SC(1, SYS_chroot, (long)path); }
 static inline long sys_reboot(int cmd) { return SC(4, SYS_reboot, REBOOT_MAGIC1, REBOOT_MAGIC2, cmd, 0); }
 
 static inline long sys_socket(int domain, int type, int proto) { return SC(3, SYS_socket, domain, type, proto); }

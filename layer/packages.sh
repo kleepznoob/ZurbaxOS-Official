@@ -309,7 +309,56 @@ pkg_zaudio_alsa() {
 	fi
 }
 
-ORDER+=(alsa_lib alsa_lib:32 zaudio_alsa zaudio_alsa:32)
+# PulseAudio: Proton's Wine, SDL and Steam's runtime play sound through it;
+# Steam passes its socket into the containers games run in. Here it has one
+# output, ALSA's zaudio plugin, so everything reaches ZOS's sound service.
+# layerrun starts it with a Steam session.
+pkg_speexdsp() {
+	unpack speexdsp
+	autobuild --disable-examples
+}
+
+pkg_libsndfile() {
+	unpack libsndfile
+	cmakebuild -DBUILD_SHARED_LIBS=ON -DBUILD_PROGRAMS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF \
+		-DENABLE_EXTERNAL_LIBS=OFF -DENABLE_MPEG=OFF -DENABLE_CPACK=OFF -DINSTALL_MANPAGES=OFF
+}
+
+pkg_pulseaudio() {
+	unpack pulseaudio
+	local off=(asyncns avahi bluez5 dbus elogind fftw glib gsettings gstreamer gtk jack lirc openssl orc samplerate
+		soxr systemd tcpwrap udev valgrind x11 consolekit)
+	local opts=() o
+	for o in "${off[@]}"; do opts+=("-D$o=disabled"); done
+	mesonbuild -Ddaemon=true -Dclient=true -Ddoxygen=false -Dman=false -Dtests=false -Ddatabase=simple \
+		-Dalsa=enabled -Dspeex=enabled -Dwebrtc-aec=disabled -Dadrian-aec=false -Dhal-compat=false \
+		-Dbluez5-gstreamer=disabled -Dstream-restore-clear-old-devices=true "${opts[@]}"
+	cat >"$ROOT/etc/pulse/zos.pa" <<-'EOF'
+		# ZOS: one output, ALSA's zaudio plugin (ZOS's sound service); see layer/packages.sh
+		.fail
+		load-module module-alsa-sink device=zaudio sink_name=zos sink_properties=device.description=ZOS tsched=0
+		load-module module-null-source source_name=silence
+		load-module module-native-protocol-unix auth-anonymous=1
+		load-module module-always-sink
+		set-default-sink zos
+		set-default-source silence
+	EOF
+	cat >>"$ROOT/etc/pulse/daemon.conf" <<-'EOF'
+
+		; ZOS: started by layerrun for the session, no real-time priority to ask for
+		exit-idle-time = -1
+		realtime-scheduling = no
+		flat-volumes = no
+		default-sample-rate = 48000
+		resample-method = speex-float-1
+	EOF
+	printf '
+; ZOS: layerrun starts the server
+autospawn = no
+' >>"$ROOT/etc/pulse/client.conf"
+}
+
+ORDER+=(alsa_lib alsa_lib:32 zaudio_alsa zaudio_alsa:32 speexdsp libsndfile pulseaudio)
 
 # ---- The commands Steam's scripts run ----------------------------------------------------
 

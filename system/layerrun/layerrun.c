@@ -4,7 +4,7 @@
  * ZOS itself has none of that; the layer is how Steam, Proton and other
  * standard Linux programs run on it.
  *
- *     layerrun [--layer DIR] [--x11] [--app ID] PROGRAM [ARGS...]
+ *     layerrun [--layer DIR] [--x11] [--sound] [--app ID] PROGRAM [ARGS...]
  *     layerrun --check [--layer DIR]
  *
  * The program sees the layer as its whole file system, with ZOS's /dev,
@@ -14,7 +14,9 @@
  * privileges, and nothing outside the program sees a change.
  *
  * With --x11 the layer's Xwayland runs first, full screen on zdisplay, and
- * the program gets it as its DISPLAY (Steam and X11 games). --app names the
+ * the program gets it as its DISPLAY (Steam and X11 games), along with the
+ * layer's sound server (PulseAudio playing through zaudio; --sound alone
+ * starts just that). --app names the
  * ZOS app the windows belong to, for the dock. The default layer is
  * /data/layers/steam.
  */
@@ -76,6 +78,7 @@ static int check(void)
 		{ "the Vulkan loader", "/usr/lib/libvulkan.so.1 /usr/lib/x86_64-linux-gnu/libvulkan.so.1", true },
 		{ "Vulkan drivers (Mesa)", "/usr/share/vulkan/icd.d", true },
 		{ "the Steam launcher", "/usr/bin/steam /usr/games/steam", true },
+		{ "sound for games (PulseAudio)", "/usr/bin/pulseaudio", false },
 	};
 	bool ok = dir_exists(layer);
 	print("layer: %s%s\n", layer, ok ? "" : " (missing)");
@@ -221,9 +224,19 @@ static void build_root(const char *user, const char *home)
 	long r = sys_chdir(layer);
 	if (r >= 0)
 		r = sys_pivot_root(".", ".");
+	if (r >= 0) {
+		sys_umount(".", MNT_DETACH); /* ZOS's own root, now under the layer */
+	} else if (r == -EINVAL) {
+		/* ZOS runs from the initial RAM file system, which can't be pivoted
+		 * away from: the layer moves over it instead, as switch_root does.
+		 * The layer's root is then a mount of its own, so containers made
+		 * inside it (Steam's runtime) can pivot. */
+		r = sys_mount(".", "/", NULL, MS_MOVE, NULL);
+		if (r >= 0)
+			r = sys_chroot(".");
+	}
 	if (r < 0)
 		fail("cannot switch to the layer: %s", err_str(r));
-	sys_umount(".", MNT_DETACH); /* ZOS's own root, now under the layer */
 	sys_chdir("/");
 }
 
@@ -325,16 +338,33 @@ static int start_x(int *xpid)
 	return (int)str_to_int(buf, NULL);
 }
 
+/* The layer's sound server for the session: PulseAudio (what Proton, SDL
+ * and Steam's runtime play to), with ALSA's zaudio plugin as its only output.
+ * Returns its pid once its socket is up, or 0 when the layer has none. */
+static int start_sound(void)
+{
+	if (!file_exists("/usr/bin/pulseaudio") || !file_exists("/etc/pulse/zos.pa"))
+		return 0;
+	char *argv[] = { "pulseaudio", "-n", "-F", "/etc/pulse/zos.pa", "--daemonize=no", "--exit-idle-time=-1",
+			 "--log-target=stderr", "--log-level=error", NULL };
+	int pid = spawn(argv);
+	for (int tries = 0; tries < 40 && !file_exists("/.zos/runtime/pulse/native"); tries++)
+		sleep_ms(50);
+	return pid;
+}
+
 int main(int argc, char **argv)
 {
-	bool x11 = false, check_only = false;
+	bool x11 = false, sound = false, check_only = false;
 	const char *app = NULL;
 	int i = 1;
 	for (; i < argc && argv[i][0] == '-'; i++) {
 		if (str_eq(argv[i], "--layer") && i + 1 < argc)
 			layer = argv[++i];
 		else if (str_eq(argv[i], "--x11"))
-			x11 = true;
+			x11 = sound = true;
+		else if (str_eq(argv[i], "--sound"))
+			sound = true;
 		else if (str_eq(argv[i], "--app") && i + 1 < argc)
 			app = argv[++i];
 		else if (str_eq(argv[i], "--check"))
@@ -345,7 +375,7 @@ int main(int argc, char **argv)
 	if (check_only)
 		return check();
 	if (i >= argc) {
-		eprint("usage: layerrun [--layer DIR] [--x11] [--app ID] PROGRAM [ARGS...]\n       layerrun --check [--layer DIR]\n");
+		eprint("usage: layerrun [--layer DIR] [--x11] [--sound] [--app ID] PROGRAM [ARGS...]\n       layerrun --check [--layer DIR]\n");
 		return 2;
 	}
 	const char *home = env_get("HOME"), *user = env_get("USER");
@@ -371,6 +401,7 @@ int main(int argc, char **argv)
 	setenv_("XDG_SESSION_TYPE", x11 ? "x11" : "wayland");
 	if (app)
 		setenv_("ZOS_APP_ID", app);
+	int spid = sound ? start_sound() : 0;
 	int xpid = 0;
 	if (x11) {
 		char d[16];
@@ -399,6 +430,10 @@ int main(int argc, char **argv)
 	if (xpid > 0) {
 		sys_kill(xpid, SIGTERM);
 		sys_wait4(xpid, NULL, 0, NULL);
+	}
+	if (spid > 0) {
+		sys_kill(spid, SIGTERM);
+		sys_wait4(spid, NULL, 0, NULL);
 	}
 	return (status & 0x7f) ? 128 + (status & 0x7f) : (status >> 8) & 0xff;
 }
