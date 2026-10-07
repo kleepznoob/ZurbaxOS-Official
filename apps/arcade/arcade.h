@@ -12,7 +12,7 @@ typedef struct {
 	Color top, bottom;               /* card colours */
 } Game;
 
-extern const Game GAME_BLOCKS, GAME_SNAKE, GAME_2048, GAME_MINES, GAME_BREAKOUT;
+extern const Game GAME_GLIDE, GAME_BLOCKS, GAME_SNAKE, GAME_2048, GAME_MINES, GAME_BREAKOUT;
 
 /* Scores are kept per game in ~/.local/share/zurbax/arcade.conf. */
 int best_score(const char *id);

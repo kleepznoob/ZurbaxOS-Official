@@ -101,3 +101,5 @@ bool r3_project(R3 *r, Vec3 p, Vec2 *out, f32 *scale);
 /* Rasterizes everything collected since r3_begin. */
 void r3_end(R3 *r);
 u32 r3_triangles(R3 *r);                           /* drawn in the last frame */
+/* How far away the scene is at a pixel of the last frame (huge for sky). */
+f32 r3_distance_at(R3 *r, int x, int y);

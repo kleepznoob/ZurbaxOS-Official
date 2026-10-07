@@ -7,7 +7,7 @@
  */
 #include "arcade.h"
 
-static const Game *const GAMES[] = { &GAME_BLOCKS, &GAME_SNAKE, &GAME_2048, &GAME_MINES, &GAME_BREAKOUT };
+static const Game *const GAMES[] = { &GAME_GLIDE, &GAME_BLOCKS, &GAME_SNAKE, &GAME_2048, &GAME_MINES, &GAME_BREAKOUT };
 
 static const Game *playing;
 static int hub_sel = -1; /* the card picked with the keyboard or a controller */

@@ -641,10 +641,10 @@ static void sky_rows(R3 *r, int y0, int y1)
 			f32 il = 1 / sqrtf(v3_dot(d, d));
 			f32 e = d.y * il;
 			int dither = BAYER[y & 3][x & 3];
+			/* below the horizon (past the land's edge) stays the horizon colour,
+			 * which is what distant land fades into */
 			int i = (int)(clampf(e, 0, 1) * 255 + (f32)dither / 16);
 			u32 px = r->sky_lut[MIN(i, 255)];
-			if (e < 0) /* below the horizon (seen past the ground's edge): a touch darker */
-				px = (((px >> 1) & 0x7f7f7f) + ((px >> 2) & 0x3f3f3f) + ((px >> 3) & 0x1f1f1f)) | 0xff000000u;
 			if (r->sun_cos <= 1) {
 				f32 c = v3_dot(d, r->sun) * il;
 				if (c > r->sun_cos) {
@@ -817,4 +817,12 @@ void r3_end(R3 *r)
 u32 r3_triangles(R3 *r)
 {
 	return r->drawn;
+}
+
+f32 r3_distance_at(R3 *r, int x, int y)
+{
+	if (x < 0 || y < 0 || x >= r->w || y >= r->h || !r->depth)
+		return 1e30f;
+	f32 z = r->depth[(usize)y * (usize)r->w + (usize)x];
+	return z > 0 ? 1 / z : 1e30f;
 }

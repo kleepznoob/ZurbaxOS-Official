@@ -59,7 +59,7 @@ boot menu. It takes about a minute.
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
 | Help | A searchable guide to Zurbax |
-| Arcade | Blocks, Snake, 2048, Mines and Breakout, with best scores; keyboard, mouse or controller |
+| Arcade | Glide, a 3D flying game, plus Blocks, Snake, 2048, Mines and Breakout, with best scores; keyboard, mouse or controller |
 | Music | Albums, songs and artists from your Music folder (FLAC, Ogg Vorbis, WAV) |
 | Weather | Live forecasts with an hourly strip, the week and details |
 | Photos | Viewer for PNG, JPEG, GIF and BMP |
@@ -72,6 +72,11 @@ boot menu. It takes about a minute.
 | Screenshot | Capture the screen, a window or an area |
 | Settings | Appearance, wallpaper, display, sound, network, keyboard, mouse, power, users, about |
 | Welcome, Installer | Setup and installation |
+
+**Glide** is the Arcade's 3D game: fly a paper glider through golden rings
+over an endless low-poly land of lakes, hills and forests at sunset. It's
+drawn by Zurbax's own 3D renderer on every processor core, and lowers its
+resolution by itself when a machine can't keep up.
 
 **In Harbor** (installed when you want them): Chess, with a computer
 opponent from Easy to Expert; Sudoku, with fresh puzzles that each have one
@@ -97,7 +102,7 @@ needs an app password (Mail explains how when you type a Gmail address).
 
 ```sh
 make            # everything: libraries, system programs, apps
-make test       # the test suites (runtime, graphics, toolkit, TLS/crypto, audio)
+make test       # the test suites (runtime, graphics, 3D, toolkit, TLS/crypto, audio, Wi-Fi)
 make image      # the kernel with the system inside, and build/zurbax.img
 make run        # boot build/zurbax.img in QEMU with UEFI firmware
 ```
@@ -116,7 +121,7 @@ artifact).
 | Path | What it is |
 |------|------------|
 | `libzr/` | The runtime: syscalls, memory, strings, files, time zones, processes, events, JSON, SHA-256 |
-| `libzg/` | Graphics: rasterizer, gradients, blur, PNG/JPEG/GIF/BMP, SVG icons, the font |
+| `libzg/` | Graphics: rasterizer, gradients, blur, PNG/JPEG/GIF/BMP, SVG icons, the font, a software 3D renderer |
 | `libzui/` | The toolkit: widgets, layout, text editing, dialogs, sound client |
 | `libzn/` | Networking: crypto, X.509, TLS 1.3, DNS, HTTP |
 | `libza/` | Audio files: WAV, FLAC, Ogg Vorbis, tags and cover art |
@@ -139,7 +144,7 @@ artifact).
   WebP pictures don't show yet.
 - **MP3 and AAC playback.** These need the formats' large fixed tables;
   FLAC, Ogg Vorbis and WAV play.
-- **3D graphics.** The desktop is drawn in software and works on any GPU
-  through the firmware's framebuffer. Hardware-accelerated 3D for big
-  games would need GPU drivers in user space, which Zurbax doesn't have.
+- **Hardware 3D.** The desktop and Glide are drawn in software, so they
+  work on any GPU through the firmware's framebuffer. Big 3D games would
+  need GPU drivers in user space, which Zurbax doesn't have.
 - **Windows programs.** `.exe` files don't run.
