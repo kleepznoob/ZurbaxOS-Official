@@ -55,6 +55,7 @@ static struct {
 	u8 anonce[32], snonce[32];
 	Ptk ptk;
 	bool sent_msg2, have_msg3;
+	int msg1_count;          /* an AP that keeps starting over didn't like our answer */
 	u8 replay[8];
 	bool replay_set;
 	u64 deadline;
@@ -423,6 +424,7 @@ static void connect_to(Net *n, const char *pass)
 		}
 		rand_bytes(W.snonce, 32);
 		W.sent_msg2 = W.have_msg3 = W.replay_set = false;
+		W.msg1_count = 0;
 		if (!open_eapol()) {
 			fail("couldn't open the security channel", false);
 			return;
@@ -514,6 +516,10 @@ static void handle_eapol(void)
 			/* message 1: the AP's nonce; answer with ours and our RSN element */
 			if (W.state != WS_HANDSHAKE && W.state != WS_CONNECTING)
 				continue;
+			if (++W.msg1_count > 3) {
+				fail("Wrong password?", true);
+				return;
+			}
 			memcpy(W.anonce, k.nonce, 32);
 			wpa_ptk(W.pmk, W.target.bssid, W.iface->mac, W.anonce, W.snonce, &W.ptk);
 			EapolKey r = { .version = k.version, .info = KI_VER_SHA1_AES | KI_PAIRWISE | KI_MIC };
@@ -523,9 +529,10 @@ static void handle_eapol(void)
 			usize il = rsn_element(ie, W.target.group);
 			usize len = eapol_key_build(out, sizeof out, &r, ie, il, W.ptk.kck);
 			send_eapol(out, len);
+			if (!W.sent_msg2)
+				W.deadline = time_mono_ms() + 5000;   /* retries don't buy more time */
 			W.sent_msg2 = true;
 			W.state = WS_HANDSHAKE;
-			W.deadline = time_mono_ms() + 5000;
 		} else if ((k.info & KI_PAIRWISE) && (k.info & KI_MIC) && (k.info & KI_INSTALL)) {
 			/* message 3: check it, take the group key, confirm, install */
 			if (!W.sent_msg2 || memcmp(k.nonce, W.anonce, 32) != 0 || !eapol_key_mic_ok(frame, (usize)n, W.ptk.kck) ||

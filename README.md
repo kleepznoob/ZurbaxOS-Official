@@ -27,7 +27,7 @@ has the whole system inside it, and the firmware starts it directly, with no
 boot loader in between.
 
 **Desktop.** A top bar with an applications menu, clock, quick settings
-(Wi-Fi/network, sound, brightness, night light, Do Not Disturb) and power
+(Wi-Fi networks, sound, brightness, night light, Do Not Disturb) and power
 menu. A dock with running indicators that hides out of the way, plus
 notifications with sounds, a lock screen and screenshots (Print Screen).
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
@@ -79,7 +79,10 @@ needs an app password (Mail explains how when you type a Gmail address).
 **Under the hood**
 - **TLS 1.3** with certificate checks against Mozilla's root list.
 - **HTTP** downloads, and the `fetch` command.
-- **DHCP networking** on wired connections.
+- **Wi-Fi** with WPA2-Personal and open networks: znet runs the WPA2
+  handshake itself over the kernel's nl80211 interface, and images carry the
+  firmware for common Intel, MediaTek and Realtek laptop chips.
+- **DHCP networking** on wired and wireless connections.
 - **A sound mixer** that drives the sound card directly.
 
 ## Building
@@ -120,8 +123,9 @@ artifact).
 
 ## Not there yet
 
-- **Wi-Fi.** Wired networking works, but Wi-Fi needs the WPA2 handshake
-  and the chips' firmware files.
+- **WPA3-only and enterprise Wi-Fi.** WPA2-Personal and open networks work
+  (including routers in WPA2/WPA3 mixed mode); networks that require WPA3
+  (SAE) or 802.1X logins don't yet.
 - **JavaScript.** Drift shows pages as their HTML and CSS describe them;
   sites that only work through scripts (web apps, most video sites) don't.
   WebP pictures don't show yet.
