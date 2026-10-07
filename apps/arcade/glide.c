@@ -40,6 +40,7 @@ enum { TITLE, FLYING, OVER };
 static struct {
 	R3 *r3;
 	Canvas *frame;                /* drawn at reduced resolution, then scaled up */
+	int pw, ph;                   /* the size of the last picture drawn */
 	Chunk chunks[MAX_CHUNKS];
 	u32 frame_no;
 	Mesh3 *glider, *ring;
@@ -683,7 +684,7 @@ static void hud(Ui *ui, Rect r)
 	if (G.nrings && G.state == FLYING) {
 		Vec2 p;
 		bool on = r3_project(G.r3, G.rings[0].pos, &p, NULL);
-		f32 sx = (f32)G.frame->width, sy = (f32)G.frame->height;
+		f32 sx = (f32)G.pw, sy = (f32)G.ph;
 		if (!on || p.x < 0 || p.y < 0 || p.x > sx || p.y > sy) {
 			Vec3 d = v3_sub(G.rings[0].pos, G.cam);
 			Vec3 f = v3_norm(v3_sub(v3_add(G.pos, v3_mul(forward_of(G.yaw, G.pitch), 7)), G.cam));
@@ -735,10 +736,8 @@ static void frame(Ui *ui, Rect r)
 			G.frame = canvas_new(rw, rh);
 		}
 		target = G.frame;
-	} else if (!G.frame || G.frame->width != view.width || G.frame->height != view.height) {
-		canvas_free(G.frame);
-		G.frame = canvas_new(view.width, view.height); /* kept for its size, used by the hud */
 	}
+	G.pw = target->width, G.ph = target->height;
 	u64 t0 = time_mono_ns();
 	Vec3 eye, look, up;
 	chase_camera(running ? dt : 0, &eye, &look, &up);
