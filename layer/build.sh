@@ -4,6 +4,7 @@
 #
 #   layer/build.sh [PACKAGE...]    all packages, or just these
 #   layer/build.sh --fetch         only download the sources
+#   layer/build.sh --image         only pack build/layer/root into steam.sfs
 #
 # ZOS itself doesn't use any of this. The layer is a separate root file
 # system (glibc, the GCC runtime, a small GNU userland, X11 with Xwayland,
@@ -103,7 +104,7 @@ flags() {
 settle() {
 	[ "$ARCH" = 32 ] || return 0
 	if [ -d "$DEST$LIBDIR" ]; then cp -a "$DEST$LIBDIR/." "$ROOT$LIBDIR/"; fi
-	if [ -d "$DEST/usr/include" ]; then cp -rn "$DEST/usr/include/." "$ROOT/usr/include/"; fi
+	if [ -d "$DEST/usr/include" ]; then cp -r --update=none "$DEST/usr/include/." "$ROOT/usr/include/"; fi
 	# Vulkan drivers' manifests are named for their width
 	if [ -d "$DEST/usr/share/vulkan" ]; then
 		mkdir -p "$ROOT/usr/share/vulkan"
@@ -211,13 +212,17 @@ build() {
 	say "building $pkg"
 	local fn=pkg_${pkg%%:*} width=${pkg#*:}
 	[ "$width" = "$pkg" ] && width=64
+	# each package has a work folder of its own, so several can build at once
+	local work=$WORK/${pkg/:/-}
+	rm -rf "$work"
 	(
+		WORK=$work
+		mkdir -p "$WORK"
 		if [ "$width" = 32 ]; then use32; else use64; fi
 		"$fn"
 	)
 	touch "$stamp"
-	# the sources and build folders aren't needed any more
-	find "${WORK:?}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+	rm -rf "$work"
 }
 
 # Python with the modules Mesa's build needs, and a recent meson.
@@ -309,6 +314,44 @@ pkg_toolchain() {
 	rm -f "$ROOT"/usr/lib*/libstdc++.so.6*-gdb.py
 }
 
+# ---- The image ZOS mounts ------------------------------------------------------------------
+# build/layer/steam.sfs: the layer as one compressed, read-only SquashFS
+# image, without what only building needs (headers, static libraries,
+# pkg-config files, manuals). ZOS mounts it at /data/layers/steam.
+
+image() {
+	local out=$L/steam.sfs
+	say "packing $out"
+	cat >"$L/image.exclude" <<-'EOF'
+		usr/include
+		usr/lib/pkgconfig
+		usr/lib32/pkgconfig
+		usr/share/pkgconfig
+		usr/lib32/libffi/include
+		usr/share/man
+		usr/share/doc
+		usr/share/info
+		usr/share/aclocal
+		usr/share/gtk-doc
+		usr/share/xcb
+		usr/share/i18n
+		usr/share/gettext
+		usr/share/bash-completion
+		usr/lib/cmake
+		usr/lib32/cmake
+		usr/share/cmake
+		usr/lib/audit
+		usr/lib32/audit
+	EOF
+	(cd "$ROOT" && find usr/lib usr/lib32 -maxdepth 1 -name '*.a') >>"$L/image.exclude"
+	(cd "$ROOT" && find usr/lib -maxdepth 1 -name 'python3*') >>"$L/image.exclude"
+	rm -f "$out.part"
+	mksquashfs "$ROOT" "$out.part" -comp zstd -Xcompression-level 19 -b 1M -all-root -noappend -quiet \
+		-ef "$L/image.exclude" -wildcards >"$L/image.log" 2>&1 || { tail -20 "$L/image.log"; exit 1; }
+	mv "$out.part" "$out"
+	say "layer image: $out ($(du -h "$out" | cut -f1))"
+}
+
 # ---- The package list ------------------------------------------------------------------
 
 ORDER=(
@@ -320,9 +363,12 @@ source "$HERE/packages.sh"
 if [ "${1:-}" = --fetch ]; then
 	# downloads (and checks) every source, for building offline later
 	while read -r name _; do fetch "$name" >/dev/null; done <"$HERE/sources.txt"
+elif [ "${1:-}" = --image ]; then
+	image
 elif [ $# -gt 0 ]; then
 	for p in "$@"; do build "$p"; done
 else
 	for p in "${ORDER[@]}"; do build "$p"; done
 	say "layer ready in $ROOT ($(du -sh "$ROOT" | cut -f1))"
+	image
 fi

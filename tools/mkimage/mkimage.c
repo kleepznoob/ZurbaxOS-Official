@@ -173,15 +173,41 @@ static const char README[] =
 	"You can try everything first. Nothing on the computer changes until you\r\n"
 	"choose Install " OS_NAME ".\r\n";
 
-static int make_disk(const char *out, const char *efi)
+/* The Linux layer's image (Steam and Proton), when one was built: on the
+ * medium as LAYERS/STEAM.SFS, where a live session uses it and the installer
+ * copies it from. */
+#define LAYER_DIR "/LAYERS"
+#define LAYER_FILE "/LAYERS/STEAM.SFS"
+
+static i64 layer_size(const char *layer)
 {
-	i64 efi_size = file_size(efi);
+	if (!layer)
+		return 0;
+	i64 n = file_size(layer);
+	if (n <= 0)
+		eprint("mkimage: cannot read %s\n", layer);
+	return n;
+}
+
+static void add_layer(FatWriter *w, const char *layer)
+{
+	if (!layer)
+		return;
+	check(fat_mkdir(w, LAYER_DIR), "LAYERS folder");
+	check(fat_add_file_from(w, LAYER_FILE, layer), "the Linux layer");
+}
+
+static int make_disk(const char *out, const char *efi, const char *layer)
+{
+	i64 efi_size = file_size(efi), lsize = layer_size(layer);
 	if (efi_size <= 0) {
 		eprint("mkimage: cannot read %s\n", efi);
 		return 1;
 	}
-	/* Room for the kernel, an update of it and FAT32's minimum cluster count. */
-	u64 mib = MAX(64ull, ((u64)efi_size * 2 + (16u << 20)) >> 20);
+	if (lsize < 0)
+		return 1;
+	/* Room for the kernel, an update of it, the layer and FAT32's minimum cluster count. */
+	u64 mib = MAX(64ull, ((u64)efi_size * 2 + (u64)lsize + (16u << 20)) >> 20);
 	u64 sectors = (mib << 20) / SECTOR;
 	int fd = open_image(out, sectors * SECTOR);
 	if (fd < 0)
@@ -202,13 +228,15 @@ static int make_disk(const char *out, const char *efi)
 		check(fat_mkdir(w, "/EFI/BOOT"), "EFI/BOOT folder");
 		check(fat_add_file_from(w, "/EFI/BOOT/BOOTX64.EFI", efi), "BOOTX64.EFI");
 		check(fat_add_file(w, "/ZOS.TXT", README, sizeof README - 1), "ZOS.TXT");
+		add_layer(w, layer);
 		check(fat_finish(w), "FAT32 tables");
 	}
 	sys_fsync(fd);
 	sys_close(fd);
 	if (failed)
 		return 1;
-	print("%s: %llu MiB, EFI system partition with %s\n", out, (unsigned long long)mib, path_base(efi));
+	print("%s: %llu MiB, EFI system partition with %s%s\n", out, (unsigned long long)mib, path_base(efi),
+	      layer ? " and the Linux layer" : "");
 	return 0;
 }
 
@@ -221,16 +249,18 @@ static int make_disk(const char *out, const char *efi)
  *     tree's EFI/BOOT/BOOTX64.EFI points at the kernel inside it, so the
  *     kernel is stored once.
  */
-static int make_iso(const char *out, const char *efi)
+static int make_iso(const char *out, const char *efi, const char *layer)
 {
-	i64 efi_size = file_size(efi);
+	i64 efi_size = file_size(efi), lsize = layer_size(layer);
 	if (efi_size <= 0) {
 		eprint("mkimage: cannot read %s\n", efi);
 		return 1;
 	}
+	if (lsize < 0)
+		return 1;
 	const u64 readme_byte = 48 * ISO_BLOCK, fat_byte = 128 * 1024;
 	/* FAT32 needs 65525 clusters, so the image is at least about 34 MiB */
-	u64 fat_bytes = MAX(40ull, ((u64)efi_size + (4u << 20) + (1u << 20) - 1) >> 20) << 20;
+	u64 fat_bytes = MAX(40ull, ((u64)efi_size + (u64)lsize + (4u << 20) + (1u << 20) - 1) >> 20) << 20;
 	u64 volume = fat_byte + fat_bytes;
 	/* room for the backup GPT after the file system, in whole disc sectors */
 	u64 total = (volume + 64 * SECTOR + ISO_BLOCK - 1) / ISO_BLOCK * ISO_BLOCK;
@@ -247,7 +277,7 @@ static int make_iso(const char *out, const char *efi)
 	u8 disk[16];
 	guid_random(disk);
 	check(gpt_write(fd, total / SECTOR, &esp, 1, disk), "partition table");
-	u64 kernel_byte = 0;
+	u64 kernel_byte = 0, layer_byte = 0;
 	FatWriter *w = fat_format(fd, esp.first_lba, fat_bytes / SECTOR, "ZOS");
 	check(w != NULL, "FAT32 format");
 	if (w) {
@@ -257,16 +287,23 @@ static int make_iso(const char *out, const char *efi)
 		check(fat_add_file(w, "/ZOS.TXT", README, sizeof README - 1), "ZOS.TXT");
 		kernel_byte = fat_file_byte(w, "/EFI/BOOT/BOOTX64.EFI");
 		check(kernel_byte && kernel_byte % ISO_BLOCK == 0, "kernel alignment");
+		add_layer(w, layer);
+		if (layer) {
+			layer_byte = fat_file_byte(w, LAYER_FILE);
+			check(layer_byte && layer_byte % ISO_BLOCK == 0, "layer alignment");
+		}
 		check(fat_finish(w), "FAT32 tables");
 	}
 	check(sys_pwrite(fd, README, sizeof README - 1, (i64)readme_byte) == (long)sizeof README - 1, "readme");
+	/* the layer too is stored once, seen from both file systems */
 	IsoFile files[] = {
 		{ "/EFI/BOOT/BOOTX64.EFI", kernel_byte, (u64)efi_size },
 		{ "/ZOS.TXT", readme_byte, sizeof README - 1 },
+		{ LAYER_FILE, layer_byte, (u64)lsize },
 	};
 	IsoVolume v = { .system_id = OS_NAME, .volume_id = "ZOS_2_0_GOLDEN_RAIN", .publisher = OS_NAME, .app_id = OS_PRETTY_NAME,
 			.boot_byte = fat_byte, .boot_size = fat_bytes, .volume_bytes = volume };
-	check(!failed && iso_write(fd, &v, files, (int)ARRAY_LEN(files)), "ISO 9660 records");
+	check(!failed && iso_write(fd, &v, files, layer ? 3 : 2), "ISO 9660 records");
 	sys_fsync(fd);
 	sys_close(fd);
 	if (failed)
@@ -395,14 +432,14 @@ int main(int argc, char **argv)
 {
 	if (argc >= 3 && str_eq(argv[1], "cpio"))
 		return make_cpio(argv[2], argv + 3, argc - 3);
-	if (argc == 4 && str_eq(argv[1], "disk"))
-		return make_disk(argv[2], argv[3]);
-	if (argc == 4 && str_eq(argv[1], "iso"))
-		return make_iso(argv[2], argv[3]);
+	if ((argc == 4 || argc == 5) && str_eq(argv[1], "disk"))
+		return make_disk(argv[2], argv[3], argc == 5 ? argv[4] : NULL);
+	if ((argc == 4 || argc == 5) && str_eq(argv[1], "iso"))
+		return make_iso(argv[2], argv[3], argc == 5 ? argv[4] : NULL);
 	if (argc == 4 && str_eq(argv[1], "ext4"))
 		return make_ext4(argv[2], argv[3]);
 	if (argc == 3 && str_eq(argv[1], "repo"))
 		return make_repo(argv[2]);
-	eprint("usage: mkimage cpio OUT.cpio | disk OUT.img EFI-FILE | iso OUT.iso EFI-FILE | ext4 OUT.img MIB\n");
+	eprint("usage: mkimage cpio OUT.cpio | disk OUT.img EFI-FILE [LAYER] | iso OUT.iso EFI-FILE [LAYER] | ext4 OUT.img MIB\n");
 	return 2;
 }

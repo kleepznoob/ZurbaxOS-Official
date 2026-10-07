@@ -142,6 +142,131 @@ static void mount_data(void)
 	mem_free(dev);
 }
 
+/* ---- Linux layers ---------------------------------------------------------------------- */
+
+/* A Linux layer (layer/build.sh: the glibc, Mesa and X11 world Steam and
+ * Proton need) comes as one read-only SquashFS image, NAME.sfs. Installed
+ * ones are in /data/layers and appear as /data/layers/NAME. In a live
+ * session the install medium's own copy is used, until it's installed. */
+
+#define LOOP_CTL_GET_FREE 0x4C82
+#define LOOP_CONFIGURE 0x4C0A
+#define LO_FLAGS_READ_ONLY 1
+#define LO_FLAGS_AUTOCLEAR 4
+
+struct loop_info64 {
+	u64 device, inode, rdevice, offset, sizelimit;
+	u32 number, encrypt_type, encrypt_key_size, flags;
+	u8 file_name[64], crypt_name[64], encrypt_key[32];
+	u64 init[2];
+};
+
+struct loop_config {
+	u32 fd, block_size;
+	struct loop_info64 info;
+	u64 reserved[8];
+};
+
+#define MEDIUM "/run/zurbax/medium"
+
+static char mounted_layers[4][96];
+static int nmounted_layers;
+
+static bool mount_layer(const char *image, const char *dir)
+{
+	int ctl = (int)sys_open("/dev/loop-control", O_RDWR | O_CLOEXEC, 0);
+	long n = ctl >= 0 ? sys_ioctl(ctl, LOOP_CTL_GET_FREE, NULL) : -1;
+	if (ctl >= 0)
+		sys_close(ctl);
+	if (n < 0) {
+		log_msg("no loop device for %s", image);
+		return false;
+	}
+	char dev[32];
+	fmt(dev, sizeof dev, "/dev/loop%ld", n);
+	int file = (int)sys_open(image, O_RDONLY | O_CLOEXEC, 0);
+	int lo = (int)sys_open(dev, O_RDONLY | O_CLOEXEC, 0);
+	bool ok = false;
+	if (file >= 0 && lo >= 0) {
+		/* cleared by itself once unmounted */
+		struct loop_config c = { .fd = (u32)file, .info.flags = LO_FLAGS_READ_ONLY | LO_FLAGS_AUTOCLEAR };
+		str_copy((char *)c.info.file_name, image, sizeof c.info.file_name);
+		long r = sys_ioctl(lo, LOOP_CONFIGURE, &c);
+		if (r >= 0) {
+			dir_make(dir, 0755);
+			r = sys_mount(dev, dir, "squashfs", MS_RDONLY | MS_NOSUID | MS_NODEV, NULL);
+		}
+		ok = r >= 0;
+		if (!ok)
+			log_msg("cannot mount %s: %s", image, err_str(r));
+	}
+	if (file >= 0)
+		sys_close(file);
+	if (lo >= 0)
+		sys_close(lo);
+	if (ok) {
+		log_msg("layer %s from %s", dir, image);
+		if (nmounted_layers < (int)ARRAY_LEN(mounted_layers))
+			str_copy(mounted_layers[nmounted_layers++], dir, sizeof mounted_layers[0]);
+	}
+	return ok;
+}
+
+/* The medium ZOS started from, if it carries a layer: the install stick's
+ * partition, or a disc. Left mounted at MEDIUM, where the installer copies
+ * the layer from. */
+static void medium_layers(void)
+{
+	char *dev = find_partition("ZURBAX-INSTALL");
+	const char *fs = "vfat";
+	if (!dev && file_exists("/dev/sr0"))
+		dev = str_dup("/dev/sr0"), fs = "iso9660";
+	if (!dev)
+		return;
+	dir_make(MEDIUM, 0755);
+	if (sys_mount(dev, MEDIUM, fs, MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) >= 0) {
+		/* FAT finds names in any case; a disc shows its ISO 9660 names in lower case */
+		static const char *const images[] = { MEDIUM "/LAYERS/STEAM.SFS", MEDIUM "/layers/steam.sfs" };
+		bool found = false;
+		for (usize i = 0; i < ARRAY_LEN(images) && !found; i++)
+			if (file_exists(images[i]))
+				found = mount_layer(images[i], "/data/layers/steam");
+		if (!found)
+			sys_umount(MEDIUM, MNT_DETACH);
+	}
+	mem_free(dev);
+}
+
+static void mount_layers(void)
+{
+	dir_make("/data/layers", 0755);
+	DirList dl = { 0 };
+	if (dir_list("/data/layers", &dl, false)) {
+		vec_each(&dl, e)
+		{
+			usize n = strlen(e->name);
+			if (n < 5 || !str_eq(e->name + n - 4, ".sfs"))
+				continue;
+			char *image = str_fmt("/data/layers/%s", e->name);
+			char *dir = str_fmt("/data/layers/%.*s", (int)(n - 4), e->name);
+			mount_layer(image, dir);
+			mem_free(image);
+			mem_free(dir);
+		}
+		dir_list_free(&dl);
+	}
+	/* a layer unpacked as a folder (a developer's) also counts */
+	if (live_session && !file_exists("/data/layers/steam/lib64/ld-linux-x86-64.so.2"))
+		medium_layers();
+}
+
+static void unmount_layers(void)
+{
+	for (int i = nmounted_layers - 1; i >= 0; i--)
+		sys_umount(mounted_layers[i], MNT_DETACH);
+	nmounted_layers = 0;
+}
+
 /* ---- Services ------------------------------------------------------------------------- */
 
 static char *service_env[] = {
@@ -225,6 +350,7 @@ static void power_off(int cmd)
 	}
 	sys_kill(-1, SIGKILL);
 	sys_sync();
+	unmount_layers();
 	if (!live_session) {
 		sys_mount(NULL, "/data", NULL, MS_REMOUNT | MS_RDONLY, NULL);
 		sys_umount("/data", 0);
@@ -378,6 +504,7 @@ int main(int argc, char **argv)
 	sys_reboot(REBOOT_CMD_CAD_OFF);
 	dir_make("/run/zurbax", 0755);
 	mount_data();
+	mount_layers();
 	sys_umask(022);
 
 	loop = loop_new();

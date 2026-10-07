@@ -108,12 +108,15 @@ test: $(TESTS) devroot
 # The system archive is embedded in the kernel, so the one EFI file is the
 # whole OS: firmware loads it directly, with no boot loader in between.
 EFI_FILE := $(OUT)/kernel/arch/x86/boot/bzImage
+# The Linux layer for Steam and Proton (layer/build.sh makes it) goes on the
+# install media when it has been built.
+LAYER ?= $(wildcard $(OUT)/layer/steam.sfs)
 image: all
 	@python3 tools/fetch-firmware.py $(OUT)/firmware || echo "   note: no Wi-Fi or GPU firmware fetched (offline?)"
 	@$(OUT)/tools/mkimage cpio $(OUT)/system.cpio
 	@kernel/build.sh $(OUT)/system.cpio
-	@$(OUT)/tools/mkimage disk $(OUT)/zos.img $(EFI_FILE)
-	@$(OUT)/tools/mkimage iso $(OUT)/zos.iso $(EFI_FILE)
+	@$(OUT)/tools/mkimage disk $(OUT)/zos.img $(EFI_FILE) $(LAYER)
+	@$(OUT)/tools/mkimage iso $(OUT)/zos.iso $(EFI_FILE) $(LAYER)
 
 OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd
 OVMF_VARS ?= /usr/share/OVMF/OVMF_VARS_4M.fd

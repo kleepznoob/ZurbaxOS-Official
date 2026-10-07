@@ -20,11 +20,20 @@ typedef struct {
 	bool ok, needed;
 } Check;
 
-static Check checks[6];
+static Check checks[7];
 static int nchecks;
 static bool ready;
 static f64 checked_at;
 static char message[160];
+
+/* What the layer's Vulkan drivers see, from zos-gpucheck run in the layer
+ * (once, in the background): "NAME (DRIVER)", or empty when none. */
+static struct {
+	bool asked, done;
+	int pid, fd;
+	StrBuf out;
+	char device[160];
+} probe = { .pid = -1, .fd = -1 };
 
 static bool in_layer(const char *path)
 {
@@ -47,6 +56,72 @@ static void gpu_driver(char *out, usize cap)
 	}
 }
 
+/* "vulkan NAME|DRIVER|TYPE" lines; a discrete GPU first, as games pick it */
+static void gpu_parse(const char *text)
+{
+	usize n = 0;
+	char **lines = str_split(text, '\n', &n);
+	int best = -1;
+	for (usize i = 0; i < n; i++) {
+		if (!str_starts(lines[i], "vulkan "))
+			continue;
+		usize nf = 0;
+		char **f = str_split(lines[i] + 7, '|', &nf);
+		int score = nf >= 3 ? (str_eq(f[2], "discrete") ? 3 : str_eq(f[2], "integrated") ? 2 : str_eq(f[2], "cpu") ? 0 : 1) : 0;
+		if (nf >= 2 && score > best) {
+			best = score;
+			fmt(probe.device, sizeof probe.device, "%s (%s)", f[0], f[1]);
+		}
+		str_split_free(f, nf);
+	}
+	str_split_free(lines, n);
+}
+
+static void on_gpu(Loop *l, int fd, u32 events, void *data)
+{
+	UNUSED(events);
+	Ui *ui = data;
+	char buf[512];
+	long n = sys_read(fd, buf, sizeof buf);
+	if (n > 0) {
+		sb_add(&probe.out, buf, (usize)n);
+		return;
+	}
+	loop_del_fd(l, fd);
+	sys_close(fd);
+	probe.fd = -1;
+	proc_wait(probe.pid, NULL, false);
+	probe.pid = -1;
+	gpu_parse(sb_str(&probe.out));
+	sb_free(&probe.out);
+	probe.done = true;
+	checked_at = 0; /* show it now */
+	ui_wake(ui);
+}
+
+static void gpu_ask(Ui *ui)
+{
+	probe.asked = true;
+	int fds[2];
+	if (sys_pipe2(fds, O_CLOEXEC) < 0) {
+		probe.done = true;
+		return;
+	}
+	char *layerrun = zurbax_path("bin/layerrun");
+	char *argv[] = { layerrun, "zos-gpucheck", "--vulkan", NULL };
+	SpawnOpts o = { .stdin_fd = -1, .stdout_fd = fds[1], .stderr_fd = -1 };
+	probe.pid = proc_spawn(layerrun, argv, environ, &o);
+	mem_free(layerrun);
+	sys_close(fds[1]);
+	if (probe.pid < 0) {
+		sys_close(fds[0]);
+		probe.done = true;
+		return;
+	}
+	probe.fd = fds[0];
+	loop_add_fd(ui_loop(ui), probe.fd, EPOLLIN, on_gpu, ui);
+}
+
 static Check *add(const char *title, bool ok, bool needed)
 {
 	Check *c = &checks[nchecks++];
@@ -61,8 +136,8 @@ static void run_checks(Ui *ui)
 	bool layer = in_layer("/lib64/ld-linux-x86-64.so.2");
 	Check *c = add("Linux layer", layer, true);
 	str_copy(c->detail,
-		 layer ? "Installed in " LAYER
-		       : "Not installed (layer/build.sh makes it, to go in " LAYER ")",
+		 layer ? "Ready in " LAYER
+		       : "Missing: it comes on ZOS's install media when built with it (layer/build.sh)",
 		 sizeof c->detail);
 	bool steam = layer && (in_layer("/usr/bin/steam") || in_layer("/usr/games/steam"));
 	c = add("Steam client", steam, true);
@@ -81,6 +156,14 @@ static void run_checks(Ui *ui)
 	c = add("Vulkan", vulkan, true);
 	str_copy(c->detail, vulkan ? "Mesa's drivers, for Proton's DirectX translation" : "Mesa's Vulkan drivers come with the Linux layer",
 		 sizeof c->detail);
+	if (vulkan && in_layer("/usr/bin/zos-gpucheck")) {
+		if (!probe.asked)
+			gpu_ask(ui);
+		/* games run without one too, very slowly or not at all */
+		c = add("Game GPU", probe.device[0] != 0, false);
+		str_copy(c->detail, !probe.done ? "Looking..." : probe.device[0] ? probe.device : "No Vulkan GPU found: most Windows games need one",
+			 sizeof c->detail);
+	}
 
 	char *ns = file_read_line("/proc/sys/user/max_user_namespaces");
 	bool userns = ns && str_to_int(ns, NULL) > 0;
@@ -170,6 +253,6 @@ static void frame(Ui *ui)
 
 int main(void)
 {
-	UiAppDesc d = { .id = "steam", .title = "Steam", .width = 600, .height = 560, .min_width = 520, .min_height = 520, .frame = frame };
+	UiAppDesc d = { .id = "steam", .title = "Steam", .width = 600, .height = 620, .min_width = 520, .min_height = 580, .frame = frame };
 	return ui_run(&d);
 }

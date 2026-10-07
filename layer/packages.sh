@@ -246,7 +246,12 @@ pkg_vulkan_loader() {
 	return 0
 }
 
-ORDER+=(libglvnd libglvnd:32 mesa mesa:32 vulkan_loader vulkan_loader:32)
+# gpucheck/zos-gpucheck.c: lists the Vulkan devices and the OpenGL renderer
+pkg_gpucheck() {
+	$CC $CFLAGS -o "$ROOT/usr/bin/zos-gpucheck" "$HERE/gpucheck/zos-gpucheck.c" $LDFLAGS -lvulkan -lEGL
+}
+
+ORDER+=(libglvnd libglvnd:32 mesa mesa:32 vulkan_loader vulkan_loader:32 gpucheck)
 
 # ---- Xwayland: X11 programs (Steam) on ZOS's display -------------------------------------------
 
@@ -386,7 +391,15 @@ pkg_steam() {
 # the dynamic linker's cache: Steam's runtime reads it to find the layer's
 # graphics drivers
 pkg_ldconfig() {
-	"$ROOT/usr/bin/ldconfig" -r "$ROOT"
+	# -r enters the layer with chroot, which takes root (or a user namespace)
+	local ldc=("$ROOT/usr/bin/ldconfig" -r "$ROOT")
+	if [ "$(id -u)" = 0 ]; then
+		"${ldc[@]}"
+	elif unshare -r true 2>/dev/null; then
+		unshare -r "${ldc[@]}"
+	else
+		sudo -n "${ldc[@]}"
+	fi
 }
 
 ORDER+=(tzdata etc steam ldconfig)
