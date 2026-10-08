@@ -289,12 +289,18 @@ pkg_xwayland() {
 
 pkg_xkbcomp() { xorg xkbcomp; }
 
+# xwm/zos-xwm.c: the window manager in Xwayland's screen (full screen for
+# games and Big Picture, maximized and centred windows, focus)
+pkg_xwm() {
+	$CC $CFLAGS -Wall -o "$ROOT/usr/bin/zos-xwm" "$HERE/xwm/zos-xwm.c" $LDFLAGS -lX11
+}
+
 pkg_xkeyboard_config() {
 	unpack xkeyboard-config
 	mesonbuild -Dxorg-rules-symlinks=true -Dnls=false
 }
 
-ORDER+=(pixman nettle libepoxy xwayland xkbcomp xkeyboard_config)
+ORDER+=(pixman nettle libepoxy xwayland xkbcomp xkeyboard_config xwm)
 
 # ---- Sound: ALSA's library, playing through ZOS's sound service --------------------------
 
@@ -435,7 +441,28 @@ pkg_libcap() {
 	finish
 }
 
-ORDER+=(bash coreutils sed grep gawk findutils diffutils tar gzip which xz file getopt libcap libcap:32)
+# D-Bus: layerrun starts a session bus for Steam's sessions (Steam's runtime
+# launcher service and many games talk on it)
+pkg_dbus() {
+	unpack dbus
+	mesonbuild -Dapparmor=disabled -Dselinux=disabled -Dlibaudit=disabled -Dsystemd=disabled \
+		-Dx11_autolaunch=disabled -Dkqueue=disabled -Dlaunchd=disabled -Ddoxygen_docs=disabled -Dxml_docs=disabled \
+		-Dducktype_docs=disabled -Dqt_help=disabled -Dmodular_tests=disabled -Dinstalled_tests=false \
+		-Dmessage_bus=true -Dtools=true -Duser_session=false -Dvalgrind=disabled -Dsession_socket_dir=/tmp
+}
+
+# lspci, which Steam asks about the graphics card
+pkg_pciutils() {
+	unpack pciutils
+	local mk=(PREFIX=/usr SBINDIR=/usr/bin SHAREDIR=/usr/share/hwdata CC="$CC" AR=ar RANLIB=ranlib HOST=x86_64-linux
+		ZLIB=no DNS=no SHARED=no HWDB=no LIBKMOD=no "OPT=$CFLAGS" "LDFLAGS=$LDFLAGS")
+	make -j"$JOBS" "${mk[@]}" lspci >make.log 2>&1 || { tail -30 make.log; exit 1; }
+	install -Dm755 lspci "$ROOT/usr/bin/lspci"
+	install -Dm644 pci.ids "$ROOT/usr/share/hwdata/pci.ids"
+}
+
+ORDER+=(bash coreutils sed grep gawk findutils diffutils tar gzip which xz file getopt libcap libcap:32 dbus dbus:32
+	pciutils)
 
 # ---- System files -------------------------------------------------------------------------
 
@@ -470,6 +497,7 @@ pkg_etc() {
 	printf 'http 80/tcp\nhttps 443/tcp\n' >"$ROOT/etc/services"
 	printf '/bin/sh\n/bin/bash\n/usr/bin/bash\n' >"$ROOT/etc/shells"
 	cp "$TOP/data/os-release" "$ROOT/etc/os-release"
+	install -m755 "$HERE/files/lsb_release" "$ROOT/usr/bin/lsb_release"
 	printf 'LANG=en_US.UTF-8\n' >"$ROOT/etc/locale.conf"
 }
 

@@ -14,9 +14,9 @@
  * privileges, and nothing outside the program sees a change.
  *
  * With --x11 the layer's Xwayland runs first, full screen on zdisplay, and
- * the program gets it as its DISPLAY (Steam and X11 games), along with the
- * layer's sound server (PulseAudio playing through zaudio; --sound alone
- * starts just that). --app names the
+ * the program gets it as its DISPLAY (Steam and X11 games), along with a
+ * D-Bus session bus and the layer's sound server (PulseAudio playing
+ * through zaudio; --sound alone starts just that). --app names the
  * ZOS app the windows belong to, for the dock. The default layer is
  * /data/layers/steam.
  */
@@ -353,6 +353,21 @@ static int start_sound(void)
 	return pid;
 }
 
+/* A D-Bus session bus for the session (Steam's runtime launcher service and
+ * many games talk on it). Returns its pid once it listens, or 0. */
+#define SESSION_BUS "/.zos/runtime/bus"
+static int start_bus(void)
+{
+	if (!file_exists("/usr/bin/dbus-daemon"))
+		return 0;
+	char *argv[] = { "dbus-daemon", "--session", "--nofork", "--nosyslog", "--address=unix:path=" SESSION_BUS, NULL };
+	int pid = spawn(argv);
+	for (int tries = 0; tries < 40 && !file_exists(SESSION_BUS); tries++)
+		sleep_ms(50);
+	setenv_("DBUS_SESSION_BUS_ADDRESS", "unix:path=" SESSION_BUS);
+	return pid;
+}
+
 int main(int argc, char **argv)
 {
 	bool x11 = false, sound = false, check_only = false;
@@ -401,12 +416,19 @@ int main(int argc, char **argv)
 	setenv_("XDG_SESSION_TYPE", x11 ? "x11" : "wayland");
 	if (app)
 		setenv_("ZOS_APP_ID", app);
+	int bpid = x11 ? start_bus() : 0;
 	int spid = sound ? start_sound() : 0;
 	int xpid = 0;
+	int wpid = 0;
 	if (x11) {
 		char d[16];
 		fmt(d, sizeof d, ":%d", start_x(&xpid));
 		setenv_("DISPLAY", d);
+		/* the layer's window manager arranges windows in that screen */
+		if (file_exists("/usr/bin/zos-xwm")) {
+			char *wm[] = { "zos-xwm", NULL };
+			wpid = spawn(wm);
+		}
 	}
 	sys_chdir(home);
 	int pid = spawn(argv + i);
@@ -431,9 +453,11 @@ int main(int argc, char **argv)
 		sys_kill(xpid, SIGTERM);
 		sys_wait4(xpid, NULL, 0, NULL);
 	}
-	if (spid > 0) {
-		sys_kill(spid, SIGTERM);
-		sys_wait4(spid, NULL, 0, NULL);
-	}
+	int helpers[] = { wpid, spid, bpid };
+	for (usize k = 0; k < ARRAY_LEN(helpers); k++)
+		if (helpers[k] > 0) {
+			sys_kill(helpers[k], SIGTERM);
+			sys_wait4(helpers[k], NULL, 0, NULL);
+		}
 	return (status & 0x7f) ? 128 + (status & 0x7f) : (status >> 8) & 0xff;
 }

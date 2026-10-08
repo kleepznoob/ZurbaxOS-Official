@@ -1,0 +1,37 @@
+#!/bin/sh
+# lsb_release for the Linux layer, answered from /etc/os-release (Steam asks
+# it about the system). Takes the usual options: -i -d -r -c -a, and -s for
+# the bare values; short options may be combined (-sd).
+. /etc/os-release
+short=0 want=""
+for arg in "$@"; do
+	case $arg in
+	--short) short=1 ;;
+	--id) want="$want i" ;;
+	--description) want="$want d" ;;
+	--release) want="$want r" ;;
+	--codename) want="$want c" ;;
+	--all) want="i d r c" ;;
+	-*)
+		flags=${arg#-}
+		while [ -n "$flags" ]; do
+			f=${flags%"${flags#?}"} flags=${flags#?}
+			case $f in
+			s) short=1 ;;
+			a) want="i d r c" ;;
+			i | d | r | c) want="$want $f" ;;
+			esac
+		done
+		;;
+	esac
+done
+[ -n "$want" ] || want="d"
+for w in $want; do
+	case $w in
+	i) label="Distributor ID" value=$NAME ;;
+	d) label="Description" value=$PRETTY_NAME ;;
+	r) label="Release" value=$VERSION_ID ;;
+	c) label="Codename" value=${VERSION_CODENAME:-n/a} ;;
+	esac
+	if [ $short = 1 ]; then echo "$value"; else printf '%s:\t%s\n' "$label" "$value"; fi
+done

@@ -62,5 +62,7 @@ which https://ftp.gnu.org/gnu/which/which-2.25.tar.gz 1cb83e4f702e60b8211ab5ec4c
 file https://astron.com/pub/file/file-5.48.tar.gz ed14656883b23a364b4057c05595d93252da9bc473d30106519519d0da141283
 util-linux https://cdn.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.xz fbd62a100ab7bb8746ba0661255c3c48185b1e9021507c624da01fbc696330ec
 libcap https://cdn.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.78.tar.xz 0d621e562fd932ccf67b9660fb018e468a683d7b827541df27813228c996bb11
+dbus https://dbus.freedesktop.org/releases/dbus/dbus-1.16.2.tar.xz 0ba2a1a4b16afe7bceb2c07e9ce99a8c2c3508e5dec290dbb643384bd6beb7e2
+pciutils https://cdn.kernel.org/pub/software/utils/pciutils/pciutils-3.15.0.tar.xz c02940f430841ecf158d5d9a50007afc4d5353c8678a2455003ca0b2c4e9f5ff
 tzdata https://data.iana.org/time-zones/releases/tzdata2026e.tar.gz b26882805f26aac59d5b222978e6580484b834ccdc98be89df2f05a6dc53a652
 steam https://repo.steampowered.com/steam/archive/stable/steam_1.0.0.87.tar.gz 649375d2f9377f8009aaf3e2ff09978041eb9114897d9c5a3886f1d82e27ba1f

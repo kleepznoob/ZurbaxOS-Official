@@ -280,6 +280,9 @@ pkg_glibc() {
 	if [ "$ARCH" = 32 ]; then
 		# the 32-bit dynamic linker is looked for as /lib/ld-linux.so.2
 		ln -sf ../lib32/ld-linux.so.2 "$ROOT/usr/lib/ld-linux.so.2"
+		# 32-bit programs (Steam's client) look for locales in their own
+		# library folder; the files are the same for both widths
+		ln -sfn ../lib/locale "$ROOT/usr/lib32/locale"
 	else
 		# a UTF-8 locale for programs that ask for one, made by the new glibc's own localedef
 		mkdir -p "$ROOT/usr/lib/locale"
