@@ -73,6 +73,10 @@ static void mount_kernel_filesystems(void)
 	mount_fs("tmpfs", "/dev/shm", "tmpfs", MS_NOSUID | MS_NODEV, "mode=1777");
 	mount_fs("tmpfs", "/run", "tmpfs", MS_NOSUID | MS_NODEV, "mode=0755");
 	mount_fs("tmpfs", "/tmp", "tmpfs", MS_NOSUID | MS_NODEV, "mode=1777");
+	/* where X servers (the Linux layer's Xwayland, running as the user) put
+	 * their sockets; only root may make it, so it's made here, as elsewhere */
+	dir_make("/tmp/.X11-unix", 01777);
+	sys_chmod("/tmp/.X11-unix", 01777);
 	if (dir_exists("/sys/firmware/efi"))
 		mount_fs("efivarfs", "/sys/firmware/efi/efivars", "efivarfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
 	sys_symlink("/proc/self/fd", "/dev/fd");

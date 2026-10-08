@@ -60,5 +60,7 @@ gzip https://ftp.gnu.org/gnu/gzip/gzip-1.15.tar.xz 9aa0cc780dec156b8282844833b34
 xz https://deb.debian.org/debian/pool/main/x/xz-utils/xz-utils_5.8.4.orig.tar.xz 4ce24038fd4221e0d13bc1a2de7a4db56e90b92b3bf75321f6c14be73f65de4b
 which https://ftp.gnu.org/gnu/which/which-2.25.tar.gz 1cb83e4f702e60b8211ab5ec4c2afbab1b1dec80209456a7d2faf7584ed225ea
 file https://astron.com/pub/file/file-5.48.tar.gz ed14656883b23a364b4057c05595d93252da9bc473d30106519519d0da141283
+util-linux https://cdn.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.xz fbd62a100ab7bb8746ba0661255c3c48185b1e9021507c624da01fbc696330ec
+libcap https://cdn.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.78.tar.xz 0d621e562fd932ccf67b9660fb018e468a683d7b827541df27813228c996bb11
 tzdata https://data.iana.org/time-zones/releases/tzdata2026e.tar.gz b26882805f26aac59d5b222978e6580484b834ccdc98be89df2f05a6dc53a652
 steam https://repo.steampowered.com/steam/archive/stable/steam_1.0.0.87.tar.gz 649375d2f9377f8009aaf3e2ff09978041eb9114897d9c5a3886f1d82e27ba1f

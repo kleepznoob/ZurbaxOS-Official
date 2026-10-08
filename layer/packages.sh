@@ -278,9 +278,13 @@ pkg_libepoxy() {
 
 pkg_xwayland() {
 	unpack xwayland
+	# GLX's software renderer is loaded from Mesa's driver folder, which the
+	# build reads from dri.pc, where pkg-config has put the build's system
+	# root in front of it; on ZOS it is just /usr/lib/dri
+	sed -i "s|dri_dep.get_variable(pkgconfig : 'dridriverdir')|'/usr/lib/dri'|" include/meson.build
 	mesonbuild -Dglamor=true -Ddri3=true -Dxvfb=false -Dsecure-rpc=false -Dxdmcp=false -Dxdm-auth-1=false \
 		-Dsha1=libnettle -Dlibdecor=false -Dxwayland_ei=false -Ddocs=false -Ddevel-docs=false -Dxcsecurity=true \
-		-Dxkb_output_dir=/tmp
+		-Dxkb_output_dir=/tmp -Dxkb_dir=/usr/share/X11/xkb -Dxkb_bin_dir=/usr/bin
 }
 
 pkg_xkbcomp() { xorg xkbcomp; }
@@ -390,7 +394,11 @@ gnu() {
 }
 
 pkg_bash() {
-	gnu bash --without-bash-malloc
+	# what configure would find out by running programs: glibc's getcwd works
+	# (bash's own stand-in loses its way across bind mounts), and the rest
+	gnu bash --without-bash-malloc bash_cv_getcwd_malloc=yes bash_cv_job_control_missing=present \
+		bash_cv_sys_named_pipes=present bash_cv_func_sigsetjmp=present bash_cv_printf_a_format=yes \
+		bash_cv_unusable_rtsigs=no bash_cv_func_ctype_nonascii=yes bash_cv_wcwidth_broken=no
 	ln -sf bash "$ROOT/usr/bin/sh"
 }
 
@@ -406,7 +414,28 @@ pkg_which() { gnu which; }
 pkg_xz() { gnu xz --disable-doc --disable-scripts; }
 pkg_file() { gnu file --disable-libseccomp --disable-bzlib --disable-zstdlib --disable-lzlib; }
 
-ORDER+=(bash coreutils sed grep gawk findutils diffutils tar gzip which xz file)
+# getopt (from util-linux), which the Steam runtime's setup script uses
+pkg_getopt() {
+	unpack util-linux
+	autobuild_configure --disable-nls --without-python --without-systemd --without-udev --without-ncurses \
+		--without-tinfo --without-readline --without-btrfs --without-cryptsetup --disable-liblastlog2 \
+		--disable-pylibmount --disable-bash-completion --disable-makeinstall-chown --disable-makeinstall-setuid
+	make -j"$JOBS" getopt >make.log 2>&1 || { tail -30 make.log; exit 1; }
+	install -m755 getopt "$ROOT/usr/bin/getopt"
+}
+
+# libcap: the Steam runtime's own bwrap (its container tool) links to it
+pkg_libcap() {
+	unpack libcap
+	local mk=(prefix=/usr lib="${LIBDIR#/usr/}" CC="$CC" BUILD_CC=gcc AR=ar RANLIB=ranlib GOLANG=no PAM_CAP=no
+		USE_GPERF=no SHARED=yes DYNAMIC=yes "COPTS=$CFLAGS" "LDFLAGS=$LDFLAGS")
+	make -C libcap -j"$JOBS" "${mk[@]}" >make.log 2>&1 || { tail -30 make.log; exit 1; }
+	make -C libcap "${mk[@]}" DESTDIR="$DEST" RAISE_SETFCAP=no install >install.log 2>&1 || { tail -30 install.log; exit 1; }
+	rm -f "$DEST$LIBDIR"/libcap.a "$DEST$LIBDIR"/libpsx.a
+	finish
+}
+
+ORDER+=(bash coreutils sed grep gawk findutils diffutils tar gzip which xz file getopt libcap libcap:32)
 
 # ---- System files -------------------------------------------------------------------------
 
@@ -452,9 +481,20 @@ pkg_steam() {
 	unpack steam
 	install -Dm755 bin_steam.sh "$ROOT/usr/lib/steam/bin_steam.sh"
 	install -m644 bootstraplinux_ubuntu12_32.tar.xz "$ROOT/usr/lib/steam/"
-	ln -sf /usr/lib/steam/bin_steam.sh "$ROOT/usr/bin/steam"
+	# relative, so it also resolves from outside the layer (layerrun --check, the Steam app)
+	ln -sf ../lib/steam/bin_steam.sh "$ROOT/usr/bin/steam"
 	install -Dm644 steam.desktop "$ROOT/usr/share/applications/steam.desktop"
 	install -Dm644 icons/256/steam.png "$ROOT/usr/share/icons/hicolor/256x256/apps/steam.png"
+}
+
+# Debugging information out of every program and library (some packages
+# build with it); it's large and of no use in the layer.
+pkg_strip() {
+	find "$ROOT/usr/bin" "$ROOT/usr/lib" "$ROOT/usr/lib32" -type f \( -perm -u+x -o -name '*.so*' \) -print0 |
+		while IFS= read -r -d '' f; do
+			[ "$(head -c4 "$f")" = $'\x7fELF' ] && strip --strip-debug "$f" 2>/dev/null
+		done
+	return 0
 }
 
 # the dynamic linker's cache: Steam's runtime reads it to find the layer's
@@ -471,4 +511,4 @@ pkg_ldconfig() {
 	fi
 }
 
-ORDER+=(tzdata etc steam ldconfig)
+ORDER+=(tzdata etc steam strip ldconfig)

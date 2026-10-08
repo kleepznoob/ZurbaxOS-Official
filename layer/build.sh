@@ -323,6 +323,15 @@ pkg_toolchain() {
 image() {
 	local out=$L/steam.sfs
 	say "packing $out"
+	# nothing in the layer may point back into this build (it would only work here)
+	local leaks
+	leaks=$(grep -rl --exclude-dir=include --exclude-dir=pkgconfig --exclude='*.pc' --exclude='*.cmake' --exclude=libtool \
+		"$ROOT" "$ROOT/usr/bin" "$ROOT/usr/lib" "$ROOT/usr/lib32" "$ROOT/etc" 2>/dev/null | sort -u | head -20 || true)
+	if [ -n "$leaks" ]; then
+		echo "these files name the build folder $ROOT:" >&2
+		echo "$leaks" >&2
+		exit 1
+	fi
 	cat >"$L/image.exclude" <<-'EOF'
 		usr/include
 		usr/lib/pkgconfig
