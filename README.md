@@ -83,8 +83,13 @@ a GNU userland and Valve's launcher. It ships as one compressed image
 `/data/layers/steam`, from the stick in a live session and from the disk
 once installed (the installer copies it). `layerrun` starts programs inside
 the layer through a user namespace, with no privileges, along with a
-full-screen Xwayland and the sound server, and the Steam app checks that
-everything is in place and names the GPU games will use.
+full-screen Xwayland, `zos-xwm` (a window manager for that screen: full
+screen for games and Big Picture, focus, centred dialogs), a D-Bus session
+bus and the sound server. The Steam app checks that everything is in place
+and names the GPU games will use. Valve's client starts from the layer,
+updates itself, builds its runtime container inside layerrun's namespace,
+and shows Big Picture full screen on ZOS's display, taking clicks and
+typing.
 
 **Graphics drivers.** The kernel carries AMD's and Intel's GPU drivers with
 their firmware (Radeon RX 400 series and newer, Ryzen graphics, Steam Deck;
@@ -208,14 +213,16 @@ The Installer finds the system on whichever one ZOS started from.
   WebP pictures don't show yet.
 - **MP3 and AAC playback.** These need the formats' large fixed tables;
   FLAC, Ogg Vorbis and WAV play.
-- **Steam on real hardware.** The layer builds completely and runs inside
-  ZOS (tested in QEMU: zinit mounts it, layerrun enters it, Mesa and
-  Xwayland start); signing in to Steam, Proton games and GPU acceleration
-  need a real AMD or Intel GPU and haven't been tried on one yet. Building
-  the layer takes a few hours (CI caches it); images built without it
-  work, and the Steam app says what's missing. Controllers plugged in while
-  Steam runs are seen through the layer's libudev, which ZOS feeds with
-  device events.
+- **Steam on real hardware.** Tested so far without a GPU: in QEMU, zinit
+  mounts the layer from the stick and layerrun, Mesa (software OpenGL) and
+  Xwayland run in it as the desktop's user; on a headless ZOS desktop,
+  Steam starts and reaches its sign-in screen. Signing in, Proton games and
+  GPU acceleration (RADV, radeonsi, ANV, iris, and Xwayland's glamor) need
+  a real AMD or Intel GPU and haven't been tried on one yet. Building the
+  layer takes a few hours (CI caches it); images built without it work, and
+  the Steam app says what's missing. Controllers plugged in while Steam
+  runs are seen through the layer's libudev, which ZOS feeds with device
+  events.
 - **Hardware 3D in ZOS's own apps.** The desktop and Glide are drawn in
   software, so they work on any GPU.
 - **NVIDIA graphics.** NVIDIA's driver is a kernel module, and the ZOS
