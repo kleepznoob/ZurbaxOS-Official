@@ -36,8 +36,7 @@ fetch() {
 	file=$SRC/$(basename "$url")
 	if [ ! -f "$file" ]; then
 		say "downloading $(basename "$url")"
-		curl -fsSL --retry 4 -o "$file.part" "$url"
-		mv "$file.part" "$file"
+		download "$url" "$file" || { echo "couldn't download $name from $url or its mirrors" >&2; exit 1; }
 	fi
 	local have
 	have=$(sha256sum "$file" | cut -d' ' -f1)
@@ -49,6 +48,26 @@ fetch() {
 		exit 1
 	fi
 	echo "$file"
+}
+
+# Downloads url to file, retrying, then from source mirrors that keep
+# upstream files under their own names (Gentoo's, Alpine's): some project
+# servers turn build machines away now and then. The checksum in
+# sources.txt makes any mirror's copy as good as the original.
+download() {
+	local url=$1 file=$2 name h m
+	name=$(basename "$url")
+	h=$(python3 -c 'import hashlib, sys; print(hashlib.blake2b(sys.argv[1].encode()).hexdigest()[:2])' "$name")
+	for m in "$url" "https://distfiles.gentoo.org/distfiles/$h/$name" \
+		"https://distfiles.alpinelinux.org/distfiles/edge/$name" "https://distfiles.alpinelinux.org/distfiles/v3.22/$name"; do
+		if curl -fsSL --retry 4 --retry-delay 5 --retry-all-errors -o "$file.part" "$m"; then
+			mv "$file.part" "$file"
+			return 0
+		fi
+		[ "$m" = "$url" ] && say "$name: the project's server refused; trying mirrors"
+	done
+	rm -f "$file.part"
+	return 1
 }
 
 # Unpacks a package into a fresh work folder and enters it.
