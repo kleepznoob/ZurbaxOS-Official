@@ -44,9 +44,10 @@ xkbcomp https://xorg.freedesktop.org/releases/individual/app/xkbcomp-1.5.0.tar.x
 xkeyboard-config https://xorg.freedesktop.org/releases/individual/data/xkeyboard-config/xkeyboard-config-2.48.tar.xz b77041324f0109f77161ee43743fe04baa485866af8460d31e476ad3f7648fd5
 vulkan-loader https://deb.debian.org/debian/pool/main/v/vulkan-loader/vulkan-loader_1.4.363.0.orig.tar.xz 2e31548f8328deb7aaf2d4a7f2e1a0a56c394660aeb6665c5dd7dfbab8d67997
 alsa-lib https://www.alsa-project.org/files/pub/lib/alsa-lib-1.2.16.1.tar.bz2 f740db7f488255944ffd4428416ee3390a96742856916433df468c281436480e
-speexdsp https://downloads.xiph.org/releases/speex/speexdsp-1.2.1.tar.gz -
-libsndfile https://deb.debian.org/debian/pool/main/libs/libsndfile/libsndfile_1.2.2.orig.tar.gz -
-pulseaudio https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-17.0.tar.xz -
+libtool https://ftp.gnu.org/gnu/libtool/libtool-2.5.4.tar.xz f81f5860666b0bc7d84baddefa60d1cb9fa6fceb2398cc3baca6afaa60266675
+speexdsp https://downloads.xiph.org/releases/speex/speexdsp-1.2.1.tar.gz 8c777343e4a6399569c72abc38a95b24db56882c83dbdb6c6424a5f4aeb54d3d
+libsndfile https://deb.debian.org/debian/pool/main/libs/libsndfile/libsndfile_1.2.2.orig.tar.gz ffe12ef8add3eaca876f04087734e6e8e029350082f3251f565fa9da55b52121
+pulseaudio https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-17.0.tar.xz 053794d6671a3e397d849e478a80b82a63cb9d8ca296bd35b73317bb5ceb87b5
 bash https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz 0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba
 coreutils https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210
 sed https://ftp.gnu.org/gnu/sed/sed-4.10.tar.xz b8e72182b2ec96a3574e2998c47b7aaa64cc20ce000d8e9ac313cc07cecf28c7

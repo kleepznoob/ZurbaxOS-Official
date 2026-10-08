@@ -319,6 +319,12 @@ pkg_zaudio_alsa() {
 # Steam passes its socket into the containers games run in. Here it has one
 # output, ALSA's zaudio plugin, so everything reaches ZOS's sound service.
 # layerrun starts it with a Steam session.
+# libltdl, libtool's module loader: PulseAudio loads its modules with it
+pkg_libltdl() {
+	unpack libtool
+	autobuild --enable-ltdl-install
+}
+
 pkg_speexdsp() {
 	unpack speexdsp
 	autobuild --disable-examples
@@ -330,6 +336,23 @@ pkg_libsndfile() {
 		-DENABLE_EXTERNAL_LIBS=OFF -DENABLE_MPEG=OFF -DENABLE_CPACK=OFF -DINSTALL_MANPAGES=OFF
 }
 
+# The server's start-up script. Without ZOS's sound service (it restarts, or
+# a machine has no sound card) the server still runs, with a silent output.
+zos_pa() {
+	cat <<-'EOF'
+		# ZOS: one output, ALSA's zaudio plugin (ZOS's sound service); see layer/packages.sh
+		.nofail
+		load-module module-alsa-sink device=zaudio sink_name=zos sink_properties=device.description=ZOS tsched=0
+		.fail
+		load-module module-null-source source_name=silence
+		load-module module-native-protocol-unix auth-anonymous=1
+		load-module module-always-sink
+		.nofail
+		set-default-sink zos
+		set-default-source silence
+	EOF
+}
+
 pkg_pulseaudio() {
 	unpack pulseaudio
 	local off=(asyncns avahi bluez5 dbus elogind fftw glib gsettings gstreamer gtk jack lirc openssl orc samplerate
@@ -339,16 +362,7 @@ pkg_pulseaudio() {
 	mesonbuild -Ddaemon=true -Dclient=true -Ddoxygen=false -Dman=false -Dtests=false -Ddatabase=simple \
 		-Dalsa=enabled -Dspeex=enabled -Dwebrtc-aec=disabled -Dadrian-aec=false -Dhal-compat=false \
 		-Dbluez5-gstreamer=disabled -Dstream-restore-clear-old-devices=true "${opts[@]}"
-	cat >"$ROOT/etc/pulse/zos.pa" <<-'EOF'
-		# ZOS: one output, ALSA's zaudio plugin (ZOS's sound service); see layer/packages.sh
-		.fail
-		load-module module-alsa-sink device=zaudio sink_name=zos sink_properties=device.description=ZOS tsched=0
-		load-module module-null-source source_name=silence
-		load-module module-native-protocol-unix auth-anonymous=1
-		load-module module-always-sink
-		set-default-sink zos
-		set-default-source silence
-	EOF
+	zos_pa >"$ROOT/etc/pulse/zos.pa"
 	cat >>"$ROOT/etc/pulse/daemon.conf" <<-'EOF'
 
 		; ZOS: started by layerrun for the session, no real-time priority to ask for
@@ -364,7 +378,7 @@ autospawn = no
 ' >>"$ROOT/etc/pulse/client.conf"
 }
 
-ORDER+=(alsa_lib alsa_lib:32 zaudio_alsa zaudio_alsa:32 speexdsp libsndfile pulseaudio)
+ORDER+=(alsa_lib alsa_lib:32 zaudio_alsa zaudio_alsa:32 libltdl speexdsp libsndfile pulseaudio)
 
 # ---- The commands Steam's scripts run ----------------------------------------------------
 
@@ -385,7 +399,7 @@ pkg_sed() { gnu sed; }
 pkg_grep() { gnu grep --disable-perl-regexp; }
 pkg_gawk() { gnu gawk --without-readline --without-mpfr; }
 pkg_findutils() { gnu findutils; }
-pkg_diffutils() { gnu diffutils; }
+pkg_diffutils() { gnu diffutils gl_cv_func_strcasecmp_works=yes; } # its check runs a program
 pkg_tar() { gnu tar; }
 pkg_gzip() { gnu gzip; }
 pkg_which() { gnu which; }
