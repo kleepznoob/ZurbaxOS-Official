@@ -11,7 +11,12 @@
  * runs layerrun --check, zos-gpucheck in the layer, and an X11 program on
  * the layer's Xwayland (xkbcomp reading the server's keymap back), each as
  * user 1000 like the desktop's apps. Test builds start it from /system/test
- * when the kernel is told "zurbax.test"; it is never part of a release. */
+ * when the kernel is told "zurbax.test"; it is never part of a release.
+ *
+ * With "zurbax.layertest=install" it instead installs ZOS on the virtual
+ * disk vda (erasing it) and logs the installer's steps, including the copy
+ * of the layer; the next boot, from that disk, then checks the layer the
+ * installed system mounts from /data/layers/steam.sfs. */
 #include "zr.h"
 
 static void say(const char *f, ...) PRINTF_LIKE(1, 2);
@@ -73,8 +78,30 @@ static void run(const char *tag, char **args)
 	say("%s exited with %d", tag, (status >> 8) & 0xff);
 }
 
+static void install(void)
+{
+	char *argv[] = { "/system/bin/zinstall", "install", "vda", "erase", NULL };
+	char *out = proc_run_capture(argv, NULL);
+	usize n = 0;
+	char **lines = str_split(out ? out : "", '\n', &n);
+	for (usize i = 0; i < n; i++)
+		if (lines[i][0])
+			say("install | %s", lines[i]);
+	str_split_free(lines, n);
+	mem_free(out);
+	say("done");
+}
+
 int main(void)
 {
+	char *cmdline = file_read("/proc/cmdline", NULL);
+	bool installing = cmdline && str_find(cmdline, "zurbax.layertest=install");
+	mem_free(cmdline);
+	if (installing) {
+		sleep_ms(3000);
+		install();
+		return 0;
+	}
 	/* the desktop first: Xwayland needs its Wayland server */
 	sleep_ms(8000);
 	char *mounts = file_read("/proc/self/mountinfo", NULL);
