@@ -229,7 +229,7 @@ build() {
 # Python with the modules Mesa's build needs, and a recent meson.
 pkg_venv() {
 	python3 -m venv "$L/venv"
-	"$L/venv/bin/pip" install -q meson==1.9.1 mako pyyaml packaging
+	"$L/venv/bin/pip" install -q meson==1.9.1 mako pyyaml packaging pyparsing
 }
 
 # ---- The file system layout -----------------------------------------------------

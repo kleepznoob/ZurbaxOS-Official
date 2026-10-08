@@ -237,6 +237,12 @@ pkg_mesa() {
 
 pkg_vulkan_loader() {
 	unpack vulkan-loader
+	# Debian's copy of the source leaves out the generated code; the loader's
+	# own generator remakes it from the Vulkan registry that comes with it
+	local version=${PWD##*-}
+	mkdir -p loader/generated tests/framework/generated tests/framework/layer/generated
+	python3 scripts/generate_source.py vulkan-headers/registry --generated-version "$version" --incremental >codegen.log 2>&1 ||
+		{ tail -20 codegen.log; exit 1; }
 	# Vulkan's headers come with the loader's source
 	(cd vulkan-headers && cmake -S . -B _build -DCMAKE_INSTALL_PREFIX="$WORK/vkheaders" >cmake.log && cmake --install _build >>cmake.log)
 	cmakebuild -DVulkanHeaders_DIR="$WORK/vkheaders/share/cmake/VulkanHeaders" -DVULKAN_HEADERS_INSTALL_DIR="$WORK/vkheaders" \

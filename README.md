@@ -72,12 +72,19 @@ screen goes straight to the display from its own buffer, with no copy.
 
 **Steam.** The Steam app starts Valve's Steam client, and through it Proton
 for Windows games, full screen in Big Picture or as a desktop window. Steam
-is a standard Linux program, so it runs from the Linux layer: glibc,
-Xwayland, Mesa's GPU drivers and the rest, built from upstream sources by
-`layer/build.sh` and kept apart from ZOS in `/data/layers/steam`.
-`layerrun` starts programs inside the layer through a user namespace, with
-no privileges, and the Steam app checks that everything is in place first
-(see "Not there yet" for the state of the layer).
+is a standard Linux program, so it runs from the Linux layer, a separate
+root file system built from upstream sources by `layer/build.sh`: glibc
+2.42 and GCC 15.2's runtime (64- and 32-bit), Mesa 26.2 with AMD's
+(radeonsi, RADV) and Intel's (iris, crocus, ANV, HASVK) OpenGL and Vulkan
+drivers plus zink, virgl and softpipe, libglvnd, the Vulkan loader, X11's
+libraries, Xwayland, PulseAudio playing through ZOS's sound service, fonts,
+a GNU userland and Valve's launcher. It ships as one compressed image
+(`steam.sfs`) on the install stick and ISO; zinit mounts it at
+`/data/layers/steam`, from the stick in a live session and from the disk
+once installed (the installer copies it). `layerrun` starts programs inside
+the layer through a user namespace, with no privileges, along with a
+full-screen Xwayland and the sound server, and the Steam app checks that
+everything is in place and names the GPU games will use.
 
 **Graphics drivers.** The kernel carries AMD's and Intel's GPU drivers with
 their firmware (Radeon RX 400 series and newer, Ryzen graphics, Steam Deck;
@@ -149,12 +156,20 @@ make            # everything: libraries, system programs, apps
 make test       # the test suites (runtime, graphics, 3D, toolkit, TLS/crypto, audio, Wi-Fi, disks)
 make image      # the kernel with the system inside, build/zos.iso and build/zos.img
 make run        # boot build/zos.img in QEMU with UEFI firmware
+layer/build.sh  # the Linux layer for Steam (hours), build/layer/steam.sfs
 ```
 
 A C compiler and `make` are enough for the system itself. Building the
 kernel also needs the usual kernel build tools (`bc`, `flex`, `bison`,
 `libelf`, `libssl` headers). `kernel/build.sh` downloads Linux on first use,
 and `make image` fetches the Wi-Fi and GPU firmware from linux-firmware.
+`make image` puts `build/layer/steam.sfs` on the stick and ISO when it has
+been built. The layer's build compiles its own GCC first and everything
+else with it, as cross builds against the layer; it needs the tools listed
+in the `layer` job of `.github/workflows/build.yml` (LLVM 18 and Clang for
+Mesa's OpenCL compiler, meson, cmake, autotools, mksquashfs) and about
+10 GB of space. Its sources are pinned with their SHA-256 sums in
+`layer/sources.txt`.
 
 To try it on a real PC, burn `build/zos.iso` to a DVD, or write it to a
 USB stick with balenaEtcher, Rufus or `dd`, and boot from it in UEFI mode.
@@ -193,12 +208,14 @@ The Installer finds the system on whichever one ZOS started from.
   WebP pictures don't show yet.
 - **MP3 and AAC playback.** These need the formats' large fixed tables;
   FLAC, Ogg Vorbis and WAV play.
-- **The Linux layer.** `layer/build.sh` builds glibc (64- and 32-bit) and
-  GCC's runtime so far; Mesa, Xwayland, the X libraries, the Vulkan loader,
-  audio and the Steam launcher are still to be added, so the Steam app
-  reports the layer as missing. ZOS's side (Wayland, GPU buffers, direct
-  scanout, layerrun, the Steam app, the kernel's drivers, namespaces and
-  ntsync) is in place and tested.
+- **Steam on real hardware.** The layer builds completely and runs inside
+  ZOS (tested in QEMU: zinit mounts it, layerrun enters it, Mesa and
+  Xwayland start); signing in to Steam, Proton games and GPU acceleration
+  need a real AMD or Intel GPU and haven't been tried on one yet. Building
+  the layer takes a few hours (CI caches it); images built without it
+  work, and the Steam app says what's missing. Controllers plugged in while
+  Steam runs are seen through the layer's libudev, which ZOS feeds with
+  device events.
 - **Hardware 3D in ZOS's own apps.** The desktop and Glide are drawn in
   software, so they work on any GPU.
 - **NVIDIA graphics.** NVIDIA's driver is a kernel module, and the ZOS
