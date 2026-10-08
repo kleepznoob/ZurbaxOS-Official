@@ -5,16 +5,23 @@
 
 Wi-Fi chips and GPUs run vendor firmware that the kernel hands them at
 start-up; it comes from the linux-firmware project (redistributable,
-unmodified). This fetches the files for the Wi-Fi chips common in laptops
-from the last few years and for the AMD and Intel GPUs in
-kernel/gpu-firmware.txt, compresses them with xz (the kernel unpacks them as
-it loads them, so they take less memory), and adds the wireless regulatory
-database. Files already fetched are kept; delete OUTDIR to start over.
-"""
-import concurrent.futures, lzma, os, re, sys, urllib.request
+unmodified). This takes the newest linux-firmware release from kernel.org's
+download servers, reads its index (WHENCE) for the files and links, and
+keeps the files for the Wi-Fi chips common in laptops from the last few
+years and for the AMD and Intel GPUs in kernel/gpu-firmware.txt. They are
+compressed with xz (the kernel unpacks them as it loads them, so they take
+less memory). The wireless regulatory database comes the same way.
 
-FIRMWARE = "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/"
-REGDB = "https://git.kernel.org/pub/scm/linux/kernel/git/wens/wireless-regdb.git/plain/"
+The release is streamed, never stored whole. OUTDIR remembers which release
+it holds, so a second run downloads nothing; delete OUTDIR to start over.
+"""
+import lzma, os, re, sys, tarfile, time, urllib.request
+
+# kernel.org's download servers: release tarballs, sturdier than fetching
+# hundreds of single files from the git web front end (which turns build
+# machines away with "503 Service Temporarily Unavailable")
+FIRMWARE = "https://cdn.kernel.org/pub/linux/kernel/firmware/"
+REGDB = "https://cdn.kernel.org/pub/software/network/wireless-regdb/"
 
 # What the kernel's built-in drivers ask for (modules.builtin.modinfo, Linux
 # 6.18), trimmed to chips found in laptops: Intel AX200/AX201/AX210/AX211/
@@ -38,16 +45,31 @@ rtw89/rtw8852b_fw-1.bin rtw89/rtw8852c_fw-2.bin rtw89/rtw8922a_fw-4.bin
 """.split()
 
 
-def get(url):
+def open_url(url):
+    """A response for url, retried a few times: download servers have bad moments."""
     req = urllib.request.Request(url, headers={"User-Agent": "zurbax-build/1.0 (fetch-firmware)"})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return r.read()
+    for attempt in range(5):
+        try:
+            return urllib.request.urlopen(req, timeout=120)
+        except OSError:
+            if attempt == 4:
+                raise
+            time.sleep(2 ** attempt * 3)
 
 
-def index():
+def newest(listing, pattern):
+    """The newest release named in a download folder's listing."""
+    with open_url(listing) as r:
+        names = set(re.findall(pattern, r.read().decode("utf-8", "replace")))
+    if not names:
+        sys.exit(f"no release found at {listing}")
+    return max(names)
+
+
+def index(whence):
     """Every file in linux-firmware by the name drivers ask for (links included)."""
     files = {}
-    for line in get(FIRMWARE + "WHENCE").decode("utf-8", "replace").splitlines():
+    for line in whence.decode("utf-8", "replace").splitlines():
         m = re.match(r"^(?:RawFile|File):\s*(\S+)", line)
         if m:
             path = m.group(1).strip('"')
@@ -91,26 +113,18 @@ def gpu_wanted():
         return [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
 
-def fetch(path, dest):
+def save(data, dest):
     """One file, xz-compressed as the kernel's loader expects (CRC32, 1 MiB dictionary)."""
-    if os.path.exists(dest):
-        return os.path.getsize(dest)
-    data = get(FIRMWARE + path)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest + ".tmp", "wb") as f:
         f.write(lzma.compress(data, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32,
                               filters=[{"id": lzma.FILTER_LZMA2, "preset": 9, "dict_size": 1 << 20}]))
     os.rename(dest + ".tmp", dest)
-    return os.path.getsize(dest)
 
 
-def main():
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    out = sys.argv[1]
-    os.makedirs(out, exist_ok=True)
-    files = index()
-    jobs = []
+def plan(files, out):
+    """Which files of the release to keep, and under which names: {path: [dest...]}."""
+    want = {}
     for name in WANTED:
         r = resolve(name, files)
         if not r:
@@ -119,25 +133,73 @@ def main():
         path, local = (r, name) if isinstance(r, str) else r
         if not isinstance(r, str):
             local = os.path.join(os.path.dirname(name), local)
-        jobs.append((path, os.path.join(out, local + ".xz")))
+        want.setdefault(path, []).append(os.path.join(out, local + ".xz"))
     # GPU drivers list every file they might want; linux-firmware lacks a few
     missing = 0
     for name in gpu_wanted():
         if name in files:
-            jobs.append((files[name], os.path.join(out, name + ".xz")))
+            want.setdefault(files[name], []).append(os.path.join(out, name + ".xz"))
         else:
             missing += 1
     if missing:
         print(f"   note: {missing} GPU firmware files the drivers mention aren't in linux-firmware (optional ones)")
-    with concurrent.futures.ThreadPoolExecutor(8) as pool:
-        total = sum(pool.map(lambda job: fetch(*job), jobs))
-    for name in ("regulatory.db", "regulatory.db.p7s"):
-        dest = os.path.join(out, name)
-        if not os.path.exists(dest):
-            with open(dest, "wb") as f:
-                f.write(get(REGDB + name))
-        total += os.path.getsize(dest)
-    print(f">> firmware: {total // 1024} KiB in {out}")
+    return want
+
+
+def firmware(out):
+    """Streams the newest linux-firmware release, keeping what ZOS needs."""
+    release = newest(FIRMWARE, r"linux-firmware-\d{8}\.tar\.xz")
+    print(f">> firmware from {release}")
+    want, kept = None, 0
+    with open_url(FIRMWARE + release) as r, tarfile.open(fileobj=r, mode="r|xz") as tar:
+        for m in tar:
+            if not m.isfile() or "/" not in m.name:
+                continue
+            path = m.name.split("/", 1)[1]
+            # WHENCE, the index, comes before the folders (git sorts capitals first)
+            if path == "WHENCE":
+                want = plan(index(tar.extractfile(m).read()), out)
+            elif want is not None and path in want:
+                data = tar.extractfile(m).read()
+                for dest in want.pop(path):
+                    save(data, dest)
+                    kept += 1
+    if want is None:
+        sys.exit(f"{release} has no WHENCE")
+    for path in want:
+        print(f"   note: {path} wasn't in {release}")
+    return release, kept
+
+
+def regdb(out):
+    """The wireless regulatory database and its signature."""
+    release = newest(REGDB, r"wireless-regdb-[\d.]+\d\.tar\.xz")
+    with open_url(REGDB + release) as r, tarfile.open(fileobj=r, mode="r|xz") as tar:
+        for m in tar:
+            name = os.path.basename(m.name)
+            if m.isfile() and name in ("regulatory.db", "regulatory.db.p7s"):
+                with open(os.path.join(out, name), "wb") as f:
+                    f.write(tar.extractfile(m).read())
+    return release
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    out = sys.argv[1]
+    os.makedirs(out, exist_ok=True)
+    marker = os.path.join(out, ".release")
+    have = open(marker).read().split() if os.path.exists(marker) else []
+    latest = newest(FIRMWARE, r"linux-firmware-\d{8}\.tar\.xz")
+    if latest in have and os.path.exists(os.path.join(out, "regulatory.db")):
+        print(f">> firmware: {latest} already in {out}")
+        return
+    release, kept = firmware(out)
+    reg = regdb(out)
+    with open(marker, "w") as f:
+        f.write(f"{release} {reg}\n")
+    total = sum(os.path.getsize(os.path.join(d, n)) for d, _, ns in os.walk(out) for n in ns)
+    print(f">> firmware: {kept} files, {total // 1024} KiB in {out}")
 
 
 if __name__ == "__main__":

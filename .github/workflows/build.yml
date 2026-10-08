@@ -78,6 +78,11 @@ jobs:
           path: build/firmware
           key: firmware-${{ hashFiles('tools/fetch-firmware.py', 'kernel/gpu-firmware.txt') }}
 
+      # on its own, so a failed download stops the build instead of leaving
+      # the image without GPU and Wi-Fi firmware (make image only warns)
+      - name: Fetch the Wi-Fi and GPU firmware
+        run: python3 tools/fetch-firmware.py build/firmware
+
       - name: Build
         run: make -j"$(nproc)"
 
