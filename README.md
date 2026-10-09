@@ -25,6 +25,31 @@ The look takes its cues from elementary OS: a calm top bar, a dock, rounded
 windows with header bars and readable text. The focus is on games and on
 making the desktop your own.
 
+![The ZOS desktop with the Golden Rain wallpaper and the Arc dock](docs/screenshots/desktop.jpg)
+
+## Download
+
+**[ZOS 2.0 Golden Rain on the Releases page](https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest)**
+
+- `zos.iso`: for a DVD, or for a USB stick written with balenaEtcher, Rufus
+  or `dd`. It's a hybrid image, so the same file works for both.
+- `zos.img`: a plain USB stick image.
+- `SHA256SUMS`: checksums to verify the download.
+
+Boot it in UEFI mode (on ASUS machines, press F8 or Esc for the boot menu).
+You can try ZOS from the stick first, and install it from there when you
+want to.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Lock screen](docs/screenshots/lock.jpg) **Lock screen**: the date over a large clock, notifications on frosted glass | ![Applications menu](docs/screenshots/launcher.jpg) **Applications menu**: every app, with search |
+| ![Dashboard](docs/screenshots/dashboard.jpg) **Dashboard**: weather, today's events, recent files and screen time | ![Settings](docs/screenshots/settings.jpg) **Settings**: light or dark style, accent colours and wallpapers |
+| ![Arcade](docs/screenshots/arcade.jpg) **Arcade**: Glide in 3D, plus Blocks, Snake, 2048, Mines and Breakout | ![Steam](docs/screenshots/steam.jpg) **Steam**: checks the Linux layer and GPU, then starts Big Picture |
+| ![Harbor](docs/screenshots/harbor.jpg) **Harbor**: the app store | ![Music](docs/screenshots/music.jpg) **Music**: albums, songs and artists |
+| ![Vault](docs/screenshots/vault.jpg) **Vault**: files | |
+
 ## What it does
 
 **Boot.** The firmware's own logo (the ASUS logo on an ASUS PC) stays on
@@ -181,8 +206,10 @@ USB stick with balenaEtcher, Rufus or `dd`, and boot from it in UEFI mode.
 On ASUS machines, press F8 or Esc for the boot menu. The ISO is a hybrid:
 a UEFI El Torito image for discs, and a GPT for USB sticks, sharing one
 copy of the kernel. `build/zos.img` is a plain USB stick image. GitHub
-Actions builds both on every push (see the `zos-2.0-golden-rain` artifact).
-The Installer finds the system on whichever one ZOS started from.
+Actions builds both on every push (see the `zos-2.0-golden-rain` artifact),
+and publishes them as a release when the `build` workflow is started by
+hand with a tag name (for example `v2.0.0`). The Installer finds the system
+on whichever one ZOS started from.
 
 ## Layout
 

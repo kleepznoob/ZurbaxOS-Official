@@ -1,11 +1,17 @@
 # Builds ZOS, runs the tests and produces the bootable USB image and ISO,
-# with the Linux layer for Steam and Proton on them.
+# with the Linux layer for Steam and Proton on them. Started by hand with a
+# tag name, it also publishes the images as that release.
 name: build
 
 on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish the images as this release tag (for example v2.0.0); leave empty for a normal build"
+        required: false
+        default: ""
 
 jobs:
   # The Linux layer (layer/build.sh): glibc, GCC, Mesa, Xwayland and the rest,
@@ -117,3 +123,33 @@ jobs:
             build/zos.iso
             build/zos.img
           compression-level: 9
+
+  release:
+    needs: image
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get the ISO and the USB image
+        uses: actions/download-artifact@v4
+        with:
+          name: zos-2.0-golden-rain
+          path: build
+
+      # a second run with the same tag replaces the files and the notes
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release }}
+        run: |
+          (cd build && sha256sum zos.iso zos.img > SHA256SUMS && cat SHA256SUMS)
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" build/zos.iso build/zos.img build/SHA256SUMS --clobber
+            gh release edit "$TAG" --notes-file docs/release-notes.md
+          else
+            gh release create "$TAG" build/zos.iso build/zos.img build/SHA256SUMS \
+              --target "$GITHUB_SHA" --title "ZOS 2.0 Golden Rain" --notes-file docs/release-notes.md
+          fi
