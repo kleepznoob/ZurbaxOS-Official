@@ -63,7 +63,14 @@ pkg_glib_gir() {
 }
 
 
-ORDER+=(gobject_introspection glib_gir)
+# json-glib again, with its type information (the first build, for Flatpak, had none)
+pkg_json_glib_gir() {
+	unpack json-glib
+	mesonbuild -Dintrospection=enabled -Ddocumentation=disabled -Dman=false -Dtests=false -Dnls=disabled \
+		-Dconformance=false -Dinstalled_tests=false
+}
+
+ORDER+=(gobject_introspection glib_gir json_glib_gir)
 
 # ---- Pictures, text and the graphics under GTK ------------------------------------------
 
@@ -308,7 +315,8 @@ pkg_libdisplay_info() {
 
 pkg_xcb_util() { xorg xcb-util; }
 
-pkg_startup_notification() { unpack startup-notification; autobuild; }
+# glibc's realloc(NULL, n) works: the answer configure can't test across machines
+pkg_startup_notification() { unpack startup-notification; lf_cv_sane_realloc=yes autobuild; }
 
 pkg_sqlite() {
 	unpack sqlite
@@ -343,7 +351,7 @@ pkg_duktape() {
 pkg_polkit() {
 	unpack polkit
 	mesonbuild -Dlibs-only=true -Dintrospection=true -Dexamples=false -Dtests=false -Dman=false -Dgtk_doc=false \
-		-Djs_engine=duktape -Dsession_tracking=logind -Dsystemdsystemunitdir=/usr/lib/systemd/system
+		-Dauthfw=shadow -Dsession_tracking=logind -Dsystemdsystemunitdir=/usr/lib/systemd/system
 	# the agent's password check: Zurbax's own (system/polkit-helper), asking zsys
 	zurbax_program polkit-helper /usr/lib/polkit-1/polkit-agent-helper-1
 }
@@ -652,7 +660,18 @@ pkg_gnome_shell() {
 	zurbax_program zsession /usr/libexec/zurbax/zsession
 }
 
-ORDER+=(gnome_shell)
+# Zurbax's touches for GNOME: its wallpaper (rendered by tools/wallpaper)
+# and its defaults (layer/files/90_zurbax.gschema.override)
+pkg_zurbax_gnome() {
+	env -u CC -u CXX -u CFLAGS -u LDFLAGS make -C "$TOP" --no-print-directory -s build/tools/wallpaper ||
+		{ echo "couldn't build the wallpaper tool" >&2; exit 1; }
+	mkdir -p "$ROOT/usr/share/backgrounds/zurbax"
+	"$TOP/build/tools/wallpaper" silk "$ROOT/usr/share/backgrounds/zurbax/silk.png" 3840 2160
+	install -Dm644 "$HERE/files/90_zurbax.gschema.override" "$ROOT/usr/share/glib-2.0/schemas/90_zurbax.gschema.override"
+	"$NATIVE/bin/glib-compile-schemas" "$ROOT/usr/share/glib-2.0/schemas"
+}
+
+ORDER+=(gnome_shell zurbax_gnome)
 
 # ---- Zurbax's libsystemd ---------------------------------------------------------------
 # The session questions GNOME asks systemd's library, answered by Zurbax's own

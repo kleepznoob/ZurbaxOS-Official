@@ -128,6 +128,9 @@ flags() {
 	export PKG_CONFIG=$L/cross-bin/pkg-config
 	unset PKG_CONFIG_PATH
 	pkgconfig_wrapper
+	# the build machine's msgfmt also knows the layer's file kinds (polkit
+	# actions, GTK interfaces...) through their ITS rules
+	export GETTEXTDATADIRS=$ROOT/usr/share/gettext
 	# 32-bit packages are installed here first; only their libraries go into the layer
 	DEST=$ROOT
 	if [ "$ARCH" = 32 ]; then

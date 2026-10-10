@@ -339,7 +339,7 @@ bool ui_file_dialog_is_open(Ui *ui, const char *id); /* false once picked from o
 const char *ui_file_icon(const char *name, bool is_dir); /* symbolic icon for a file type */
 
 /* Wallpapers: built-in names, or an absolute path to a picture. */
-#define WALLPAPER_DEFAULT "horizon"
+#define WALLPAPER_DEFAULT "silk"
 extern const char *const WALLPAPER_NAMES[];
 extern const char *const WALLPAPER_TITLES[];
 extern const int WALLPAPER_COUNT;

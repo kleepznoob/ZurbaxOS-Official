@@ -5,9 +5,11 @@
  */
 #include "zui.h"
 
-const char *const WALLPAPER_NAMES[] = { "horizon", "daybreak", "golden-rain", "lake", "ridgeline", "glacier", "nightfall", "ember", "meadow" };
-const char *const WALLPAPER_TITLES[] = { "Horizon", "Daybreak", "Golden Rain", "Lake at Dusk", "Ridgeline", "Glacier", "Nightfall", "Ember", "Meadow" };
-const int WALLPAPER_COUNT = 9;
+const char *const WALLPAPER_NAMES[] = { "silk", "horizon", "daybreak", "golden-rain", "lake", "ridgeline", "glacier", "nightfall", "ember",
+					"meadow" };
+const char *const WALLPAPER_TITLES[] = { "Silk", "Horizon", "Daybreak", "Golden Rain", "Lake at Dusk", "Ridgeline", "Glacier", "Nightfall",
+					 "Ember", "Meadow" };
+const int WALLPAPER_COUNT = 10;
 
 static f32 hash1(int i, u32 seed)
 {
@@ -300,9 +302,127 @@ static Canvas *dawn(const Dawn *d, int w, int h)
 	return c;
 }
 
+/* ---- Silk ----------------------------------------------------------------------------- */
+/* Silk, Zurbax 2.0's picture: folds of warm light, coral to amber, drifting
+ * up across deep aubergine like a length of silk caught in the evening sun.
+ * Each fold is a ribbon that narrows where it turns; light runs along its
+ * upper edge, the far ones softened by distance. */
+
+typedef struct {
+	f32 y0, y1;                  /* where the fold enters (left) and leaves (right), in heights */
+	f32 lift;                    /* how far its middle rises */
+	f32 width;                   /* thickest, in heights */
+	f32 turn;                    /* where along it the fold twists (0..1) */
+	const char *from, *to;       /* its colours, left to right */
+	f32 alpha, sheen;
+} Fold;
+
+static void fold_point(const Fold *f, f32 fw, f32 fh, f32 u, f32 *x, f32 *y)
+{
+	/* a cubic sweep from the lower left up to the right */
+	f32 x0 = -0.12f * fw, x3 = 1.12f * fw;
+	f32 y0 = f->y0 * fh, y3 = f->y1 * fh;
+	f32 x1 = 0.34f * fw, y1 = y0 - f->lift * fh, x2 = 0.58f * fw, y2 = y3 + f->lift * 0.7f * fh;
+	f32 a = 1 - u;
+	*x = a * a * a * x0 + 3 * a * a * u * x1 + 3 * a * u * u * x2 + u * u * u * x3;
+	*y = a * a * a * y0 + 3 * a * a * u * y1 + 3 * a * u * u * y2 + u * u * u * y3;
+}
+
+static void draw_fold(Canvas *c, const Fold *f, f32 fw, f32 fh)
+{
+	enum { N = 180 };
+	f32 top[N + 1][2], bot[N + 1][2];
+	for (int i = 0; i <= N; i++) {
+		f32 u = (f32)i / N, x, y, xn, yn;
+		fold_point(f, fw, fh, u, &x, &y);
+		fold_point(f, fw, fh, minf(1, u + 0.002f), &xn, &yn);
+		if (i == N)
+			fold_point(f, fw, fh, u - 0.002f, &xn, &yn), xn = 2 * x - xn, yn = 2 * y - yn;
+		f32 dx = xn - x, dy = yn - y, len = sqrtf(dx * dx + dy * dy);
+		f32 nx = -dy / len, ny = dx / len;
+		/* thick in the open, thin where the silk turns over (smoothly: no crease) */
+		f32 t = (u - f->turn) * 3.2f;
+		f32 th = f->width * fh * (0.06f + 0.94f * (1 - expf(-t * t))) * (0.5f + 0.5f * sinf(u * PI_F));
+		top[i][0] = x + nx * th * 0.5f, top[i][1] = y + ny * th * 0.5f;
+		bot[i][0] = x - nx * th * 0.5f, bot[i][1] = y - ny * th * 0.5f;
+	}
+	Path p = { 0 };
+	path_move(&p, top[0][0], top[0][1]);
+	for (int i = 1; i <= N; i++)
+		path_line(&p, top[i][0], top[i][1]);
+	for (int i = N; i >= 0; i--)
+		path_line(&p, bot[i][0], bot[i][1]);
+	path_close(&p);
+	Paint body = paint_linear(0, 0, fw, 0, color_scale_alpha(color_hex(f->from), f->alpha), color_scale_alpha(color_hex(f->to), f->alpha));
+	paint_add_stop(&body, f->turn, color_scale_alpha(color_mix(color_hex(f->from), color_hex(f->to), 0.5f), f->alpha * 0.7f));
+	fill_path(c, &p, mat_identity(), &body, FILL_NONZERO);
+	/* the shadow inside the fold: darker toward its lower edge */
+	Paint shade = paint_linear(0, fh * (f->y0 - f->lift), 0, fh * (f->y0 + f->width), color_hex("#00000000"), color_hex("#2a061f55"));
+	fill_path(c, &p, mat_identity(), &shade, FILL_NONZERO);
+	path_free(&p);
+	/* light along the upper edge, brightest in the open */
+	Path edge = { 0 };
+	path_move(&edge, top[0][0], top[0][1]);
+	for (int i = 1; i <= N; i++)
+		path_line(&edge, top[i][0], top[i][1]);
+	Color light = color_hex("#ffd9b0");
+	Paint sheen = paint_linear(0, 0, fw, 0, color_scale_alpha(light, 0), color_scale_alpha(light, 0));
+	paint_add_stop(&sheen, clampf(f->turn - 0.3f, 0.02f, 0.9f), color_scale_alpha(light, f->sheen));
+	paint_add_stop(&sheen, clampf(f->turn - 0.04f, 0.05f, 0.95f), color_scale_alpha(light, f->sheen * 0.2f));
+	paint_add_stop(&sheen, clampf(f->turn + 0.25f, 0.1f, 0.98f), color_scale_alpha(light, f->sheen * 0.8f));
+	f32 k = fh / 1080;
+	StrokeStyle thin = { .width = maxf(1, 1.5f * k), .cap = CAP_ROUND, .join = JOIN_ROUND, .miter_limit = 4 };
+	stroke_path(c, &edge, mat_identity(), &sheen, &thin);
+	Paint glow = sheen;
+	for (int s = 0; s < glow.nstops; s++)
+		glow.stops[s].color = color_scale_alpha(glow.stops[s].color, 0.18f);
+	StrokeStyle wide = { .width = 18 * k, .cap = CAP_ROUND, .join = JOIN_ROUND, .miter_limit = 4 };
+	stroke_path(c, &edge, mat_identity(), &glow, &wide);
+	path_free(&edge);
+}
+
+static Canvas *silk(int w, int h)
+{
+	Canvas *c = canvas_new(w, h);
+	f32 fw = (f32)w, fh = (f32)h, k = fh / 1080;
+	/* deep aubergine, warming toward the lower right */
+	Paint base = paint_linear(0, 0, fw, fh, color_hex("#140414"), color_hex("#5c1534"));
+	paint_add_stop(&base, 0.45f, color_hex("#2c0a2b"));
+	paint_add_stop(&base, 0.78f, color_hex("#47112f"));
+	fill_rect_paint(c, rect(0, 0, fw, fh), &base);
+	Paint warm = paint_radial(fw * 0.86f, fh * 1.02f, fw * 0.75f, color_hex("#e0582a8c"), color_hex("#e0582a00"));
+	paint_add_stop(&warm, 0.4f, color_hex("#b13a3a40"));
+	fill_rect_paint(c, rect(0, 0, fw, fh), &warm);
+	/* far folds, softened by distance: a wide veil high up, two more below */
+	static const Fold FAR[] = {
+		{ 0.46f, -0.02f, 0.16f, 0.30f, 0.70f, "#4a1240", "#a8344a", 0.5f, 0.18f },
+		{ 0.74f, 0.20f, 0.24f, 0.22f, 0.58f, "#6e1d4f", "#c9493e", 0.55f, 0.3f },
+		{ 0.96f, 0.42f, 0.20f, 0.17f, 0.36f, "#7d2150", "#dc6238", 0.5f, 0.24f },
+	};
+	for (usize i = 0; i < ARRAY_LEN(FAR); i++)
+		draw_fold(c, &FAR[i], fw, fh);
+	blur_region(c, rect(0, 0, fw, fh), 28 * k);
+	/* near folds, crisp */
+	static const Fold NEAR[] = {
+		{ 1.04f, 0.28f, 0.30f, 0.15f, 0.56f, "#8a2652", "#f07a3a", 0.82f, 0.75f },
+		{ 1.14f, 0.56f, 0.22f, 0.13f, 0.33f, "#a3304f", "#f6a04d", 0.88f, 0.9f },
+		{ 1.26f, 0.80f, 0.12f, 0.11f, 0.70f, "#b33c4c", "#ffb85c", 0.78f, 0.7f },
+	};
+	for (usize i = 0; i < ARRAY_LEN(NEAR); i++)
+		draw_fold(c, &NEAR[i], fw, fh);
+	/* a soft vignette keeps the corners quiet behind the bars */
+	Paint vig = paint_radial(fw * 0.5f, fh * 0.45f, fw * 0.8f, color_hex("#00000000"), color_hex("#0a020c80"));
+	paint_add_stop(&vig, 0.6f, color_hex("#00000000"));
+	fill_rect_paint(c, rect(0, 0, fw, fh), &vig);
+	add_grain(c, 4242, 0.014f);
+	return c;
+}
+
 Canvas *wallpaper_render(const char *name, int w, int h)
 {
-	if (!name || !*name || str_eq(name, "horizon"))
+	if (!name || !*name || str_eq(name, "silk"))
+		return silk(w, h);
+	if (str_eq(name, "horizon"))
 		return dawn(&HORIZON, w, h);
 	if (str_eq(name, "daybreak"))
 		return dawn(&DAYBREAK, w, h);

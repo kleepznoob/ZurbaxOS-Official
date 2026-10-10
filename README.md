@@ -86,10 +86,12 @@ the wallpaper, the date over a large clock, waiting notifications, and you
 with a password field. Plus notification sounds and screenshots (Print
 Screen).
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
-French, Spanish) are built in. Wallpapers: Horizon (the default: soft
-hills under a sky going from ink to iris to the first gold of the day) and
-Daybreak, its pale morning, Golden Rain, the Lake at Dusk photo and five
-painted landscapes, all drawn to fit any screen.
+French, Spanish) are built in. Wallpapers: Silk (the default: folds of
+warm coral and amber light drifting across deep aubergine, the same
+picture in GNOME), Horizon (soft hills under a sky going from ink to iris
+to the first gold of the day) and Daybreak, its pale morning, Golden Rain,
+the Lake at Dusk photo and five painted landscapes, all drawn to fit any
+screen.
 
 **Game controllers.** Xbox, PlayStation, Switch Pro, Steam and other USB
 controllers work the moment they're plugged in, up to four at once. The
