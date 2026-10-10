@@ -57,6 +57,24 @@ void props_add_all(DBusMsg *m, const Prop *props, usize n, void *obj);
 void props_changed(DBus *bus, const char *path, const char *iface, const Prop *props, usize n, void *obj,
 		   const char *const *names);
 
+/* An interface of an object an ObjectManager lists: its properties. */
+typedef struct {
+	const char *iface;
+	const Prop *props;
+	usize n;
+} Iface;
+#define IFACE(i, p) { i, p, ARRAY_LEN(p) }
+
+/* What the interface shows, as a number: it changed when the number did. */
+u64 iface_hash(const Iface *in, void *obj);
+/* PropertiesChanged (every property) when the interface changed since *hash. */
+void iface_sync(DBus *bus, const char *path, const Iface *in, void *obj, u64 *hash);
+/* {sa{sv}}: the interface and its properties, for GetManagedObjects. */
+void iface_add(DBusMsg *m, const Iface *in, void *obj);
+/* InterfacesAdded / InterfacesRemoved from the ObjectManager at om_path. */
+void om_added(DBus *bus, const char *om_path, const char *path, const Iface *const *ifaces, usize n, void *obj);
+void om_removed(DBus *bus, const char *om_path, const char *path, const char *const *names, usize n);
+
 /* A D-Bus object path piece for any text, the way systemd escapes it ("1" → "_31"). */
 char *path_escape(const char *s);
 
@@ -70,6 +88,7 @@ void hostname_start(DBus *bus);
 void polkit_start(DBus *bus);
 void network_start(DBus *bus);
 void gdm_start(DBus *bus);
+void udisks_start(DBus *bus);
 
 /* zinit: "poweroff" or "reboot" */
 void power_action(const char *what);

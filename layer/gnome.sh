@@ -408,13 +408,14 @@ pkg_mozjs() {
 	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A10 -m5 'error' make.log | head -80; exit 1; }
 	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -30 install.log; exit 1; }
 	rm -f "$DEST$LIBDIR"/libjs_static.ajs
+	# programs that embed it (GJS) build for Unix: its headers need to be told
+	sed -i 's|^Cflags: \(.*\)|Cflags: \1 -DXP_UNIX|' "$DEST$LIBDIR/pkgconfig/mozjs-140.pc"
 	finish
 }
 
 pkg_gjs() {
 	unpack gjs
-	mesonbuild -Dinstalled_tests=false -Dskip_dbus_tests=true -Dskip_gtk_tests=true -Dprofiler=disabled -Dreadline=disabled \
-		-Dcairo=enabled
+	mesonbuild -Dinstalled_tests=false -Dskip_dbus_tests=true -Dskip_gtk_tests=true -Dprofiler=disabled -Dreadline=disabled
 }
 
 ORDER+=(native_cbindgen mozjs gjs)

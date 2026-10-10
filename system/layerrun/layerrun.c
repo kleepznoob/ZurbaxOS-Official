@@ -185,8 +185,9 @@ static void enter_namespaces(void)
 		if (!file_write_str("/proc/self/gid_map", map))
 			fail("cannot map the group into the namespace");
 	}
-	/* mounts from here on stay in this namespace */
-	must_mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL);
+	/* mounts from here on stay in this namespace, and mounts made outside
+	 * later (removable drives) still arrive */
+	must_mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL);
 }
 
 /* Small files the layer's programs expect in /etc, written for this session

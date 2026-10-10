@@ -848,13 +848,6 @@ static const Prop IP4_PROPS[] = {
 
 /* ---- Objects: exporting, announcing, ObjectManager ----------------------------------------------- */
 
-typedef struct {
-	const char *iface;
-	const Prop *props;
-	usize n;
-} Iface;
-
-#define IFACE(i, p) { i, p, ARRAY_LEN(p) }
 static const Iface I_NM = IFACE(NM_IF, NM_PROPS), I_SETTINGS = IFACE(SETTINGS_IF, SETTINGS_PROPS), I_CONN = IFACE(CONN_IF, CONN_PROPS),
 		   I_DEVICE = IFACE(DEVICE_IF, DEVICE_PROPS), I_WIRED = IFACE(WIRED_IF, WIRED_PROPS),
 		   I_WIRELESS = IFACE(WIRELESS_IF, WIRELESS_PROPS), I_AP = IFACE(AP_IF, AP_PROPS), I_ACTIVE = IFACE(ACTIVE_IF, ACTIVE_PROPS),
@@ -862,67 +855,29 @@ static const Iface I_NM = IFACE(NM_IF, NM_PROPS), I_SETTINGS = IFACE(SETTINGS_IF
 
 static u64 props_hash(const Iface *in, void *obj)
 {
-	DBusMsg *m = dbus_new_signal("/", "x.y", "z");
-	props_add_all(m, in->props, in->n, obj);
-	usize len = 0;
-	u8 *bytes = dbus_msg_encode(m, 1, &len);
-	u8 h[32];
-	sha256(bytes, len, h);
-	mem_free(bytes);
-	dbus_msg_free(m);
-	u64 v;
-	memcpy(&v, h, 8);
-	return v;
+	return iface_hash(in, obj);
 }
 
-/* PropertiesChanged when what the interface shows changed since last time. */
 static void sync_props(const char *path, const Iface *in, void *obj, u64 *hash)
 {
-	u64 h = props_hash(in, obj);
-	if (h == *hash)
-		return;
-	bool first = *hash == 0;
-	*hash = h;
-	if (first)
-		return;
-	DBusMsg *m = dbus_new_signal(path, "org.freedesktop.DBus.Properties", "PropertiesChanged");
-	dbus_add(m, "s", in->iface);
-	props_add_all(m, in->props, in->n, obj);
-	dbus_open(m, "as");
-	dbus_close(m);
-	dbus_send(Z.bus, m);
+	iface_sync(Z.bus, path, in, obj, hash);
 }
 
 static void add_iface(DBusMsg *m, const Iface *in, void *obj)
 {
-	dbus_open(m, "{sa{sv}}");
-	dbus_add(m, "s", in->iface);
-	props_add_all(m, in->props, in->n, obj);
-	dbus_close(m);
+	iface_add(m, in, obj);
 }
 
 static void interfaces_added(const char *path, const Iface *a, const Iface *b, void *obj)
 {
-	DBusMsg *m = dbus_new_signal(OM_PATH, OM_IF, "InterfacesAdded");
-	dbus_add(m, "o", path);
-	dbus_open(m, "a{sa{sv}}");
-	add_iface(m, a, obj);
-	if (b)
-		add_iface(m, b, obj);
-	dbus_close(m);
-	dbus_send(Z.bus, m);
+	const Iface *list[] = { a, b };
+	om_added(Z.bus, OM_PATH, path, list, b ? 2 : 1, obj);
 }
 
 static void interfaces_removed(const char *path, const char *a, const char *b)
 {
-	DBusMsg *m = dbus_new_signal(OM_PATH, OM_IF, "InterfacesRemoved");
-	dbus_add(m, "o", path);
-	dbus_open(m, "as");
-	dbus_add(m, "s", a);
-	if (b)
-		dbus_add(m, "s", b);
-	dbus_close(m);
-	dbus_send(Z.bus, m);
+	const char *list[] = { a, b };
+	om_removed(Z.bus, OM_PATH, path, list, b ? 2 : 1);
 }
 
 static void signal_o(const char *path, const char *iface, const char *member, const char *arg)

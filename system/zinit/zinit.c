@@ -559,6 +559,9 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	mount_kernel_filesystems();
+	/* mounts made later (a USB stick zsys mounts for GNOME) reach the
+	 * Linux session's namespace, which follows this one */
+	sys_mount(NULL, "/", NULL, MS_REC | MS_SHARED, NULL);
 	/* Keep kernel messages off the screen: the boot splash owns it.
 	 * Booting with "zurbax.debug" keeps them, for the serial console. */
 	char *cmdline = file_read("/proc/cmdline", NULL);

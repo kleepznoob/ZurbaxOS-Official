@@ -7,7 +7,7 @@
  * the session's system bus (the layer's message bus program, with Zurbax's
  * own configuration), joins it and answers there for logind, UPower and
  * power profiles, AccountsService, hostnamed, localed, timedated, polkit,
- * NetworkManager and the display manager's unlock channel until the
+ * NetworkManager, udisks and the display manager's unlock channel until the
  * session ends (SIGTERM) or the bus goes away.
  * The account is the one in /data/system/users.conf.
  */
@@ -178,6 +178,7 @@ int main(int argc, char **argv)
 	polkit_start(Z.bus);
 	network_start(Z.bus);
 	gdm_start(Z.bus);
+	udisks_start(Z.bus);
 	print("zsys: serving the session of %s (uid %u) on %s\n", Z.user, Z.uid, address);
 
 	while (!stop_requested && !Z.lost)
