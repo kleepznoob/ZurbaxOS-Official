@@ -119,6 +119,12 @@ void ui_file_dialog_open(Ui *ui, const char *id, u32 mode, const char *start_dir
 	ui_pop_id(ui);
 }
 
+bool ui_file_dialog_is_open(Ui *ui, const char *id)
+{
+	FileDialog *fd = dialog_state(ui, id);
+	return fd->open || fd->done;
+}
+
 static bool choose(FileDialog *fd, const char *path)
 {
 	str_copy(fd->result, path, sizeof fd->result);

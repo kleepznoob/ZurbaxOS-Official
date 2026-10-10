@@ -73,6 +73,7 @@ static void on_status_timer(Loop *loop, void *data)
 {
 	UNUSED(loop), UNUSED(data);
 	system_status_poll();
+	shell_services_tick();
 }
 
 static bool needs_frame(void)
@@ -149,6 +150,7 @@ int main(int argc, char **argv)
 		loop_add_fd(S.loop, S.out->fd, EPOLLIN, on_output_fd, NULL);
 	system_status_poll();
 	loop_timer(S.loop, 2000, 2000, on_status_timer, NULL);
+	shell_services_tick();
 	splash_thread_stop();
 	damage_all();
 

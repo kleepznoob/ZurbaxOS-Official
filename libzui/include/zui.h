@@ -334,6 +334,7 @@ void ui_dialog_end(Ui *ui);
 enum { FILE_OPEN = 1, FILE_SAVE, FILE_FOLDER };
 void ui_file_dialog_open(Ui *ui, const char *id, u32 mode, const char *start_dir, const char *filters, const char *suggested_name);
 bool ui_file_dialog(Ui *ui, const char *id, char *out_path, usize cap);
+bool ui_file_dialog_is_open(Ui *ui, const char *id); /* false once picked from or cancelled */
 const char *ui_file_icon(const char *name, bool is_dir); /* symbolic icon for a file type */
 
 /* Wallpapers: built-in names, or an absolute path to a picture. */

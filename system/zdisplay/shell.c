@@ -345,6 +345,66 @@ char *user_runtime_dir(u32 uid, u32 gid)
 	return dir;
 }
 
+/* Starts a program as the user, with the user's home, name, time zone,
+ * runtime folder and the display's sockets. Returns its pid or -errno. */
+static int user_spawn(const char *path, char **argv)
+{
+	SpawnOpts o = { .stdin_fd = -1, .stdout_fd = -1, .stderr_fd = -1, .new_session = true };
+	static const u32 groups[] = { GID_AUDIO, GID_VIDEO, GID_INPUT };
+	if (S.set.uid && sys_getuid() == 0) {
+		o.drop_privileges = true;
+		o.uid = S.set.uid;
+		o.gid = S.set.gid;
+		o.groups = groups;
+		o.ngroups = (int)ARRAY_LEN(groups);
+	}
+	/* Apps get the user's home, name, time zone and the display socket. */
+	usize nenv = 0;
+	while (environ[nenv])
+		nenv++;
+	char **envp = NEW_ARRAY(char *, nenv + 9);
+	int ne = 0;
+	char home[160], user[96], lang[64], tzv[80], wayland[200], screen[48], runtime[64];
+	fmt(home, sizeof home, "HOME=%s", S.set.home);
+	fmt(user, sizeof user, "USER=%s", S.set.user_name);
+	fmt(lang, sizeof lang, "LANG=%s", "en_US.UTF-8");
+	fmt(tzv, sizeof tzv, "TZ=%s", S.set.timezone);
+	/* Standard Linux programs (through layerrun) find the Wayland socket, and
+	 * learn the screen's real size for a full-screen X server. */
+	fmt(wayland, sizeof wayland, "WAYLAND_DISPLAY=%s", wl_socket_path());
+	fmt(screen, sizeof screen, "ZOS_SCREEN=%dx%d", S.out->width, S.out->height);
+	envp[ne++] = home;
+	envp[ne++] = user;
+	envp[ne++] = lang;
+	envp[ne++] = tzv;
+	envp[ne++] = wayland;
+	envp[ne++] = screen;
+	/* the runtime folder standard Linux programs keep their sockets in */
+	char *rt = user_runtime_dir(o.drop_privileges ? o.uid : (u32)sys_getuid(), o.drop_privileges ? o.gid : (u32)sys_getgid());
+	if (rt) {
+		fmt(runtime, sizeof runtime, "XDG_RUNTIME_DIR=%s", rt);
+		envp[ne++] = runtime;
+		mem_free(rt);
+	}
+	for (char **e = environ; *e; e++)
+		if (!str_starts(*e, "HOME=") && !str_starts(*e, "USER=") && !str_starts(*e, "LANG=") && !str_starts(*e, "TZ=") &&
+		    !str_starts(*e, "WAYLAND_DISPLAY=") && !str_starts(*e, "ZOS_SCREEN=") &&
+		    !(rt && str_starts(*e, "XDG_RUNTIME_DIR=")))
+			envp[ne++] = *e;
+	envp[ne] = NULL;
+	if (!dir_exists(S.set.home)) {
+		char *parent = path_dir(S.set.home);
+		dir_make(parent, 0755);
+		mem_free(parent);
+		dir_make(S.set.home, 0700);
+		if (o.drop_privileges)
+			sys_chown(S.set.home, o.uid, o.gid);
+	}
+	int pid = proc_spawn(path, argv, envp, &o);
+	mem_free(envp);
+	return pid;
+}
+
 static bool force_new_instance;
 
 /* Starts another copy of an app even if one is already open. */
@@ -409,61 +469,34 @@ void shell_launch(const char *app_id, const char *arg)
 			argv[n++] = (char *)arg;
 		argv[n] = NULL;
 	}
-	SpawnOpts o = { .stdin_fd = -1, .stdout_fd = -1, .stderr_fd = -1, .new_session = true };
-	static const u32 groups[] = { GID_AUDIO, GID_VIDEO, GID_INPUT };
-	if (S.set.uid && sys_getuid() == 0) {
-		o.drop_privileges = true;
-		o.uid = S.set.uid;
-		o.gid = S.set.gid;
-		o.groups = groups;
-		o.ngroups = (int)ARRAY_LEN(groups);
-	}
-	/* Apps get the user's home, name, time zone and the display socket. */
-	usize nenv = 0;
-	while (environ[nenv])
-		nenv++;
-	char **envp = NEW_ARRAY(char *, nenv + 9);
-	int ne = 0;
-	char home[160], user[96], lang[64], tzv[80], wayland[200], screen[48], runtime[64];
-	fmt(home, sizeof home, "HOME=%s", S.set.home);
-	fmt(user, sizeof user, "USER=%s", S.set.user_name);
-	fmt(lang, sizeof lang, "LANG=%s", "en_US.UTF-8");
-	fmt(tzv, sizeof tzv, "TZ=%s", S.set.timezone);
-	/* Standard Linux programs (through layerrun) find the Wayland socket, and
-	 * learn the screen's real size for a full-screen X server. */
-	fmt(wayland, sizeof wayland, "WAYLAND_DISPLAY=%s", wl_socket_path());
-	fmt(screen, sizeof screen, "ZOS_SCREEN=%dx%d", S.out->width, S.out->height);
-	envp[ne++] = home;
-	envp[ne++] = user;
-	envp[ne++] = lang;
-	envp[ne++] = tzv;
-	envp[ne++] = wayland;
-	envp[ne++] = screen;
-	/* the runtime folder standard Linux programs keep their sockets in */
-	char *rt = user_runtime_dir(o.drop_privileges ? o.uid : (u32)sys_getuid(), o.drop_privileges ? o.gid : (u32)sys_getgid());
-	if (rt) {
-		fmt(runtime, sizeof runtime, "XDG_RUNTIME_DIR=%s", rt);
-		envp[ne++] = runtime;
-		mem_free(rt);
-	}
-	for (char **e = environ; *e; e++)
-		if (!str_starts(*e, "HOME=") && !str_starts(*e, "USER=") && !str_starts(*e, "LANG=") && !str_starts(*e, "TZ=") &&
-		    !str_starts(*e, "WAYLAND_DISPLAY=") && !str_starts(*e, "ZOS_SCREEN=") &&
-		    !(rt && str_starts(*e, "XDG_RUNTIME_DIR=")))
-			envp[ne++] = *e;
-	envp[ne] = NULL;
-	if (!dir_exists(S.set.home)) {
-		char *parent = path_dir(S.set.home);
-		dir_make(parent, 0755);
-		mem_free(parent);
-		dir_make(S.set.home, 0700);
-		if (o.drop_privileges)
-			sys_chown(S.set.home, o.uid, o.gid);
-	}
-	int pid = proc_spawn(path, argv, envp, &o);
-	mem_free(envp);
-	if (pid < 0)
+	if (user_spawn(path, argv) < 0)
 		shell_notify("system", "error", "Could not open", app_id);
+}
+
+/* ---- User services ------------------------------------------------------------------- */
+
+/* zportal (the desktop services Linux programs ask for) runs for the whole
+ * session, started again if it stops. Apps that exited are reaped here too. */
+static int zportal_pid;
+static f64 zportal_started = -100;
+
+void shell_services_tick(void)
+{
+	int st;
+	long pid;
+	while ((pid = sys_wait4(-1, &st, WNOHANG, NULL)) > 0)
+		if (pid == zportal_pid)
+			zportal_pid = 0;
+	if (zportal_pid || S.now - zportal_started < 10)
+		return;
+	char *path = zurbax_path("bin/zportal");
+	if (file_exists(path)) {
+		char *argv[] = { "zportal", NULL };
+		zportal_started = S.now;
+		int p = user_spawn(path, argv);
+		zportal_pid = p > 0 ? p : 0;
+	}
+	mem_free(path);
 }
 
 /* ---- Notifications ------------------------------------------------------------------- */

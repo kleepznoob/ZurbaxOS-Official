@@ -97,6 +97,7 @@ enum { MFD_CLOEXEC = 1, MFD_ALLOW_SEALING = 2 };
 
 /* ---- Time ------------------------------------------------------------------ */
 
+enum { UTIME_NOW = (1 << 30) - 1, UTIME_OMIT = (1 << 30) - 2 };
 struct timespec {
 	i64 tv_sec;
 	i64 tv_nsec;
@@ -383,6 +384,9 @@ static inline long sys_chmod(const char *path, int mode) { return SC(3, SYS_fchm
 static inline long sys_chown(const char *path, u32 uid, u32 gid) { return SC(5, SYS_fchownat, AT_FDCWD, (long)path, uid, gid, 0); }
 static inline long sys_lchown(const char *path, u32 uid, u32 gid) { return SC(5, SYS_fchownat, AT_FDCWD, (long)path, uid, gid, AT_SYMLINK_NOFOLLOW); }
 static inline long sys_ftruncate(int fd, i64 len) { return SC(2, SYS_ftruncate, fd, len); }
+static inline long sys_truncate(const char *path, i64 len) { return SC(2, SYS_truncate, (long)path, len); }
+static inline long sys_fchmod(int fd, u32 mode) { return SC(2, SYS_fchmod, fd, mode); }
+static inline long sys_rename2(const char *from, const char *to, u32 flags) { return SC(5, SYS_renameat2, AT_FDCWD, (long)from, AT_FDCWD, (long)to, flags); }
 static inline long sys_fsync(int fd) { return SC(1, SYS_fsync, fd); }
 static inline long sys_sync(void) { return SC(0, SYS_sync); }
 static inline long sys_chdir(const char *path) { return SC(1, SYS_chdir, (long)path); }

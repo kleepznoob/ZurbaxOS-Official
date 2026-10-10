@@ -393,8 +393,9 @@ static void on_control(Loop *l, int fd, u32 events, void *data)
 
 /* Cameras and the GPUs' render nodes belong to the video group, game
  * controllers to input; the desktop gives its user those groups. Wine's
- * synchronization device (ntsync) is for everyone, as elsewhere. Nodes
- * appear at boot and on hotplug. */
+ * synchronization device (ntsync) and FUSE (the user's Linux session mounts
+ * file systems with it) are for everyone, as elsewhere. Nodes appear at
+ * boot and on hotplug. */
 static void device_perms(const char *name)
 {
 	u32 gid = 0, mode = 0660;
@@ -402,7 +403,7 @@ static void device_perms(const char *name)
 		gid = GID_VIDEO;
 	else if (str_starts(name, "input/js") || str_starts(name, "input/event") || str_starts(name, "hidraw") || str_starts(name, "uinput"))
 		gid = GID_INPUT;
-	else if (str_eq(name, "ntsync"))
+	else if (str_eq(name, "ntsync") || str_eq(name, "fuse"))
 		mode = 0666;
 	else
 		return;

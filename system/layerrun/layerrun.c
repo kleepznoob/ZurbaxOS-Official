@@ -540,6 +540,9 @@ static void serve_fuse(int listen_fd)
 	char **lines = str_split(req, '\n', &nl);
 	const char *op = nl > 0 ? lines[0] : "", *mp = nl > 1 ? lines[1] : "", *opts = nl > 2 ? lines[2] : "";
 	struct stat st;
+	/* a FUSE file system whose program went away leaves a dead mount: it goes first */
+	if (mp[0] == '/' && sys_lstat(mp, &st) == -ENOTCONN)
+		sys_umount(mp, MNT_DETACH);
 	if (mp[0] != '/' || sys_lstat(mp, &st) < 0 || !S_ISDIR(st.st_mode) || st.st_uid != cred.uid) {
 		answer = "error: the mount point must be a folder of yours";
 	} else if (str_eq(op, "mount")) {
@@ -654,14 +657,26 @@ static int session_main(const char *user, const char *home)
 	copy_environ();
 	build_root(user, home);
 	session_env(user, home);
-	char *bus_path = rt_path("bus");
-	int bus = start_bus(bus_path);
-	int sound = start_sound();
+	/* the mount service first: zportal mounts the document store as soon as the bus is there */
 	char *fsock = session_file("fuse.sock");
 	int fl = unix_listen(fsock, SOCK_SEQPACKET);
 	if (fl >= 0)
 		sys_chmod(fsock, 0600);
+	char *bus_path = rt_path("bus");
+	int bus = start_bus(bus_path);
+	int sound = start_sound();
 	int flathub = add_flathub(home);
+	/* the desktop's zportal answers the portals: the first program should
+	 * find them, so wait a moment for it to come onto the new bus */
+	const char *display = env_get("ZUI_SOCKET");
+	if (bus > 0 && file_exists(display && *display ? display : "/run/zurbax/display.sock")) {
+		char *addr = str_fmt("unix:path=%s", bus_path);
+		DBus *b = dbus_open_address(addr);
+		for (int tries = 0; b && tries < 30 && !dbus_name_has_owner(b, "org.freedesktop.portal.Desktop"); tries++)
+			sleep_ms(100);
+		dbus_close_bus(b);
+		mem_free(addr);
+	}
 	char *pidfile = session_file("session.pid");
 	char pidtext[24];
 	fmt(pidtext, sizeof pidtext, "%ld\n", sys_getpid());
