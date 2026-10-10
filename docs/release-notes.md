@@ -11,6 +11,12 @@ scratch in C, on the Linux kernel, made for playing.
 | `zurbax.img` | A USB stick, written as a plain disk image |
 | `SHA256SUMS` | Checking that the download arrived intact (`sha256sum -c SHA256SUMS`) |
 
+GitHub keeps each file under 2 GiB, so a bigger image comes in parts
+(`zurbax.iso.part0`, `zurbax.iso.part1`, ...). Download them all and join
+them before writing the stick: `cat zurbax.iso.part* > zurbax.iso` on Linux
+or macOS, `copy /b zurbax.iso.part0 + zurbax.iso.part1 zurbax.iso` in a
+Windows command prompt (one `+` per part).
+
 ## Starting it
 
 1. Write `zurbax.iso` to a USB stick with balenaEtcher, Rufus

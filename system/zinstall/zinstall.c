@@ -642,20 +642,63 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 	add_boot_entry(parts[esp].slot, parts[esp].first_lba, parts[esp].last_lba - parts[esp].first_lba + 1, parts[esp].guid);
 }
 
-/* The Linux layer (Steam and Proton) that the live session uses from the
- * install medium (zinit mounted it there) goes onto the new data partition,
- * where zinit finds it from then on. Not essential: without it Zurbax works
- * and Steam says what's missing. */
-static void copy_layer(const char *disk)
+/* The Linux layer's images (the layer, the firmware) that the live session
+ * uses from the install medium go onto the new data partition, where zinit
+ * finds them from then on. Not essential: without them Zurbax works and
+ * Steam and GNOME say what's missing. */
+static bool copy_file(const char *src, const char *dst, u64 *done, u64 total)
 {
-	static const char *const sources[] = { "/run/zurbax/medium/LAYERS/STEAM.SFS", "/run/zurbax/medium/layers/steam.sfs" };
+	char *part = str_fmt("%s.part", dst);
+	int in = (int)sys_open(src, O_RDONLY | O_CLOEXEC, 0);
+	int out = (int)sys_open(part, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+	bool ok = in >= 0 && out >= 0;
+	usize chunk = 4u << 20;
+	u8 *buf = ok ? mem_alloc(chunk) : NULL;
+	static f32 shown;
+	for (;;) {
+		if (!ok)
+			break;
+		long n = sys_read(in, buf, chunk);
+		if (n == -EINTR)
+			continue;
+		if (n == 0)
+			break;
+		ok = n > 0 && write_all(out, buf, (usize)n);
+		*done += ok ? (u64)n : 0;
+		f32 f = 0.88f + 0.1f * (f32)((f64)*done / (f64)MAX(total, 1));
+		if (f - shown >= 0.01f) {
+			step(f, "Copying the Linux layer");
+			shown = f;
+		}
+	}
+	mem_free(buf);
+	ok = ok && sys_fsync(out) == 0;
+	if (in >= 0)
+		sys_close(in);
+	if (out >= 0)
+		sys_close(out);
+	if (ok)
+		ok = sys_rename(part, dst) == 0;
+	else
+		sys_unlink(part);
+	mem_free(part);
+	return ok;
+}
+
+static void copy_layers(const char *disk)
+{
+	static const char *const dirs[] = { "/run/zurbax/medium/LAYERS", "/run/zurbax/medium/layers" };
 	const char *src = NULL;
-	for (usize i = 0; i < ARRAY_LEN(sources) && !src; i++)
-		if (file_exists(sources[i]))
-			src = sources[i];
+	DirList l = { 0 };
+	for (usize i = 0; i < ARRAY_LEN(dirs) && !src; i++)
+		if (dir_list(dirs[i], &l, true))
+			src = dirs[i];
 	if (!src)
 		return;
-	step(0.88f, "Copying Steam's Linux layer");
+	u64 total = 0;
+	for (usize i = 0; i < l.len; i++)
+		total += (u64)l.data[i].size;
+	step(0.88f, "Copying the Linux layer");
 	/* the new partition's device appears once the kernel has reread the table */
 	char dev[48] = { 0 };
 	for (int tries = 0; tries < 50 && !dev[0]; tries++) {
@@ -669,44 +712,30 @@ static void copy_layer(const char *disk)
 	}
 	dir_make(WORK "/data", 0700);
 	if (!dev[0] || sys_mount(dev, WORK "/data", "ext4", MS_NOSUID | MS_NODEV, NULL) < 0) {
-		say("note Steam's Linux layer wasn't copied: the new storage partition couldn't be opened");
+		say("note the Linux layer wasn't copied: the new storage partition couldn't be opened");
+		dir_list_free(&l);
 		return;
 	}
 	dir_make(WORK "/data/layers", 0755);
-	int in = (int)sys_open(src, O_RDONLY | O_CLOEXEC, 0);
-	int out = (int)sys_open(WORK "/data/layers/steam.sfs.part", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
-	struct stat st;
-	u64 total = in >= 0 && sys_fstat(in, &st) == 0 ? (u64)st.st_size : 0, done = 0;
-	bool ok = in >= 0 && out >= 0 && total > 0;
-	usize chunk = 4u << 20;
-	u8 *buf = ok ? mem_alloc(chunk) : NULL;
-	f32 shown = 0;
-	while (ok && done < total) {
-		long n = sys_read(in, buf, chunk);
-		if (n == -EINTR)
+	u64 done = 0;
+	bool ok = true;
+	for (usize i = 0; i < l.len; i++) {
+		char name[64];
+		str_copy(name, l.data[i].name, sizeof name);
+		for (char *c = name; *c; c++)
+			*c = (char)to_lower((u8)*c);
+		if (!str_ends(name, ".sfs"))
 			continue;
-		ok = n > 0 && write_all(out, buf, (usize)n);
-		done += ok ? (u64)n : 0;
-		f32 f = 0.88f + 0.1f * (f32)((f64)done / (f64)total);
-		if (f - shown >= 0.01f) {
-			step(f, "Copying Steam's Linux layer");
-			shown = f;
-		}
+		char *from = path_join(src, l.data[i].name), *to = str_fmt(WORK "/data/layers/%s", name);
+		ok &= copy_file(from, to, &done, total);
+		mem_free(from);
+		mem_free(to);
 	}
-	mem_free(buf);
-	ok = ok && sys_fsync(out) == 0;
-	if (in >= 0)
-		sys_close(in);
-	if (out >= 0)
-		sys_close(out);
-	if (ok)
-		ok = sys_rename(WORK "/data/layers/steam.sfs.part", WORK "/data/layers/steam.sfs") == 0;
-	else
-		sys_unlink(WORK "/data/layers/steam.sfs.part");
+	dir_list_free(&l);
 	sys_sync();
 	sys_umount(WORK "/data", 0);
 	if (!ok)
-		say("note Steam's Linux layer couldn't be copied; Zurbax works without it");
+		say("note part of the Linux layer couldn't be copied; Zurbax works without it");
 }
 
 static int cmd_install(const char *name, const char *mode)
@@ -742,7 +771,7 @@ static int cmd_install(const char *name, const char *mode)
 	sys_close(fd);
 	sys_sync();
 	mem_free(sys);
-	copy_layer(name);
+	copy_layers(name);
 	step(1, "Finished");
 	say("done");
 	return 0;

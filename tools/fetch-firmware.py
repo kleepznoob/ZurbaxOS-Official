@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Fetches the firmware Zurbax's Wi-Fi and GPU drivers load, for the system image.
+"""Fetches the firmware Zurbax's drivers load.
 
-    tools/fetch-firmware.py OUTDIR
+    tools/fetch-firmware.py OUTDIR          what starts the screen and Wi-Fi, for the system image
+    tools/fetch-firmware.py --all OUTDIR    every file, for the firmware image (firmware.sfs)
 
 Wi-Fi chips and GPUs run vendor firmware that the kernel hands them at
 start-up; it comes from the linux-firmware project (redistributable,
@@ -171,6 +172,47 @@ def firmware(out):
     return release, kept
 
 
+def everything(out):
+    """Every file of the newest linux-firmware release, with the links its
+    index names, unpacked as they are (the image they go into compresses)."""
+    release = newest(FIRMWARE, r"linux-firmware-\d{8}\.tar\.xz")
+    print(f">> all firmware from {release}")
+    links, kept = [], 0
+    with open_url(FIRMWARE + release) as r, tarfile.open(fileobj=r, mode="r|xz") as tar:
+        for m in tar:
+            if "/" not in m.name:
+                continue
+            path = m.name.split("/", 1)[1]
+            if not path or path.startswith((".", "debian/", "LICEN", "README", "Makefile", "copy-firmware", "check_whence",
+                                            "build_packages", "dedup-firmware", "contrib/")) or ".." in path.split("/"):
+                continue
+            dest = os.path.join(out, path)
+            if path == "WHENCE":
+                for line in tar.extractfile(m).read().decode("utf-8", "replace").splitlines():
+                    k = re.match(r"^Link:\s*(\S+)\s*->\s*(\S+)", line)
+                    if k:
+                        links.append((k.group(1), k.group(2)))
+            elif m.isfile():
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest + ".tmp", "wb") as f:
+                    f.write(tar.extractfile(m).read())
+                os.rename(dest + ".tmp", dest)
+                kept += 1
+            elif m.issym() and not os.path.isabs(m.linkname):
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                if os.path.lexists(dest):
+                    os.remove(dest)
+                os.symlink(m.linkname, dest)
+    # the names drivers ask for that are links to other files
+    for name, target in links:
+        dest = os.path.join(out, name)
+        if ".." in name.split("/") or os.path.isabs(target) or os.path.lexists(dest):
+            continue
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        os.symlink(target, dest)
+    return release, kept
+
+
 def regdb(out):
     """The wireless regulatory database and its signature."""
     release = newest(REGDB, r"wireless-regdb-[\d.]+\d\.tar\.xz")
@@ -184,9 +226,10 @@ def regdb(out):
 
 
 def main():
-    if len(sys.argv) != 2:
+    full = len(sys.argv) == 3 and sys.argv[1] == "--all"
+    if len(sys.argv) != 2 and not full:
         sys.exit(__doc__)
-    out = sys.argv[1]
+    out = sys.argv[-1]
     os.makedirs(out, exist_ok=True)
     marker = os.path.join(out, ".release")
     have = open(marker).read().split() if os.path.exists(marker) else []
@@ -194,7 +237,7 @@ def main():
     if latest in have and os.path.exists(os.path.join(out, "regulatory.db")):
         print(f">> firmware: {latest} already in {out}")
         return
-    release, kept = firmware(out)
+    release, kept = everything(out) if full else firmware(out)
     reg = regdb(out)
     with open(marker, "w") as f:
         f.write(f"{release} {reg}\n")

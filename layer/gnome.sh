@@ -378,7 +378,7 @@ pkg_libcanberra() {
 # only the capture library programs mark their timings with, for Sysprof
 pkg_sysprof() {
 	unpack sysprof
-	mesonbuild -Dgtk=false -Dlibsysprof=false -Dsysprofd=none -Dagent=false -Dhelp=false -Dexamples=false -Dtools=false \
+	mesonbuild -Dgtk=false -Dlibsysprof=false -Dsysprofd=none -Dpolkit-agent=disabled -Dhelp=false -Dexamples=false -Dtools=false \
 		-Dtests=false -Dinstall-static=true
 }
 
@@ -386,6 +386,13 @@ ORDER+=(sd_login mtdev libevdev libwacom libinput libei hwdata libdisplay_info x
 	duktape polkit colord libogg libvorbis libcanberra sysprof)
 
 # ---- JavaScript: SpiderMonkey (Mozilla's engine, from Firefox's ESR source) and GJS -------
+
+# cbindgen, which writes C headers for Rust code (SpiderMonkey's build needs it)
+pkg_native_cbindgen() {
+	native_env
+	CARGO_HOME=$L/cargo-native "$HOME/.cargo/bin/cargo" install --quiet --locked --root "$NATIVE" cbindgen --version 0.29.4 \
+		>"$WORK/cargo.log" 2>&1 || { tail -30 "$WORK/cargo.log"; exit 1; }
+}
 
 pkg_mozjs() {
 	unpack mozjs
@@ -396,7 +403,7 @@ pkg_mozjs() {
 	cd obj
 	../js/src/configure --prefix=/usr --libdir=$LIBDIR --host=x86_64-pc-linux-gnu --target=x86_64-unknown-linux-gnu \
 		--disable-debug --enable-optimize --enable-release --disable-jemalloc --disable-strip --disable-tests \
-		--enable-shared-js --with-system-zlib --with-intl-api --disable-ctypes --disable-smoosh \
+		--enable-shared-js --with-system-zlib --with-intl-api --disable-ctypes \
 		>configure.log 2>&1 || { tail -40 configure.log; exit 1; }
 	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A10 -m5 'error' make.log | head -80; exit 1; }
 	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -30 install.log; exit 1; }
@@ -410,7 +417,7 @@ pkg_gjs() {
 		-Dcairo=enabled
 }
 
-ORDER+=(mozjs gjs)
+ORDER+=(native_cbindgen mozjs gjs)
 
 # ---- PipeWire: screen sharing, remote desktop and cameras ---------------------------------
 # Sound stays with Zurbax's sound service (through PulseAudio's server in

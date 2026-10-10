@@ -82,7 +82,7 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: all test clean devroot devroot-links image run
+.PHONY: firmware all test clean devroot devroot-links image run
 .SECONDARY:
 all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(if $(STORE),$(OUT)/repo/index)
 
@@ -108,9 +108,21 @@ test: $(TESTS) devroot
 # The system archive is embedded in the kernel, so the one EFI file is the
 # whole OS: firmware loads it directly, with no boot loader in between.
 EFI_FILE := $(OUT)/kernel/arch/x86/boot/bzImage
-# The Linux layer for Steam and Proton (layer/build.sh makes it) goes on the
-# install media when it has been built.
-LAYER ?= $(wildcard $(OUT)/layer/steam.sfs)
+# The Linux layer (layer/build.sh makes it) and the firmware of every device
+# (make firmware) go on the install media when they have been built.
+LAYER ?= $(wildcard $(OUT)/layer/steam.sfs $(OUT)/firmware.sfs)
+
+# Every file of linux-firmware in one compressed image: zinit points the
+# kernel's firmware loader at it (the system image keeps only what starts
+# the screen and Wi-Fi).
+firmware: $(OUT)/firmware.sfs
+$(OUT)/firmware.sfs: tools/fetch-firmware.py
+	@python3 tools/fetch-firmware.py --all $(OUT)/firmware-all
+	@rm -f $@.part
+	@mksquashfs $(OUT)/firmware-all $@.part -comp zstd -Xcompression-level 19 -b 1M -all-root -noappend -quiet
+	@mv $@.part $@
+	@ls -l $@
+
 image: all
 	@python3 tools/fetch-firmware.py $(OUT)/firmware || echo "   note: no Wi-Fi or GPU firmware fetched (offline?)"
 	@$(OUT)/tools/mkimage cpio $(OUT)/system.cpio

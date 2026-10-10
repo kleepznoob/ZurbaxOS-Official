@@ -229,16 +229,64 @@ static void medium_layers(void)
 		return;
 	dir_make(MEDIUM, 0755);
 	if (sys_mount(dev, MEDIUM, fs, MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL) >= 0) {
-		/* FAT finds names in any case; a disc shows its ISO 9660 names in lower case */
-		static const char *const images[] = { MEDIUM "/LAYERS/STEAM.SFS", MEDIUM "/layers/steam.sfs" };
+		/* every image in LAYERS (FAT finds names in any case; a disc shows
+		 * its ISO 9660 names in lower case): the layer, the firmware */
 		bool found = false;
-		for (usize i = 0; i < ARRAY_LEN(images) && !found; i++)
-			if (file_exists(images[i]))
-				found = mount_layer(images[i], "/data/layers/steam");
+		static const char *const dirs[] = { MEDIUM "/LAYERS", MEDIUM "/layers" };
+		for (usize d = 0; d < ARRAY_LEN(dirs) && !found; d++) {
+			DirList l = { 0 };
+			if (!dir_list(dirs[d], &l, false))
+				continue;
+			for (usize i = 0; i < l.len; i++) {
+				char name[64];
+				str_copy(name, l.data[i].name, sizeof name);
+				for (char *c = name; *c; c++)
+					*c = (char)to_lower((u8)*c);
+				usize n = strlen(name);
+				if (n < 5 || !str_eq(name + n - 4, ".sfs"))
+					continue;
+				name[n - 4] = 0;
+				char *image = path_join(dirs[d], l.data[i].name), *dir = str_fmt("/data/layers/%s", name);
+				found |= mount_layer(image, dir);
+				mem_free(image);
+				mem_free(dir);
+			}
+			dir_list_free(&l);
+		}
 		if (!found)
 			sys_umount(MEDIUM, MNT_DETACH);
 	}
 	mem_free(dev);
+}
+
+/* The firmware image (every device's firmware, from linux-firmware): the
+ * kernel's loader looks there too, and devices whose drivers started
+ * before it was there (no firmware, so no driver) are offered to their
+ * drivers again. */
+static void firmware_layer(void)
+{
+	const char *dir = "/data/layers/firmware";
+	if (!dir_exists(dir))
+		return;
+	file_write_str("/sys/module/firmware_class/parameters/path", dir);
+	static const char *const buses[] = { "pci", "usb", "sdio", "i2c", "platform" };
+	for (usize b = 0; b < ARRAY_LEN(buses); b++) {
+		char *devs = str_fmt("/sys/bus/%s/devices", buses[b]);
+		char *probe = str_fmt("/sys/bus/%s/drivers_probe", buses[b]);
+		DirList l = { 0 };
+		if (dir_list(devs, &l, false)) {
+			for (usize i = 0; i < l.len; i++) {
+				char *drv = str_fmt("%s/%s/driver", devs, l.data[i].name);
+				struct stat st;
+				if (sys_lstat(drv, &st) < 0)
+					file_write_str(probe, l.data[i].name);
+				mem_free(drv);
+			}
+			dir_list_free(&l);
+		}
+		mem_free(devs);
+		mem_free(probe);
+	}
 }
 
 static void mount_layers(void)
@@ -522,6 +570,7 @@ int main(int argc, char **argv)
 	mount_data();
 	set_hostname();
 	mount_layers();
+	firmware_layer();
 	sys_umask(022);
 
 	loop = loop_new();
