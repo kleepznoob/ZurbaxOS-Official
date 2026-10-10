@@ -265,8 +265,12 @@ static void dhcp_send(Iface *f, int type)
 	*o++ = 53, *o++ = 1, *o++ = (u8)type;
 	*o++ = 61, *o++ = 7, *o++ = 1;
 	memcpy(o, f->mac, 6), o += 6;
-	*o++ = 12, *o++ = 3; /* host name */
-	memcpy(o, "zos", 3), o += 3;
+	struct utsname un;
+	usize hn = sys_uname(&un) == 0 ? MIN(strlen(un.nodename), 63) : 0;
+	if (!hn)
+		str_copy(un.nodename, "zurbax", sizeof un.nodename), hn = 6;
+	*o++ = 12, *o++ = (u8)hn; /* host name */
+	memcpy(o, un.nodename, hn), o += hn;
 	if (type == 3) {
 		*o++ = 50, *o++ = 4;
 		memcpy(o, &f->offered, 4), o += 4;

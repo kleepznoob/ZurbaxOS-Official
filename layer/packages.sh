@@ -8,7 +8,9 @@
 
 # for the build machine: no layer, no cross settings
 native_env() {
-	unset CC CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+	unset CC CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR PKG_CONFIG
+	# tools built here find their own libraries, never the build machine's older ones
+	export LDFLAGS="-Wl,-rpath,$NATIVE/lib"
 	mkdir -p "$NATIVE/bin"
 }
 
@@ -713,6 +715,10 @@ pkg_etc() {
 	cp "$TOP/data/os-release" "$ROOT/etc/os-release"
 	install -m755 "$HERE/files/lsb_release" "$ROOT/usr/bin/lsb_release"
 	printf 'LANG=en_US.UTF-8\n' >"$ROOT/etc/locale.conf"
+	# the time zone Zurbax's settings name, kept current by the desktop and zsys
+	ln -sfn /run/zurbax/localtime "$ROOT/etc/localtime"
+	# the message bus a GNOME session's system services answer on (zsys)
+	install -Dm644 "$HERE/files/system-bus.conf" "$ROOT/usr/share/zurbax/system-bus.conf"
 }
 
 # ---- Steam ------------------------------------------------------------------------------------
@@ -753,4 +759,4 @@ pkg_ldconfig() {
 	fi
 }
 
-ORDER+=(tzdata etc steam strip ldconfig)
+ORDER+=(tzdata etc steam)

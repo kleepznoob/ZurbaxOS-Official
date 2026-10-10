@@ -32,7 +32,7 @@ libfontenc https://xorg.freedesktop.org/releases/individual/lib/libfontenc-1.1.9
 libXfont2 https://xorg.freedesktop.org/releases/individual/lib/libXfont2-2.0.9.tar.xz f042a370666815e7b941e9b7019024755bd1c6c2954afbfa515af378251799e2
 pixman https://www.cairographics.org/releases/pixman-0.46.4.tar.gz d09c44ebc3bd5bee7021c79f922fe8fb2fb57f7320f55e97ff9914d2346a591c
 freetype https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz 36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f
-fontconfig https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/2.16.2/fontconfig-2.16.2.tar.xz 165b8fd2a119864c87464b233986c4a1bc09efb09c65de1ca40cc1e85ffb77e2
+fontconfig https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/2.17.1/fontconfig-2.17.1.tar.xz -
 dejavu https://downloads.sourceforge.net/project/dejavu/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2 fa9ca4d13871dd122f61258a80d01751d603b4d3ee14095d65453b4e846e17d7
 nettle https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5
 elfutils https://sourceware.org/elfutils/ftp/0.196/elfutils-0.196.tar.bz2 fd5cc6b77ad6773cac93cb3f415f9318ac3b3455eecf801f6b4a742c4f6c7209
@@ -67,7 +67,7 @@ pciutils https://cdn.kernel.org/pub/software/utils/pciutils/pciutils-3.15.0.tar.
 tzdata https://data.iana.org/time-zones/releases/tzdata2026e.tar.gz b26882805f26aac59d5b222978e6580484b834ccdc98be89df2f05a6dc53a652
 steam https://repo.steampowered.com/steam/archive/stable/steam_1.0.0.87.tar.gz 649375d2f9377f8009aaf3e2ff09978041eb9114897d9c5a3886f1d82e27ba1f
 pcre2 https://distfiles.gentoo.org/distfiles/ed/pcre2-10.48.tar.bz2 b6c68fdf6f3ac31388b50aa89ff0fc49c00c987c16e7b5146491d12003f2c8ed
-glib https://download.gnome.org/sources/glib/2.88/glib-2.88.4.tar.xz 25fd169f3b2f91fe2391ad297883ce0fcf30c69fc789ffd1c9672d1332b1c5a8
+glib https://download.gnome.org/sources/glib/2.90/glib-2.90.1.tar.xz -
 json-glib https://download.gnome.org/sources/json-glib/1.10/json-glib-1.10.8.tar.xz 55c5c141a564245b8f8fbe7698663c87a45a7333c2a2c56f06f811ab73b212dd
 libxml2 https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz 98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821
 zstd https://distfiles.gentoo.org/distfiles/49/zstd-1.5.7.tar.gz eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3
@@ -92,3 +92,78 @@ ostree https://deb.debian.org/debian/pool/main/o/ostree/ostree_2026.4.orig.tar.x
 bubblewrap https://distfiles.gentoo.org/distfiles/ba/bubblewrap-0.13.0.tar.xz 4734237473c0e5d695e4e9034a34e43b2dbf5164655bd13fa59ae376b2b7a765
 xdg-dbus-proxy https://distfiles.gentoo.org/distfiles/dc/xdg-dbus-proxy-0.1.9.tar.xz 5450dda586ec3bb3ca709d311e845487883faa3b09cf562608d7e84f4311dced
 flatpak https://distfiles.gentoo.org/distfiles/06/flatpak-1.18.4.tar.xz b899a7a00c48d2c626cb8ec33fe556720b376c25805d7222430c0fdca4c6ac8d
+gobject-introspection https://download.gnome.org/sources/gobject-introspection/1.86/gobject-introspection-1.86.0.tar.xz 920d1a3fcedeadc32acff95c2e203b319039dd4b4a08dd1a2dfd283d19c0b9ae
+libpng https://downloads.sourceforge.net/libpng/libpng-1.6.59.tar.xz -
+libjpeg-turbo https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.1.3/libjpeg-turbo-3.1.3.tar.gz -
+libtiff https://download.osgeo.org/libtiff/tiff-4.7.2.tar.xz -
+lcms2 https://downloads.sourceforge.net/project/lcms/lcms/2.19/lcms2-2.19.tar.gz -
+fribidi https://github.com/fribidi/fribidi/releases/download/v1.0.16/fribidi-1.0.16.tar.xz -
+harfbuzz https://github.com/harfbuzz/harfbuzz/releases/download/12.3.2/harfbuzz-12.3.2.tar.xz -
+cairo https://cairographics.org/releases/cairo-1.18.6.tar.xz -
+pango https://download.gnome.org/sources/pango/1.58/pango-1.58.2.tar.xz -
+graphene https://download.gnome.org/sources/graphene/1.10/graphene-1.10.8.tar.xz -
+libxkbcommon https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-1.13.2.tar.gz - libxkbcommon-1.13.2.tar.gz
+gdk-pixbuf https://download.gnome.org/sources/gdk-pixbuf/2.44/gdk-pixbuf-2.44.8.tar.xz -
+at-spi2-core https://download.gnome.org/sources/at-spi2-core/2.62/at-spi2-core-2.62.0.1.tar.xz -
+gsettings-desktop-schemas https://download.gnome.org/sources/gsettings-desktop-schemas/51/gsettings-desktop-schemas-51.0.tar.xz -
+dconf https://download.gnome.org/sources/dconf/51/dconf-51.0.tar.xz -
+hicolor-icon-theme https://icon-theme.freedesktop.org/releases/hicolor-icon-theme-0.18.tar.xz -
+adwaita-icon-theme https://download.gnome.org/sources/adwaita-icon-theme/51/adwaita-icon-theme-51.0.tar.xz -
+adwaita-fonts https://download.gnome.org/sources/adwaita-fonts/51/adwaita-fonts-51.0.tar.xz -
+shared-mime-info https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/2.4/shared-mime-info-2.4.tar.bz2 -
+iso-codes https://salsa.debian.org/iso-codes-team/iso-codes/-/archive/v4.20.1/iso-codes-v4.20.1.tar.gz -
+libsass https://github.com/sass/libsass/archive/refs/tags/3.6.6.tar.gz - libsass-3.6.6.tar.gz
+sassc https://github.com/sass/sassc/archive/refs/tags/3.6.2.tar.gz - sassc-3.6.2.tar.gz
+p11-kit https://github.com/p11-glue/p11-kit/releases/download/0.26.2/p11-kit-0.26.2.tar.xz -
+libsecret https://download.gnome.org/sources/libsecret/0.21/libsecret-0.21.8.2.tar.xz -
+gcr https://download.gnome.org/sources/gcr/4.4/gcr-4.4.1.tar.xz -
+libgudev https://download.gnome.org/sources/libgudev/238/libgudev-238.tar.xz -
+vulkan-headers https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v1.4.357.tar.gz - vulkan-headers-1.4.357.0.tar.gz
+gtk https://download.gnome.org/sources/gtk/4.24/gtk-4.24.1.tar.xz -
+librsvg https://download.gnome.org/sources/librsvg/2.62/librsvg-2.62.4.tar.xz -
+glycin https://download.gnome.org/sources/glycin/2.2/glycin-2.2.2.tar.xz -
+libadwaita https://download.gnome.org/sources/libadwaita/1.10/libadwaita-1.10.0.tar.xz -
+gnome-desktop https://download.gnome.org/sources/gnome-desktop/51/gnome-desktop-51.0.tar.xz -
+mtdev https://bitmath.org/code/mtdev/mtdev-1.1.7.tar.bz2 -
+libevdev https://www.freedesktop.org/software/libevdev/libevdev-1.13.7.tar.xz -
+libwacom https://github.com/linuxwacom/libwacom/releases/download/libwacom-2.18.0/libwacom-2.18.0.tar.xz -
+libinput https://gitlab.freedesktop.org/libinput/libinput/-/archive/1.32.0/libinput-1.32.0.tar.bz2 -
+libei https://gitlab.freedesktop.org/libinput/libei/-/archive/1.6.0/libei-1.6.0.tar.bz2 -
+hwdata https://github.com/vcrhonek/hwdata/archive/refs/tags/v0.401.tar.gz - hwdata-0.401.tar.gz
+libdisplay-info https://gitlab.freedesktop.org/emersion/libdisplay-info/-/releases/0.4.0/downloads/libdisplay-info-0.4.0.tar.xz -
+startup-notification https://www.freedesktop.org/software/startup-notification/releases/startup-notification-0.12.tar.gz -
+libogg https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.xz -
+libvorbis https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz -
+libcanberra http://0pointer.de/lennart/projects/libcanberra/libcanberra-0.30.tar.xz -
+sysprof https://download.gnome.org/sources/sysprof/51/sysprof-51.0.tar.xz -
+mozjs https://archive.mozilla.org/pub/firefox/releases/140.17.0esr/source/firefox-140.17.0esr.source.tar.xz -
+gjs https://download.gnome.org/sources/gjs/1.90/gjs-1.90.0.tar.xz -
+xcb-util https://xorg.freedesktop.org/releases/individual/lib/xcb-util-0.4.1.tar.xz -
+sqlite https://www.sqlite.org/2026/sqlite-autoconf-3540000.tar.gz -
+libusb https://github.com/libusb/libusb/releases/download/v1.0.30/libusb-1.0.30.tar.bz2 -
+libgusb https://github.com/hughsie/libgusb/releases/download/0.4.9/libgusb-0.4.9.tar.xz -
+colord https://www.freedesktop.org/software/colord/releases/colord-1.4.8.tar.xz -
+duktape https://duktape.org/duktape-2.7.0.tar.xz -
+polkit https://github.com/polkit-org/polkit/archive/refs/tags/126.tar.gz - polkit-126.tar.gz
+pipewire https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/1.6.9/pipewire-1.6.9.tar.bz2 -
+lua https://www.lua.org/ftp/lua-5.4.8.tar.gz -
+wireplumber https://gitlab.freedesktop.org/pipewire/wireplumber/-/archive/0.5.18/wireplumber-0.5.18.tar.bz2 -
+mutter https://download.gnome.org/sources/mutter/51/mutter-51.0.tar.xz -
+nspr https://archive.mozilla.org/pub/nspr/releases/v4.40/src/nspr-4.40.tar.gz -
+nss https://archive.mozilla.org/pub/security/nss/releases/NSS_3_131_RTM/src/nss-3.131.tar.gz -
+libical https://github.com/libical/libical/releases/download/v3.0.20/libical-3.0.20.tar.gz -
+libpsl https://github.com/rockdaboot/libpsl/releases/download/0.21.5/libpsl-0.21.5.tar.gz -
+libsoup https://download.gnome.org/sources/libsoup/3.8/libsoup-3.8.0.tar.xz -
+glib-networking https://download.gnome.org/sources/glib-networking/2.80/glib-networking-2.80.1.tar.xz -
+geocode-glib https://download.gnome.org/sources/geocode-glib/3.26/geocode-glib-3.26.4.tar.xz -
+libgweather https://download.gnome.org/sources/libgweather/4.6/libgweather-4.6.0.tar.xz -
+rest https://download.gnome.org/sources/rest/0.9/rest-0.9.1.tar.xz -
+gnome-online-accounts https://download.gnome.org/sources/gnome-online-accounts/3.58/gnome-online-accounts-3.58.1.tar.xz -
+evolution-data-server https://download.gnome.org/sources/evolution-data-server/3.62/evolution-data-server-3.62.1.tar.xz -
+libndp https://github.com/jpirko/libndp/archive/refs/tags/v1.9.tar.gz - libndp-1.9.tar.gz
+NetworkManager https://gitlab.freedesktop.org/NetworkManager/NetworkManager/-/archive/1.58.1/NetworkManager-1.58.1.tar.bz2 -
+gnome-shell https://download.gnome.org/sources/gnome-shell/51/gnome-shell-51.0.tar.xz -
+shaderc https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz - shaderc-2026.3.tar.gz
+glslang https://github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz - glslang-1.4.357.0.tar.gz
+spirv-tools https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz - spirv-tools-1.4.357.0.tar.gz
+spirv-headers https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz - spirv-headers-1.4.357.0.tar.gz

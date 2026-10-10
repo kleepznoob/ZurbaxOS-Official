@@ -476,6 +476,18 @@ static void watch_devices(void)
 	loop_add_fd(loop, fd, EPOLLIN, on_uevent, NULL);
 }
 
+/* The computer's name on the network: system.conf's, or "zurbax". */
+static void set_hostname(void)
+{
+	Conf *c = conf_load("/data/system/system.conf");
+	char name[65];
+	str_copy(name, conf_get(c, "hostname", "zurbax"), sizeof name);
+	conf_free(c);
+	if (!name[0])
+		str_copy(name, "zurbax", sizeof name);
+	sys_sethostname(name, strlen(name));
+}
+
 static void start_test_hooks(void)
 {
 	DirList hooks = { 0 };
@@ -505,10 +517,10 @@ int main(int argc, char **argv)
 	if (!cmdline || !str_find(cmdline, "zurbax.debug"))
 		file_write_str("/proc/sys/kernel/printk", "1 4 1 3");
 	mem_free(cmdline);
-	sys_sethostname("zos", 3);
 	sys_reboot(REBOOT_CMD_CAD_OFF);
 	dir_make("/run/zurbax", 0755);
 	mount_data();
+	set_hostname();
 	mount_layers();
 	sys_umask(022);
 

@@ -28,21 +28,23 @@ say() { printf '>> %s\n' "$*" >&2; }
 
 # ---- Sources ---------------------------------------------------------------------
 
-# sources.txt: NAME URL SHA256 (one per line; "-" for a checksum not recorded yet)
+# sources.txt: NAME URL SHA256 [MIRROR-NAME] (one per line; "-" for a checksum
+# not recorded yet; MIRROR-NAME when mirrors keep the file under another
+# name, as they do GitHub's tag archives)
 fetch() {
-	local name=$1 line url sum file
+	local name=$1 line url sum alt file
 	line=$(grep -E "^$name " "$HERE/sources.txt") || { echo "no source for $name" >&2; exit 1; }
-	read -r _ url sum <<<"$line"
-	file=$SRC/$(basename "$url")
+	read -r _ url sum alt <<<"$line"
+	file=$SRC/${alt:-$(basename "$url")}
 	if [ ! -f "$file" ]; then
-		say "downloading $(basename "$url")"
+		say "downloading $(basename "$file")"
 		download "$url" "$file" || { echo "couldn't download $name from $url or its mirrors" >&2; exit 1; }
 	fi
 	local have
 	have=$(sha256sum "$file" | cut -d' ' -f1)
 	if [ "$sum" = "-" ]; then
 		# first download: record it, so later builds get exactly the same file
-		sed -i "s|^$name $url -$|$name $url $have|" "$HERE/sources.txt"
+		sed -i "s|^$name $url -\( \|$\)|$name $url $have\1|" "$HERE/sources.txt"
 	elif [ "$have" != "$sum" ]; then
 		echo "checksum mismatch for $file" >&2
 		exit 1
@@ -56,7 +58,7 @@ fetch() {
 # sources.txt makes any mirror's copy as good as the original.
 download() {
 	local url=$1 file=$2 name h m
-	name=$(basename "$url")
+	name=$(basename "$file")
 	h=$(python3 -c 'import hashlib, sys; print(hashlib.blake2b(sys.argv[1].encode()).hexdigest()[:2])' "$name")
 	for m in "$url" "https://distfiles.gentoo.org/distfiles/$h/$name" \
 		"https://distfiles.alpinelinux.org/distfiles/edge/$name" "https://distfiles.alpinelinux.org/distfiles/v3.22/$name"; do
@@ -103,12 +105,29 @@ use32() {
 	flags "-O2 -pipe -march=x86-64 -mtune=generic -mfpmath=sse -mstackrealign"
 }
 
+# pkg-config gives every path the layer's prefix (PKG_CONFIG_SYSROOT_DIR);
+# a build's own libraries, described by meson-uninstalled files in the work
+# folder, are outside the layer and keep their real paths.
+pkgconfig_wrapper() {
+	local bin=$L/cross-bin
+	mkdir -p "$bin"
+	cat >"$bin/pkg-config.$$" <<-EOF
+		#!/bin/sh
+		out=\$(/usr/bin/pkg-config "\$@") || exit \$?
+		[ -z "\$out" ] || printf '%s\\n' "\$out" | sed "s|$ROOT$L/work|$L/work|g"
+	EOF
+	chmod +x "$bin/pkg-config.$$"
+	mv "$bin/pkg-config.$$" "$bin/pkg-config"
+}
+
 flags() {
 	OPT=$1
 	export CC="$TC/bin/gcc${M:+ $M}" CXX="$TC/bin/g++${M:+ $M}"
 	export CFLAGS="$OPT" CXXFLAGS="$OPT" LDFLAGS="-Wl,-O1"
 	export PKG_CONFIG_LIBDIR=$ROOT$LIBDIR/pkgconfig:$ROOT/usr/share/pkgconfig PKG_CONFIG_SYSROOT_DIR=$ROOT
+	export PKG_CONFIG=$L/cross-bin/pkg-config
 	unset PKG_CONFIG_PATH
+	pkgconfig_wrapper
 	# 32-bit packages are installed here first; only their libraries go into the layer
 	DEST=$ROOT
 	if [ "$ARCH" = 32 ]; then
@@ -132,11 +151,78 @@ settle() {
 	rm -rf "$DEST"
 }
 
+# Runs the layer's 64-bit programs on the build machine, through the layer's
+# own dynamic linker: GObject Introspection's scanner runs a small program
+# built against each library to read its types, and some builds run
+# what they've just compiled. Library paths a build sets come first.
+cross_tools() {
+	local bin=$L/cross-bin
+	mkdir -p "$bin"
+	cat >"$bin/run-target" <<-EOF
+		#!/bin/sh
+		exec "$ROOT/usr/lib/ld-linux-x86-64.so.2" --library-path "\${GI_LIB_DIRS:+\$GI_LIB_DIRS:}\${LD_LIBRARY_PATH:+\$LD_LIBRARY_PATH:}$ROOT/usr/lib" "\$@"
+	EOF
+	cat >"$bin/ldd-target" <<-EOF
+		#!/bin/sh
+		exec "$ROOT/usr/lib/ld-linux-x86-64.so.2" --list --library-path "\${GI_LIB_DIRS:+\$GI_LIB_DIRS:}\${LD_LIBRARY_PATH:+\$LD_LIBRARY_PATH:}$ROOT/usr/lib" "\$@"
+	EOF
+	# the build machine's scanner (pkg_native_gobject_introspection), compiling
+	# and running its helper programs the layer's way; the library folders
+	# those programs need go in GI_LIB_DIRS, not LD_LIBRARY_PATH, which would
+	# make the build machine's own programs load the layer's C library
+	cat >"$bin/g-ir-scanner" <<-EOF
+		#!/bin/sh
+		export CC="$TC/bin/gcc" GI_SCANNER_DISABLE_CACHE=1 PKG_CONFIG_LIBDIR="$ROOT/usr/lib/pkgconfig:$ROOT/usr/share/pkgconfig" \\
+			PKG_CONFIG_SYSROOT_DIR="$ROOT"
+		exec "$NATIVE/bin/g-ir-scanner" --use-binary-wrapper="$bin/run-target" --use-ldd-wrapper="$bin/ldd-target" --lib-dirs-envvar=GI_LIB_DIRS \\
+			--add-include-path="$ROOT/usr/share/gir-1.0" "\$@"
+	EOF
+	cat >"$bin/g-ir-compiler" <<-EOF
+		#!/bin/sh
+		exec "$NATIVE/bin/g-ir-compiler" --includedir="$ROOT/usr/share/gir-1.0" "\$@"
+	EOF
+	# Rust: cargo builds for the layer with --target, which keeps the programs
+	# it runs while building (build scripts, macros) apart, under a folder
+	# without the target's name; those link against the build machine
+	cat >"$bin/rust-linker" <<-EOF
+		#!/bin/sh
+		case "\$*" in
+		*/x86_64-unknown-linux-gnu/*) exec "$TC/bin/gcc" "\$@" ;;
+		*) exec cc "\$@" ;;
+		esac
+	EOF
+	chmod +x "$bin"/*
+}
+
+# Settings for packages with Rust in them.
+rust_env() {
+	export CARGO_HOME=$L/cargo CARGO_BUILD_TARGET=x86_64-unknown-linux-gnu CARGO_NET_OFFLINE=true \
+		CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=$L/cross-bin/rust-linker PKG_CONFIG_ALLOW_CROSS=1 \
+		RUSTFLAGS="-C target-cpu=x86-64"
+	export PATH="$HOME/.cargo/bin:$PATH"
+}
+
+# Downloads the crates a Rust project's Cargo.lock names (exactly those
+# versions, checked against the lock file's sums) when its release has none
+# vendored; the build itself then runs offline.
+cargo_fetch() {
+	[ -d vendor ] && return 0
+	CARGO_NET_OFFLINE=false cargo fetch --locked --manifest-path "${1:-Cargo.toml}" >"$WORK/fetch.log" 2>&1 ||
+		{ tail -20 "$WORK/fetch.log"; exit 1; }
+}
+
 # The machine files meson and cmake need for these cross builds.
 machine_files() {
-	local cpu=x86_64 family=x86_64 m='' args linkargs
+	local cpu=x86_64 family=x86_64 m='' args linkargs gi=''
 	if [ "$ARCH" = 32 ]; then cpu=i686 family=x86 m=", '-m32'"; fi
 	args=$(printf "'%s', " $OPT) linkargs=$(printf "'%s', " $LDFLAGS)
+	if [ "$ARCH" = 64 ] && [ -x "$NATIVE/bin/g-ir-scanner" ]; then
+		cross_tools
+		gi="g-ir-scanner = '$L/cross-bin/g-ir-scanner'
+g-ir-compiler = '$L/cross-bin/g-ir-compiler'
+gi-compile-repository = '$L/cross-bin/g-ir-compiler'
+exe_wrapper = '$L/cross-bin/run-target'"
+	fi
 	cat >"$WORK/cross$ARCH.ini" <<-EOF
 		[binaries]
 		c = ['$TC/bin/gcc'$m]
@@ -144,8 +230,9 @@ machine_files() {
 		ar = 'ar'
 		nm = 'nm'
 		strip = 'strip'
-		pkg-config = 'pkg-config'
+		pkg-config = '$L/cross-bin/pkg-config'
 		cmake = 'cmake'
+		$gi
 		[properties]
 		sys_root = '$ROOT'
 		pkg_config_libdir = '$ROOT$LIBDIR/pkgconfig:$ROOT/usr/share/pkgconfig'
@@ -199,7 +286,7 @@ autobuild() {
 # meson setup && ninja && install, either width; options after the defaults.
 mesonbuild() {
 	machine_files
-	env -u CC -u CXX -u CFLAGS -u CXXFLAGS -u LDFLAGS -u PKG_CONFIG_LIBDIR -u PKG_CONFIG_SYSROOT_DIR \
+	env -u CC -u CXX -u CFLAGS -u CXXFLAGS -u LDFLAGS -u PKG_CONFIG_LIBDIR -u PKG_CONFIG_SYSROOT_DIR -u PKG_CONFIG \
 		meson setup _build --cross-file "$WORK/cross$ARCH.ini" --native-file "$WORK/native.ini" \
 		--prefix=/usr --libdir="${LIBDIR#/usr/}" --sysconfdir=/etc --localstatedir=/var --buildtype=release \
 		-Ddefault_library=shared -Db_ndebug=true --wrap-mode=nodownload "$@" >meson.log 2>&1 || { tail -40 meson.log; exit 1; }
@@ -288,7 +375,7 @@ pkg_glibc() {
 		cc=(gcc -m32 -march=i686) libdir=/usr/lib32 host=i686-pc-linux-gnu
 	fi
 	# glibc is built with the build machine's compiler: it is what the layer's own compiler needs first
-	unset CC CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+	unset CC CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR PKG_CONFIG
 	printf 'slibdir=%s\nrtlddir=%s\nsbindir=/usr/bin\nrootsbindir=/usr/bin\n' "$libdir" "$libdir" >configparms
 	CC="${cc[*]}" CXX="g++ ${cc[*]:1}" ../configure --prefix=/usr --libdir="$libdir" --libexecdir="$libdir" \
 		--host="$host" --build=x86_64-pc-linux-gnu --with-headers="$ROOT/usr/include" --enable-kernel=5.10 \
@@ -317,7 +404,7 @@ pkg_glibc() {
 
 pkg_toolchain() {
 	unpack gcc
-	unset CC CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+	unset CC CXX CFLAGS CXXFLAGS LDFLAGS PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR PKG_CONFIG
 	mkdir build && cd build
 	../configure --prefix="$TC" --with-sysroot="$ROOT" --with-build-sysroot="$ROOT" \
 		--with-native-system-header-dir=/usr/include --enable-languages=c,c++ --disable-bootstrap \
@@ -391,6 +478,7 @@ ORDER=(
 )
 
 source "$HERE/packages.sh"
+source "$HERE/gnome.sh"
 
 if [ "${1:-}" = --fetch ]; then
 	# downloads (and checks) every source, for building offline later

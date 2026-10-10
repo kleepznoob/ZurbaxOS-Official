@@ -1,6 +1,7 @@
-NAME="ZOS"
-VERSION="2.0 (Golden Rain)"
+NAME="Zurbax"
+VERSION="2.0"
 VERSION_ID="2.0"
-VERSION_CODENAME="golden-rain"
-PRETTY_NAME="ZOS 2.0 Golden Rain"
-ID=zos
+PRETTY_NAME="Zurbax 2.0"
+ID=zurbax
+LOGO=zurbax-logo
+HOME_URL="https://github.com/kleepznoob/i-really-wanna-impress-me-parents-by-making-money"

@@ -100,10 +100,27 @@ void settings_save(void)
 	conf_free(c);
 }
 
+/* The Linux layer's /etc/localtime points here: Linux programs follow the
+ * zone Zurbax shows. The link names the zone's file as the layer has it. */
+static void link_localtime(const char *zone)
+{
+	char target[160];
+	fmt(target, sizeof target, "/usr/share/zoneinfo/%s", zone);
+	char cur[160] = { 0 };
+	long n = sys_readlink("/run/zurbax/localtime", cur, sizeof cur - 1);
+	if (n > 0 && str_eq(cur, target))
+		return;
+	sys_unlink("/run/zurbax/localtime.new");
+	if (sys_symlink(target, "/run/zurbax/localtime.new") == 0)
+		sys_rename("/run/zurbax/localtime.new", "/run/zurbax/localtime");
+}
+
 void settings_apply(void)
 {
-	if (S.set.timezone[0])
+	if (S.set.timezone[0]) {
 		tz_set(S.set.timezone);
+		link_localtime(S.set.timezone);
+	}
 	input_set_layout(S.set.keyboard_layout);
 	if (S.out && S.out->set_gamma) {
 		if (S.set.night_light) {

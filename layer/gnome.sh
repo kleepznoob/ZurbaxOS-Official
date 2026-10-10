@@ -1,0 +1,603 @@
+# GNOME, from GNOME's own source releases (download.gnome.org) and the
+# upstream projects it builds on; sourced by build.sh after packages.sh.
+# Everything goes into the layer next to Mesa and Flatpak; Zurbax starts a
+# GNOME session from it. The pieces of a desktop system GNOME talks to (a
+# login manager, power, accounts) are Zurbax's own, not these.
+
+# ---- Tools the build runs ---------------------------------------------------------------
+
+# GLib for the build machine, in the layer's version: GObject Introspection's
+# scanner is built against it
+pkg_native_glib() {
+	unpack glib
+	native_env
+	meson setup _build --prefix="$NATIVE" --libdir=lib --buildtype=release -Dintrospection=disabled -Dtests=false \
+		-Dman-pages=disabled -Ddocumentation=false -Dnls=disabled -Dselinux=disabled -Dlibmount=disabled -Dsysprof=disabled \
+		>meson.log 2>&1 || { tail -30 meson.log; exit 1; }
+	ninja -C _build install >ninja.log 2>&1 || { grep -A12 -m3 FAILED ninja.log | head -40; exit 1; }
+}
+
+# The scanner (g-ir-scanner) and compiler (g-ir-compiler) that turn each
+# library's headers into the type information GNOME Shell's JavaScript
+# reads; the layer's builds run them through cross-bin (build.sh)
+pkg_native_gobject_introspection() {
+	unpack gobject-introspection
+	native_env
+	PKG_CONFIG_PATH=$NATIVE/lib/pkgconfig meson setup _build --prefix="$NATIVE" --libdir=lib --buildtype=release \
+		-Dcairo=disabled -Ddoctool=disabled -Dgtk_doc=false -Dbuild_introspection_data=false \
+		>meson.log 2>&1 || { tail -30 meson.log; exit 1; }
+	ninja -C _build install >ninja.log 2>&1 || { grep -A12 -m3 FAILED ninja.log | head -40; exit 1; }
+}
+
+ORDER+=(native_glib native_gobject_introspection)
+
+# ---- GLib's type information, and the rest of GObject Introspection ---------------------
+
+# its pkg-config file and the scanner's files, which GLib looks for before
+# making its own type information; the type information of non-GObject
+# libraries (cairo, fontconfig, X11...) comes once cairo is built (gi_data)
+pkg_gobject_introspection() {
+	unpack gobject-introspection
+	# the scanner itself only runs on the build machine: no Python module for the layer
+	sed -i "/check_header('Python.h'/d; s/^subdir('giscanner')/# &/" meson.build
+	mesonbuild -Dgi_cross_use_prebuilt_gi=true -Dgi_cross_binary_wrapper="$L/cross-bin/run-target" \
+		-Dgi_cross_ldd_wrapper="$L/cross-bin/ldd-target" -Dgi_cross_pkgconfig_sysroot_path="$ROOT" \
+		-Dcairo=disabled -Ddoctool=disabled -Dgtk_doc=false -Dbuild_introspection_data=false
+}
+
+# GLib again, now with GLib's, GObject's and Gio's type information
+pkg_glib_gir() {
+	unpack glib
+	glib_props
+	mesonbuild --cross-file "$WORK/glib.ini" -Dselinux=disabled -Dlibmount=disabled -Dman-pages=disabled \
+		-Ddocumentation=false -Dtests=false -Dinstalled_tests=false -Dnls=disabled -Dintrospection=enabled \
+		-Ddtrace=disabled -Dsystemtap=disabled -Dsysprof=disabled -Dlibelf=disabled -Dglib_debug=disabled
+}
+
+
+ORDER+=(gobject_introspection glib_gir)
+
+# ---- Pictures, text and the graphics under GTK ------------------------------------------
+
+pkg_libpng() { unpack libpng; autobuild --disable-tools; }
+
+pkg_libjpeg_turbo() {
+	unpack libjpeg-turbo
+	cmakebuild -DENABLE_STATIC=OFF -DWITH_TURBOJPEG=OFF -DWITH_TOOLS=OFF -DWITH_TESTS=OFF
+}
+
+pkg_libtiff() {
+	unpack libtiff
+	autobuild --disable-docs --disable-tests --disable-contrib --disable-tools --disable-webp --disable-jbig --disable-lerc \
+		--disable-libdeflate --disable-zstd --disable-lzma
+}
+
+pkg_lcms2() { unpack lcms2; autobuild --without-jpeg --without-tiff; }
+
+pkg_fribidi() { unpack fribidi; mesonbuild -Ddocs=false -Dtests=false -Dbin=false; }
+
+pkg_harfbuzz() {
+	unpack harfbuzz
+	mesonbuild -Dglib=enabled -Dgobject=enabled -Dintrospection=enabled -Dfreetype=enabled -Dcairo=disabled -Dicu=disabled \
+		-Dtests=disabled -Ddocs=disabled -Dutilities=disabled -Dbenchmark=disabled
+}
+
+pkg_cairo() {
+	unpack cairo
+	mesonbuild -Dglib=enabled -Dpng=enabled -Dfreetype=enabled -Dfontconfig=enabled -Dxlib=enabled -Dxcb=enabled \
+		-Dtests=disabled -Dspectre=disabled -Dsymbol-lookup=disabled -Dgtk_doc=false
+}
+
+# the type information of cairo, fontconfig, freetype, X11 and the other
+# libraries GObject Introspection describes itself: its files, compiled
+pkg_gi_data() {
+	unpack gobject-introspection
+	local gir=$DEST/usr/share/gir-1.0 typelib=$DEST$LIBDIR/girepository-1.0 f
+	mkdir -p "$gir" "$typelib"
+	sed 's/@CAIRO_SHARED_LIBRARY@/libcairo-gobject.so.2/' gir/cairo-1.0.gir.in >gir/cairo-1.0.gir
+	for f in gir/*.gir; do
+		case $f in */win32-*) continue ;; esac
+		install -m644 "$f" "$gir/"
+	done
+	for f in "$gir"/{cairo-1.0,DBus-1.0,DBusGLib-1.0,fontconfig-2.0,freetype2-2.0,GL-1.0,libxml2-2.0,xfixes-4.0,xft-2.0,xlib-2.0,xrandr-1.3,Vulkan-1.0}.gir; do
+		"$L/cross-bin/g-ir-compiler" --includedir="$gir" -o "$typelib/$(basename "${f%.gir}").typelib" "$f"
+	done
+}
+
+pkg_pango() {
+	unpack pango
+	mesonbuild -Dintrospection=enabled -Dbuild-testsuite=false -Dbuild-examples=false -Dxft=disabled -Dfontconfig=enabled \
+		-Dcairo=enabled -Ddocumentation=false -Dman-pages=false
+}
+
+pkg_graphene() {
+	unpack graphene
+	mesonbuild -Dintrospection=enabled -Dtests=false -Dinstalled_tests=false -Dgtk_doc=false
+}
+
+pkg_libxkbcommon() {
+	unpack libxkbcommon
+	mesonbuild -Denable-x11=true -Denable-wayland=true -Denable-xkbregistry=true -Denable-docs=false -Denable-tools=false \
+		-Denable-bash-completion=false -Dxkb-config-root=/usr/share/X11/xkb -Dx-locale-root=/usr/share/X11/locale
+}
+
+pkg_gdk_pixbuf() {
+	unpack gdk-pixbuf
+	mesonbuild -Dintrospection=enabled -Dpng=enabled -Djpeg=enabled -Dtiff=enabled -Dglycin=disabled -Dothers=disabled \
+		-Dman=false -Ddocumentation=false -Dtests=false -Dinstalled_tests=false
+}
+
+ORDER+=(libpng libjpeg_turbo libtiff lcms2 cairo gi_data fribidi harfbuzz pango graphene libxkbcommon shared_mime_info gdk_pixbuf)
+
+# ---- Desktop data and services GTK and GNOME read --------------------------------------
+
+pkg_at_spi2_core() {
+	unpack at-spi2-core
+	mesonbuild -Dintrospection=enabled -Ddocs=false -Dx11=enabled -Duse_systemd=false -Ddbus_daemon=/usr/bin/dbus-daemon \
+		-Ddefault_bus=dbus-daemon
+}
+
+pkg_gsettings_desktop_schemas() { unpack gsettings-desktop-schemas; mesonbuild -Dintrospection=true; }
+
+pkg_dconf() { unpack dconf; mesonbuild -Dbash_completion=false -Dman=false -Dvapi=false -Dgtk_doc=false; }
+
+pkg_hicolor_icon_theme() { unpack hicolor-icon-theme; mesonbuild; }
+
+pkg_adwaita_icon_theme() { unpack adwaita-icon-theme; mesonbuild; }
+
+pkg_adwaita_fonts() { unpack adwaita-fonts; mesonbuild; }
+
+pkg_shared_mime_info() { unpack shared-mime-info; mesonbuild -Dupdate-mimedb=false -Dbuild-tests=false -Dbuild-tools=true; }
+
+pkg_iso_codes() { unpack iso-codes; mesonbuild; }
+
+ORDER+=(at_spi2_core gsettings_desktop_schemas dconf hicolor_icon_theme adwaita_icon_theme adwaita_fonts iso_codes)
+
+# ---- GTK and the libraries around it ----------------------------------------------------
+
+# Sass, which GNOME's style sheets are written in: libsass and its command
+# line, sassc, for the build machine
+pkg_native_sassc() {
+	native_env
+	unpack libsass
+	echo 3.6.6 >VERSION
+	autoreconf -fi >autoreconf.log 2>&1
+	./configure --prefix="$NATIVE" --disable-static >configure.log 2>&1 || { tail -20 config.log; exit 1; }
+	make -j"$JOBS" >make.log 2>&1 && make install >install.log 2>&1 || { tail -20 make.log; exit 1; }
+	unpack sassc
+	echo 3.6.2 >VERSION
+	autoreconf -fi >autoreconf.log 2>&1
+	PKG_CONFIG_PATH=$NATIVE/lib/pkgconfig ./configure --prefix="$NATIVE" --with-libsass="$NATIVE" LDFLAGS="-Wl,-rpath,$NATIVE/lib" \
+		>configure.log 2>&1 || { tail -20 config.log; exit 1; }
+	make -j"$JOBS" >make.log 2>&1 && make install >install.log 2>&1 || { tail -20 make.log; exit 1; }
+}
+
+# glslc, the shader compiler GTK's Vulkan renderer compiles its shaders
+# with: Google's shaderc, with Khronos's glslang and SPIR-V tools inside
+pkg_native_glslc() {
+	native_env
+	local d
+	for d in glslang spirv-tools spirv-headers; do
+		(unpack "$d")
+	done
+	unpack shaderc
+	for d in glslang spirv-tools spirv-headers; do
+		rm -rf "third_party/$d"
+		mv "$(find "$WORK/$d" -mindepth 1 -maxdepth 1 -type d | head -1)" "third_party/$d"
+	done
+	cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$NATIVE" -DSHADERC_SKIP_TESTS=ON \
+		-DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON -DSPIRV_SKIP_TESTS=ON -DSPIRV_SKIP_EXECUTABLES=ON \
+		-DENABLE_GLSLANG_BINARIES=OFF -DSKIP_GLSLANG_INSTALL=ON -DSKIP_SPIRV_TOOLS_INSTALL=ON >cmake.log 2>&1 ||
+		{ tail -30 cmake.log; exit 1; }
+	ninja -C _build glslc_exe >ninja.log 2>&1 || { grep -A12 -m3 FAILED ninja.log | head -40; exit 1; }
+	install -m755 _build/glslc/glslc "$NATIVE/bin/glslc"
+}
+
+pkg_p11_kit() {
+	unpack p11-kit
+	mesonbuild -Dsystemd=disabled -Dbash_completion=disabled -Dgtk_doc=false -Dman=false -Dnls=false -Dtest=false \
+		-Dtrust_module=disabled
+}
+
+pkg_libsecret() {
+	unpack libsecret
+	mesonbuild -Dgtk_doc=false -Dmanpage=false -Dvapi=false -Dintrospection=true -Dcrypto=libgcrypt -Dbash_completion=disabled
+}
+
+pkg_libgudev() { unpack libgudev; mesonbuild -Dintrospection=enabled -Dvapi=disabled -Dtests=disabled; }
+
+pkg_vulkan_headers() { unpack vulkan-headers; cmakebuild -DVULKAN_HEADERS_ENABLE_TESTS=OFF -DVULKAN_HEADERS_ENABLE_MODULE=OFF; }
+
+pkg_gtk() {
+	unpack gtk
+	mesonbuild -Dx11-backend=true -Dwayland-backend=true -Dvulkan=enabled -Dintrospection=enabled -Dmedia-gstreamer=disabled \
+		-Dprint-cups=disabled -Dcolord=disabled -Dcloudproviders=disabled -Dsysprof=disabled -Daccesskit=disabled \
+		-Dbuild-demos=false -Dbuild-tests=false -Dbuild-testsuite=false -Dbuild-examples=false -Ddocumentation=false \
+		-Dman-pages=false -Dscreenshots=false
+}
+
+# cargo-c, which builds Rust libraries with a C interface (librsvg's, glycin's)
+pkg_native_cargo_c() {
+	native_env
+	CARGO_HOME=$L/cargo-native "$HOME/.cargo/bin/cargo" install --quiet --locked --root "$NATIVE" cargo-c --version 0.10.25 \
+		>"$WORK/cargo.log" 2>&1 || { tail -30 "$WORK/cargo.log"; exit 1; }
+}
+
+pkg_librsvg() {
+	unpack librsvg
+	rust_env
+	cargo_fetch
+	mesonbuild -Dintrospection=enabled -Dpixbuf=enabled -Dpixbuf-loader=enabled -Ddocs=disabled -Dvala=disabled -Dtests=false \
+		-Davif=disabled -Dtriplet=x86_64-unknown-linux-gnu
+}
+
+pkg_glycin() {
+	unpack glycin
+	rust_env
+	cargo_fetch
+	mesonbuild -Dlibglycin=true -Dlibglycin-gtk4=true -Dglycin-loaders=true -Dloaders=glycin-image-rs,glycin-svg \
+		-Dintrospection=true -Dvapi=false -Dtests=false -Dglycin-thumbnailer=true
+}
+
+pkg_libadwaita() {
+	unpack libadwaita
+	mesonbuild -Dintrospection=enabled -Dvapi=false -Dtests=false -Dexamples=false -Ddocumentation=false
+}
+
+pkg_gcr() {
+	unpack gcr
+	mesonbuild -Dgtk4=true -Dintrospection=true -Dvapi=false -Dgtk_doc=false -Dcrypto=libgcrypt -Dsystemd=disabled \
+		-Dssh_agent=false
+}
+
+pkg_gnome_desktop() {
+	unpack gnome-desktop
+	mesonbuild -Dintrospection=true -Dgtk_doc=false -Ddesktop_docs=false -Dbuild_gtk4=true -Dlegacy_library=false \
+		-Dsystemd=disabled -Dudev=enabled -Dinstalled_tests=false
+}
+
+ORDER+=(native_sassc native_glslc p11_kit libsecret libgudev vulkan_headers gtk native_cargo_c librsvg glycin libadwaita gcr gnome_desktop)
+
+# ---- Input, displays, colour and sound for Mutter ----------------------------------------
+
+pkg_mtdev() { unpack mtdev; autobuild; }
+
+pkg_libevdev() { unpack libevdev; mesonbuild -Dtests=disabled -Ddocumentation=disabled; }
+
+pkg_libwacom() { unpack libwacom; mesonbuild -Dtests=disabled -Dudev-dir=/usr/lib/udev; }
+
+pkg_libinput() {
+	unpack libinput
+	mesonbuild -Dlibwacom=true -Ddebug-gui=false -Dtests=false -Ddocumentation=false -Dudev-dir=/usr/lib/udev -Dmtdev=true \
+		-Dlua-plugins=disabled
+}
+
+# emulated input, for remote desktop and the input portal; its code is
+# generated with Python modules the build machine's Python gets first
+pkg_libei() {
+	unpack libei
+	"$L/venv/bin/pip" install -q attrs jinja2 >/dev/null
+	mesonbuild -Dtests=disabled -Ddocumentation=[] -Dliboeffis=disabled
+}
+
+# monitors' manufacturers, by the codes in their EDID
+pkg_hwdata() {
+	unpack hwdata
+	./configure --prefix=/usr --libdir=$LIBDIR --datadir=/usr/share >configure.log 2>&1
+	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -20 install.log; exit 1; }
+	finish
+}
+
+pkg_libdisplay_info() { unpack libdisplay-info; mesonbuild; }
+
+pkg_xcb_util() { xorg xcb-util; }
+
+pkg_startup_notification() { unpack startup-notification; autobuild; }
+
+pkg_sqlite() {
+	unpack sqlite
+	autobuild --enable-fts5 --enable-math --disable-readline --disable-static
+}
+
+pkg_libusb() { unpack libusb; autobuild --disable-udev --disable-examples-build --disable-tests-build; }
+
+pkg_libgusb() { unpack libgusb; mesonbuild -Dintrospection=true -Dvapi=false -Dtests=false -Ddocs=false -Dumockdev=disabled; }
+
+pkg_duktape() {
+	unpack duktape
+	make -f Makefile.sharedlibrary CC="$CC" CFLAGS="$CFLAGS -fPIC" INSTALL_PREFIX=/usr LIBDIR=/lib >make.log 2>&1 ||
+		{ tail -20 make.log; exit 1; }
+	make -f Makefile.sharedlibrary INSTALL_PREFIX="$DEST/usr" LIBDIR=/lib install >install.log 2>&1 || { tail -20 install.log; exit 1; }
+	mkdir -p "$DEST$LIBDIR/pkgconfig"
+	cat >"$DEST$LIBDIR/pkgconfig/duktape.pc" <<-EOF
+		prefix=/usr
+		libdir=$LIBDIR
+		includedir=/usr/include
+		Name: duktape
+		Description: An embeddable JavaScript engine
+		Version: 2.7.0
+		Libs: -L\${libdir} -lduktape
+		Cflags: -I\${includedir}
+	EOF
+	finish
+}
+
+# polkit: the agent library GNOME Shell asks for passwords with, and the
+# authority's client library; the authority itself is Zurbax's
+pkg_polkit() {
+	unpack polkit
+	mesonbuild -Dlibs-only=true -Dintrospection=true -Dexamples=false -Dtests=false -Dman=false -Dgtk_doc=false \
+		-Djs_engine=duktape -Dsession_tracking=logind -Dsystemdsystemunitdir=/usr/lib/systemd/system
+}
+
+pkg_colord() {
+	unpack colord
+	mesonbuild -Ddaemon=true -Dbash_completion=false -Dsystemd=false -Dlibcolordcompat=false -Dsane=false -Dvapi=false \
+		-Dprint_profiles=false -Dman=false -Ddocs=false -Dinstalled_tests=false -Dtests=false -Dudev_rules=false \
+		-Dargyllcms_sensor=false
+}
+
+pkg_libogg() { unpack libogg; autobuild; }
+
+pkg_libvorbis() { unpack libvorbis; autobuild --disable-docs --disable-examples --disable-oggtest; }
+
+# event sounds (the camera shutter, the bell); Mutter plays them with it
+pkg_libcanberra() {
+	unpack libcanberra
+	CFLAGS="$CFLAGS -std=gnu17 -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration" \
+		autobuild --disable-oss --disable-gtk --disable-gtk3 --enable-pulse --enable-alsa --disable-gstreamer --disable-lynx \
+		--disable-tdb --disable-udev --with-builtin=dso
+}
+
+# only the capture library programs mark their timings with, for Sysprof
+pkg_sysprof() {
+	unpack sysprof
+	mesonbuild -Dgtk=false -Dlibsysprof=false -Dsysprofd=none -Dagent=false -Dhelp=false -Dexamples=false -Dtools=false \
+		-Dtests=false -Dinstall-static=true
+}
+
+ORDER+=(sd_login mtdev libevdev libwacom libinput libei hwdata libdisplay_info xcb_util startup_notification sqlite libusb libgusb
+	duktape polkit colord libogg libvorbis libcanberra sysprof)
+
+# ---- JavaScript: SpiderMonkey (Mozilla's engine, from Firefox's ESR source) and GJS -------
+
+pkg_mozjs() {
+	unpack mozjs
+	rust_env
+	unset CARGO_BUILD_TARGET RUSTFLAGS
+	export HOST_CC=gcc HOST_CXX=g++ AR=ar NM=nm RANLIB=ranlib MOZBUILD_STATE_PATH=$WORK/mozbuild MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=none
+	mkdir -p obj "$MOZBUILD_STATE_PATH"
+	cd obj
+	../js/src/configure --prefix=/usr --libdir=$LIBDIR --host=x86_64-pc-linux-gnu --target=x86_64-unknown-linux-gnu \
+		--disable-debug --enable-optimize --enable-release --disable-jemalloc --disable-strip --disable-tests \
+		--enable-shared-js --with-system-zlib --with-intl-api --disable-ctypes --disable-smoosh \
+		>configure.log 2>&1 || { tail -40 configure.log; exit 1; }
+	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A10 -m5 'error' make.log | head -80; exit 1; }
+	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -30 install.log; exit 1; }
+	rm -f "$DEST$LIBDIR"/libjs_static.ajs
+	finish
+}
+
+pkg_gjs() {
+	unpack gjs
+	mesonbuild -Dinstalled_tests=false -Dskip_dbus_tests=true -Dskip_gtk_tests=true -Dprofiler=disabled -Dreadline=disabled \
+		-Dcairo=enabled
+}
+
+ORDER+=(mozjs gjs)
+
+# ---- PipeWire: screen sharing, remote desktop and cameras ---------------------------------
+# Sound stays with Zurbax's sound service (through PulseAudio's server in
+# the layer); PipeWire carries video: the screen to a portal, a camera to an app.
+
+pkg_pipewire() {
+	unpack pipewire
+	mesonbuild -Dsession-managers=[] -Dsystemd=disabled -Dsystemd-user-service=disabled -Dlogind=disabled -Dselinux=disabled \
+		-Ddocs=disabled -Dman=disabled -Dtests=disabled -Dexamples=disabled -Dinstalled_tests=disabled -Dpipewire-alsa=disabled \
+		-Dpipewire-jack=disabled -Djack=disabled -Dpipewire-v4l2=enabled -Dv4l2=enabled -Dlibcamera=disabled -Dvulkan=disabled \
+		-Dbluez5=disabled -Dgstreamer=disabled -Decho-cancel-webrtc=disabled -Droc=disabled -Draop=disabled -Davahi=disabled \
+		-Dlv2=disabled -Dsdl2=disabled -Dsndfile=enabled -Dlibpulse=enabled -Dlibusb=enabled -Dx11=enabled -Dlibffado=disabled \
+		-Dreadline=disabled -Dopus=disabled -Dlibmysofa=disabled -Dbluez5-codec-lc3plus=disabled -Dsnap=disabled \
+		-Dcompress-offload=disabled -Debur128=disabled
+}
+
+pkg_lua() {
+	unpack lua
+	make -j"$JOBS" linux CC="$CC -fPIC" MYCFLAGS="$CFLAGS" MYLDFLAGS="$LDFLAGS" >make.log 2>&1 || { tail -20 make.log; exit 1; }
+	make INSTALL_TOP="$DEST/usr" INSTALL_LIB="$DEST$LIBDIR" install >install.log 2>&1
+	# a shared library and its pkg-config file, as WirePlumber looks for it
+	$CC -shared -Wl,-soname,liblua5.4.so.0 $LDFLAGS -o "$DEST$LIBDIR/liblua5.4.so.0" -Wl,--whole-archive src/liblua.a \
+		-Wl,--no-whole-archive -lm -ldl
+	ln -sf liblua5.4.so.0 "$DEST$LIBDIR/liblua5.4.so"
+	rm -f "$DEST$LIBDIR/liblua.a"
+	mkdir -p "$DEST$LIBDIR/pkgconfig"
+	cat >"$DEST$LIBDIR/pkgconfig/lua5.4.pc" <<-EOF
+		prefix=/usr
+		libdir=$LIBDIR
+		includedir=/usr/include
+		Name: Lua
+		Description: An extensible extension language
+		Version: 5.4.8
+		Libs: -L\${libdir} -llua5.4 -lm
+		Cflags: -I\${includedir}
+	EOF
+	finish
+}
+
+pkg_wireplumber() {
+	unpack wireplumber
+	mesonbuild -Dsystem-lua=true -Dsystem-lua-version=5.4 -Dintrospection=enabled -Ddoc=disabled -Dtests=false \
+		-Dsystemd=disabled -Delogind=disabled -Dmodules=true -Ddaemon=true -Dtools=true
+}
+
+ORDER+=(pipewire lua wireplumber)
+
+# ---- Mutter: GNOME's compositor and window manager -----------------------------------------
+
+pkg_mutter() {
+	unpack mutter
+	mesonbuild -Dopengl=true -Dgles2=true -Degl=true -Dxwayland=true -Dremote_desktop=true -Dlibgnome_desktop=true \
+		-Dlibwacom=true -Dsound_player=true -Dstartup_notification=true -Dintrospection=true -Dprofiler=true \
+		-Dtests=disabled -Dcogl_tests=false -Dclutter_tests=false -Dmutter_tests=false -Dinstalled_tests=false \
+		-Dkvm_tests=false -Dtty_tests=false -Ddocs=false -Dudev_dir=/usr/lib/udev -Dxwayland_path=/usr/bin/Xwayland \
+		-Dfonts=true -Dbash_completion=false -Ddevkit=enabled
+}
+
+ORDER+=(mutter)
+
+# ---- Calendars, contacts, weather and online accounts --------------------------------------
+# Evolution Data Server keeps calendars and contacts; GNOME Shell shows the
+# day's events from it. Mozilla's NSS does its certificates and S/MIME.
+
+pkg_nspr() {
+	unpack nspr
+	cd nspr
+	HOST_CC=gcc autobuild --enable-64bit --disable-debug --enable-optimize
+	rm -f "$ROOT$LIBDIR"/libnspr4.a "$ROOT$LIBDIR"/libplc4.a "$ROOT$LIBDIR"/libplds4.a
+}
+
+pkg_nss() {
+	unpack nss
+	cd nss
+	local args=(BUILD_OPT=1 USE_64=1 NSS_DISABLE_GTESTS=1 NSS_USE_SYSTEM_SQLITE=1 NSS_ENABLE_WERROR=0 USE_SYSTEM_ZLIB=1
+		ZLIB_LIBS=-lz CC="$CC" CCC="$CXX" NATIVE_CC=gcc NATIVE_FLAGS= OS_ARCH=Linux OS_TEST=x86_64 CPU_ARCH=x86_64
+		CROSS_COMPILE=1 NSPR_INCLUDE_DIR="$ROOT/usr/include/nspr" NSPR_LIB_DIR="$ROOT$LIBDIR" XCFLAGS="$CFLAGS"
+		SOURCE_PREFIX="$PWD/../dist")
+	make -C coreconf "${args[@]}" >make.log 2>&1 && make "${args[@]}" >>make.log 2>&1 ||
+		{ grep -B5 -A10 -m5 'rror' make.log | head -60; exit 1; }
+	local out
+	out=$(echo ../dist/Linux*_OPT.OBJ)
+	mkdir -p "$DEST$LIBDIR/pkgconfig" "$DEST/usr/include/nss" "$DEST/usr/bin"
+	cp -L "$out"/lib/*.so "$DEST$LIBDIR/"
+	cp -rL ../dist/public/nss/. "$DEST/usr/include/nss/"
+	cp -L "$out"/bin/certutil "$out"/bin/pk12util "$out"/bin/modutil "$DEST/usr/bin/"
+	local v
+	v=$(sed -n 's/^#define NSS_VERSION "\([0-9.]*\).*/\1/p' lib/nss/nss.h)
+	cat >"$DEST$LIBDIR/pkgconfig/nss.pc" <<-EOF
+		prefix=/usr
+		libdir=$LIBDIR
+		includedir=/usr/include/nss
+		Name: NSS
+		Description: Mozilla's Network Security Services
+		Version: $v
+		Requires: nspr
+		Libs: -L\${libdir} -lssl3 -lsmime3 -lnss3 -lnssutil3
+		Cflags: -I\${includedir}
+	EOF
+	finish
+}
+
+pkg_libical() {
+	unpack libical
+	cmakebuild -DICAL_GLIB=ON -DGOBJECT_INTROSPECTION=ON -DICAL_GLIB_VAPI=OFF -DICAL_BUILD_DOCS=OFF -DSTATIC_ONLY=OFF \
+		-DLIBICAL_BUILD_TESTING=OFF -DWITH_CXX_BINDINGS=OFF -DENABLE_GTK_DOC=OFF -DUSE_BUILTIN_TZDATA=OFF \
+		-DGObjectIntrospection_SCANNER="$L/cross-bin/g-ir-scanner" -DGObjectIntrospection_COMPILER="$L/cross-bin/g-ir-compiler"
+}
+
+pkg_libpsl() { unpack libpsl; mesonbuild -Druntime=no -Dbuiltin=true -Dtests=false -Ddocs=false; }
+
+pkg_libsoup() {
+	unpack libsoup
+	mesonbuild -Dintrospection=enabled -Dvapi=disabled -Dtests=false -Dautobahn=disabled -Dsysprof=disabled \
+		-Dpkcs11_tests=disabled -Dtls_check=false -Dgssapi=disabled -Dntlm=disabled -Ddocs=disabled -Dbrotli=disabled
+}
+
+pkg_glib_networking() {
+	unpack glib-networking
+	mesonbuild -Dopenssl=enabled -Dgnutls=disabled -Dlibproxy=disabled -Dgnome_proxy=enabled -Dinstalled_tests=false
+}
+
+pkg_geocode_glib() {
+	unpack geocode-glib
+	mesonbuild -Denable-introspection=true -Denable-installed-tests=false -Denable-gtk-doc=false -Dsoup2=false
+}
+
+pkg_libgweather() { unpack libgweather; mesonbuild -Denable_vala=false -Dintrospection=true -Dgtk_doc=false -Dtests=false; }
+
+pkg_rest() { unpack rest; mesonbuild -Dintrospection=true -Dvapi=false -Dexamples=false -Dtests=false -Dgtk_doc=false; }
+
+pkg_gnome_online_accounts() {
+	unpack gnome-online-accounts
+	mesonbuild -Dintrospection=true -Dvapi=false -Ddocumentation=false -Dman=false -Dkerberos=false -Dgoabackend=true
+}
+
+pkg_evolution_data_server() {
+	unpack evolution-data-server
+	cmakebuild -DENABLE_GTK=OFF -DENABLE_GTK4=ON -DENABLE_OAUTH2_WEBKITGTK=OFF -DENABLE_OAUTH2_WEBKITGTK4=OFF \
+		-DENABLE_EXAMPLES=OFF -DENABLE_GOA=ON -DENABLE_WEATHER=ON -DENABLE_CANBERRA=OFF -DENABLE_INTROSPECTION=ON \
+		-DENABLE_VALA_BINDINGS=OFF -DWITH_PHONENUMBER=OFF -DENABLE_TESTS=OFF -DENABLE_GTK_DOC=OFF -DWITH_LIBDB=OFF \
+		-DWITH_OPENLDAP=OFF -DWITH_KRB5=OFF -DWITH_SYSTEMDUSERUNITDIR=OFF -DENABLE_INSTALLED_TESTS=OFF \
+		-DWITH_GWEATHER4=ON -DLIBEXEC_INSTALL_DIR=/usr/libexec
+}
+
+ORDER+=(nspr nss libical libpsl libsoup glib_networking geocode_glib libgweather rest gnome_online_accounts evolution_data_server)
+
+# ---- NetworkManager's library ----------------------------------------------------------------
+# GNOME Shell's network menu and Settings talk to NetworkManager's D-Bus
+# interface through libnm. Zurbax answers on that interface itself (its
+# network service), so only the library is used, not NetworkManager's daemon.
+
+pkg_libndp() {
+	unpack libndp
+	./autogen.sh >autogen.log 2>&1
+	autobuild
+}
+
+pkg_networkmanager() {
+	unpack NetworkManager
+	mesonbuild -Dsystemd_journal=false -Dsession_tracking=systemd -Dsuspend_resume=auto -Dlibaudit=no -Dselinux=false \
+		-Dpolkit=false -Dmodem_manager=false -Dppp=false -Dnmcli=true -Dnmtui=false -Dbluez5_dun=false -Debpf=false \
+		-Dconfig_dhcp_default=internal -Ddhcpcd=no -Ddhclient=no -Dintrospection=true -Dvapi=false -Ddocs=false -Dtests=no \
+		-Dqt=false -Dcrypto=null -Dlibpsl=true -Dnm_cloud_setup=false -Dovs=false -Dteamdctl=false -Dwext=false -Diwd=false \
+		-Dofono=false -Dfirewalld_zone=false -Dreadline=none -Dsystemdsystemunitdir=no -Dudev_dir=/usr/lib/udev \
+		-Dmore_asserts=no -Dconcheck=true
+}
+
+ORDER+=(libndp networkmanager)
+
+# ---- GNOME Shell -----------------------------------------------------------------------------
+
+pkg_gnome_shell() {
+	unpack gnome-shell
+	mesonbuild -Dcamera_monitor=true -Dextensions_tool=true -Dgtk_doc=false -Dman=false -Dtests=false -Dnetworkmanager=true \
+		-Dportal_helper=false -Dsystemd=false
+}
+
+ORDER+=(gnome_shell)
+
+# ---- Zurbax's libsystemd ---------------------------------------------------------------
+# The session questions GNOME asks systemd's library, answered by Zurbax's own
+# (layer/sd-login): Mutter, GNOME Shell and the settings daemon link to it.
+
+pkg_sd_login() {
+	local src=$HERE/sd-login
+	mkdir -p "$DEST$LIBDIR/pkgconfig" "$DEST/usr/include/systemd" "$DEST/usr/share/pkgconfig"
+	$CC $CFLAGS -fPIC -fvisibility=hidden -shared -Wl,-soname,libsystemd.so.0 $LDFLAGS -o "$DEST$LIBDIR/libsystemd.so.0" \
+		"$src/sd-login.c"
+	ln -sf libsystemd.so.0 "$DEST$LIBDIR/libsystemd.so"
+	install -m644 "$src"/sd-login.h "$src"/sd-journal.h "$src"/sd-daemon.h "$DEST/usr/include/systemd/"
+	cat >"$DEST$LIBDIR/pkgconfig/libsystemd.pc" <<-EOF
+		prefix=/usr
+		libdir=$LIBDIR
+		includedir=/usr/include
+		Name: systemd
+		Description: Zurbax's libsystemd: sessions, the journal and service notifications without systemd
+		Version: 258
+		Libs: -L\${libdir} -lsystemd
+		Cflags: -I\${includedir}
+	EOF
+	# udev's own description: where its rules would go
+	cat >"$DEST/usr/share/pkgconfig/udev.pc" <<-EOF
+		prefix=/usr
+		udevdir=/usr/lib/udev
+		Name: udev
+		Description: udev's file locations (Zurbax reads devices with libudev-zero)
+		Version: 258
+	EOF
+	finish
+}
+
+
+
+# the finishing touches, after everything (packages.sh)
+ORDER+=(strip ldconfig)

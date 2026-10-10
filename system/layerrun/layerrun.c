@@ -230,8 +230,12 @@ static void make_etc(const char *user, const char *home)
 	fmt(text, sizeof text, "root:x:0:\naudio:x:%u:%s\nvideo:x:%u:%s\ninput:x:%u:%s\n%s:x:%u:\nnobody:x:65534:\n", GID_AUDIO, user,
 	    GID_VIDEO, user, GID_INPUT, user, user, gid);
 	add_etc("group", text);
-	add_etc("hosts", "127.0.0.1 localhost\n::1 localhost\n127.0.1.1 zos\n");
-	add_etc("hostname", "zos\n");
+	struct utsname un;
+	const char *host = sys_uname(&un) == 0 && un.nodename[0] ? un.nodename : "zurbax";
+	fmt(text, sizeof text, "127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s\n", host);
+	add_etc("hosts", text);
+	fmt(text, sizeof text, "%s\n", host);
+	add_etc("hostname", text);
 	char *resolv = resolv_text();
 	add_etc("resolv.conf", resolv);
 	mem_free(resolv);
@@ -456,8 +460,8 @@ static void session_env(const char *user, const char *home)
 	setenv_("WAYLAND_DISPLAY", "wayland-0");
 	setenv_("XDG_SESSION_TYPE", "wayland");
 	setenv_("XDG_CURRENT_DESKTOP", "Zurbax");
-	setenv_("XDG_SESSION_DESKTOP", "zos");
-	setenv_("DESKTOP_SESSION", "zos");
+	setenv_("XDG_SESSION_DESKTOP", "zurbax");
+	setenv_("DESKTOP_SESSION", "zurbax");
 	/* Flatpak apps' menu entries and icons, then the layer's own */
 	char *data = str_fmt("%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share", home);
 	setenv_("XDG_DATA_DIRS", data);
