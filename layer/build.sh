@@ -487,6 +487,9 @@ ORDER=(
 
 source "$HERE/packages.sh"
 source "$HERE/gnome.sh"
+source "$HERE/gnome-apps.sh"
+# the finishing touches, after everything (packages.sh)
+ORDER+=(strip ldconfig)
 
 if [ "${1:-}" = --fetch ]; then
 	# downloads (and checks) every source, for building offline later

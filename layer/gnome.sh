@@ -423,14 +423,98 @@ ORDER+=(native_cbindgen mozjs gjs)
 # Sound stays with Zurbax's sound service (through PulseAudio's server in
 # the layer); PipeWire carries video: the screen to a portal, a camera to an app.
 
+# ---- Sound and video: codecs, FFmpeg, GStreamer ----------------------------------------
+# What GNOME's apps play and record with (and GNOME Shell's screen recorder):
+# the common codecs, FFmpeg, and GStreamer with its plugins.
+
+# NASM: the assembler for the codecs' hand-written fast paths
+pkg_native_nasm() {
+	unpack nasm
+	native_env
+	./configure --prefix="$NATIVE" >configure.log 2>&1 || { tail -20 configure.log; exit 1; }
+	make -j"$JOBS" >make.log 2>&1 && make install >install.log 2>&1 || { tail -20 make.log; exit 1; }
+}
+
+pkg_opus() { unpack opus; mesonbuild -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled; }
+
+pkg_flac() { unpack flac; autobuild --disable-doxygen-docs --disable-xmms-plugin --disable-cpplibs --disable-examples --disable-programs; }
+
+pkg_dav1d() { unpack dav1d; mesonbuild -Denable_tools=false -Denable_tests=false; }
+
+pkg_libvpx() {
+	unpack libvpx
+	./configure --target=x86_64-linux-gcc --prefix=/usr --libdir=$LIBDIR --enable-shared --disable-static --disable-examples \
+		--disable-tools --disable-docs --disable-unit-tests --enable-pic --enable-vp9-highbitdepth --as=nasm \
+		>configure.log 2>&1 || { tail -30 configure.log; exit 1; }
+	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A5 -m5 'error' make.log | head -40; exit 1; }
+	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -20 install.log; exit 1; }
+	finish
+}
+
+# VA-API: video decoding on the GPU
+pkg_libva() { unpack libva; mesonbuild -Dwith_x11=yes -Dwith_wayland=yes -Dwith_glx=no -Denable_docs=false; }
+
+pkg_ffmpeg() {
+	unpack ffmpeg
+	./configure --prefix=/usr --libdir=$LIBDIR --shlibdir=$LIBDIR --enable-cross-compile --arch=x86_64 --target-os=linux \
+		--cc="$CC" --cxx="$CXX" --pkg-config="$PKG_CONFIG" --host-cc=gcc --sysroot="$ROOT" --extra-cflags="$CFLAGS" \
+		--extra-ldflags="$LDFLAGS" --enable-shared --disable-static --disable-doc --disable-debug --enable-pic \
+		--enable-libopus --enable-libdav1d --enable-libvpx --enable-vaapi --enable-vulkan --enable-libdrm \
+		--enable-libpulse --enable-alsa --disable-sdl2 --disable-xlib --enable-zlib \
+		>configure.log 2>&1 || { tail -30 configure.log; tail -30 ffbuild/config.log; exit 1; }
+	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A5 -m5 'error' make.log | head -40; exit 1; }
+	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -20 install.log; exit 1; }
+	finish
+}
+
+gst_common=(-Dtests=disabled -Dexamples=disabled -Ddoc=disabled -Dnls=disabled)
+
+pkg_gstreamer() {
+	unpack gstreamer
+	mesonbuild "${gst_common[@]}" -Dintrospection=enabled -Dbenchmarks=disabled -Dtools=enabled -Dlibunwind=disabled \
+		-Dlibdw=disabled -Dbash-completion=disabled -Dptp-helper=disabled
+}
+
+pkg_gst_plugins_base() {
+	unpack gst-plugins-base
+	mesonbuild "${gst_common[@]}" -Dintrospection=enabled -Dgl=enabled -Dgl_api=opengl,gles2 -Dgl_platform=egl \
+		-Dgl_winsys=wayland,egl,x11 -Dalsa=enabled -Dogg=enabled -Dvorbis=enabled -Dopus=enabled -Dtheora=disabled \
+		-Dcdparanoia=disabled -Dlibvisual=disabled -Dtremor=disabled -Dqt5=disabled -Dqt6=disabled
+}
+
+pkg_gst_plugins_good() {
+	unpack gst-plugins-good
+	mesonbuild "${gst_common[@]}" -Dv4l2=enabled -Dpulse=enabled -Dvpx=enabled -Dflac=enabled -Dlame=disabled -Dmpg123=disabled \
+		-Dqt5=disabled -Dqt6=disabled -Dgtk3=disabled -Ddv=disabled -Ddv1394=disabled -Daalib=disabled -Dlibcaca=disabled \
+		-Djack=disabled -Dshout2=disabled -Dtaglib=disabled -Dtwolame=disabled -Dwavpack=disabled -Dspeex=disabled \
+		-Damrnb=disabled -Damrwbdec=disabled -Dsoup=enabled -Dadaptivedemux2=enabled -Dximagesrc=disabled
+}
+
+pkg_gst_plugins_bad() {
+	unpack gst-plugins-bad
+	mesonbuild "${gst_common[@]}" -Dintrospection=enabled -Dgpl=disabled -Dva=enabled -Dvulkan=disabled -Dwayland=enabled \
+		-Ddav1d=disabled -Dopus=enabled -Dsndfile=enabled -Daom=disabled -Dsvtav1=disabled -Dx265=disabled -Dopenh264=disabled \
+		-Dwebrtc=disabled -Dwebrtcdsp=disabled -Dsrtp=disabled -Dmsdk=disabled -Dqsv=disabled -Dnvcodec=disabled \
+		-Dopencv=disabled -Dopenexr=disabled -Dopenjpeg=disabled -Dlibde265=disabled -Dzbar=disabled -Dzxing=disabled \
+		-Dfluidsynth=disabled -Dmpeg2enc=disabled -Dmplex=disabled -Dsoundtouch=disabled -Dspandsp=disabled \
+		-Dgsm=disabled -Drtmp=disabled -Dladspa=disabled -Dlv2=disabled -Dchromaprint=disabled -Dcurl=disabled \
+		-Ddtls=disabled -Dhls-crypto=openssl -Dsctp=disabled -Daja=disabled -Ddecklink=disabled -Dwpe=disabled
+}
+
+pkg_gst_plugins_ugly() { unpack gst-plugins-ugly; mesonbuild "${gst_common[@]}" -Dgpl=disabled; }
+
+pkg_gst_libav() { unpack gst-libav; mesonbuild "${gst_common[@]}"; }
+
+ORDER+=(native_nasm opus flac dav1d libvpx libva ffmpeg gstreamer gst_plugins_base gst_plugins_good gst_plugins_bad gst_plugins_ugly gst_libav)
+
 pkg_pipewire() {
 	unpack pipewire
 	mesonbuild -Dsession-managers=[] -Dsystemd=disabled -Dsystemd-user-service=disabled -Dlogind=disabled -Dselinux=disabled \
 		-Ddocs=disabled -Dman=disabled -Dtests=disabled -Dexamples=disabled -Dinstalled_tests=disabled -Dpipewire-alsa=disabled \
 		-Dpipewire-jack=disabled -Djack=disabled -Dpipewire-v4l2=enabled -Dv4l2=enabled -Dlibcamera=disabled -Dvulkan=disabled \
-		-Dbluez5=disabled -Dgstreamer=disabled -Decho-cancel-webrtc=disabled -Droc=disabled -Draop=disabled -Davahi=disabled \
+		-Dbluez5=disabled -Dgstreamer=enabled -Decho-cancel-webrtc=disabled -Droc=disabled -Draop=disabled -Davahi=disabled \
 		-Dlv2=disabled -Dsdl2=disabled -Dsndfile=enabled -Dlibpulse=enabled -Dlibusb=enabled -Dx11=enabled -Dlibffado=disabled \
-		-Dreadline=disabled -Dopus=disabled -Dlibmysofa=disabled -Dbluez5-codec-lc3plus=disabled -Dsnap=disabled \
+		-Dreadline=disabled -Dopus=enabled -Dlibmysofa=disabled -Dbluez5-codec-lc3plus=disabled -Dsnap=disabled \
 		-Dcompress-offload=disabled -Debur128=disabled
 }
 
@@ -675,6 +759,9 @@ pkg_zurbax_gnome() {
 	mkdir -p "$ROOT/usr/share/backgrounds/zurbax"
 	"$TOP/build/tools/wallpaper" silk "$ROOT/usr/share/backgrounds/zurbax/silk.png" 3840 2160
 	install -Dm644 "$HERE/files/90_zurbax.gschema.override" "$ROOT/usr/share/glib-2.0/schemas/90_zurbax.gschema.override"
+	# the logo GNOME's About page and os-release name
+	install -Dm644 "$TOP/data/zurbax-logo.svg" "$ROOT/usr/share/pixmaps/zurbax-logo.svg"
+	install -Dm644 "$TOP/data/zurbax-logo.svg" "$ROOT/usr/share/icons/hicolor/scalable/apps/zurbax-logo.svg"
 	"$NATIVE/bin/glib-compile-schemas" "$ROOT/usr/share/glib-2.0/schemas"
 }
 
@@ -713,6 +800,3 @@ pkg_sd_login() {
 }
 
 
-
-# the finishing touches, after everything (packages.sh)
-ORDER+=(strip ldconfig)
