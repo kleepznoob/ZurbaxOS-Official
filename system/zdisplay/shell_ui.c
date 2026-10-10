@@ -538,9 +538,13 @@ void taskbar_draw(Ui *ui)
 	start_btn.y += tb_dy;
 	{
 		UiInteract it = bar_button(ui, start_btn, "tk-start", S.launcher_open, &l, 4);
-		Rect ic = center_in(start_btn, tb.icon - 2, tb.icon - 2);
-		ui_round(ui, ic, ic.w * 0.28f, t->accent);
-		ui_icon(ui, pad(ic, ic.w * 0.18f), "zos-mark", t->on_accent);
+		/* a grid of nine dots: every app; they take the accent while the launcher is open */
+		f32 g = roundf(tb.icon * 0.7f), dot = roundf(g / 4.2f), gap = (g - 3 * dot) / 2;
+		Rect grid = center_in(start_btn, g, g);
+		Color dc = S.launcher_open ? color_lighten(t->accent, l.dark ? 0.2f : 0) : l.fg;
+		for (int r = 0; r < 3; r++)
+			for (int c = 0; c < 3; c++)
+				ui_round(ui, rect(roundf(grid.x + (f32)c * (dot + gap)), roundf(grid.y + (f32)r * (dot + gap)), dot, dot), dot * 0.3f, dc);
 		if (it.hovered)
 			tip = "Start", tip_x = start_btn.x + start_btn.w / 2;
 		if (it.clicked)
