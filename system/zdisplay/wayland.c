@@ -115,7 +115,30 @@ typedef struct {
 
 enum { ROLE_NONE, ROLE_TOPLEVEL, ROLE_POPUP, ROLE_CURSOR, ROLE_SUBSURFACE };
 
-typedef struct WlSurface {
+/* A region (input areas): rectangles added and taken away, in order. */
+typedef struct {
+	i32 x, y, w, h;
+	bool subtract;
+} RegionOp;
+
+typedef struct {
+	RegionOp *ops;
+	int n;
+} WlRegion;
+
+typedef struct WlSurface WlSurface;
+
+/* A subsurface: a surface drawn as part of another (its parent), at a
+ * position in the parent's coordinates. Toolkits put video, web content and
+ * GPU-drawn parts of a window in them. */
+typedef struct WlSub {
+	WlResource *res;
+	WlSurface *surface, *parent;
+	i32 x, y, px, py;    /* the position, and the one the parent's next commit applies */
+	bool sync;
+} WlSub;
+
+struct WlSurface {
 	WlResource *res;
 	WlClient *client;
 	/* double-buffered state */
@@ -137,7 +160,12 @@ typedef struct WlSurface {
 	Canvas *opaque;      /* XRGB pixels with the alpha filled in, when blending needs it */
 	u32 opaque_commit;   /* the commit it was made from */
 	struct WlConstraint *constraint;
-} WlSurface;
+	WlSub *sub;          /* when it's a subsurface: its parent and position */
+	WlSub **kids;        /* subsurfaces on it, bottom first */
+	int nkids, below;    /* the first `below` of them are under the surface itself */
+	WlRegion *input, *pending_input; /* where it takes pointer input; NULL: everywhere */
+	bool pending_input_set;
+};
 
 typedef struct WlToplevel WlToplevel;
 struct WlToplevel {
@@ -210,6 +238,7 @@ static struct {
 	u32 keys_down[32];
 	int nkeys_down;
 	WlSurface *kb_focus, *ptr_focus;
+	int buttons_down;    /* pointer buttons held: the surface they went down on keeps the pointer */
 	/* open menus (grabbing popups), innermost last */
 	WlPopup *grabs[8];
 	int ngrabs;
@@ -586,11 +615,51 @@ static void callback_dispatch(WlResource *r, u32 op, WlArg *a)
 	UNUSED(r), UNUSED(op), UNUSED(a); /* no requests */
 }
 
+static void region_free(WlRegion *g)
+{
+	if (g) {
+		mem_free(g->ops);
+		mem_free(g);
+	}
+}
+
+static WlRegion *region_copy(const WlRegion *g)
+{
+	WlRegion *c = NEW(WlRegion);
+	if (g && g->n) {
+		c->ops = mem_dup(g->ops, sizeof(RegionOp) * (usize)g->n);
+		c->n = g->n;
+	}
+	return c;
+}
+
+static bool region_has(const WlRegion *g, i32 x, i32 y)
+{
+	if (!g)
+		return true;
+	bool in = false;
+	for (int i = 0; i < g->n; i++) {
+		const RegionOp *o = &g->ops[i];
+		if (x >= o->x && y >= o->y && x < o->x + o->w && y < o->y + o->h)
+			in = !o->subtract;
+	}
+	return in;
+}
+
+static void region_destroyed(WlResource *r)
+{
+	region_free(r->data);
+}
+
 static void region_dispatch(WlResource *r, u32 op, WlArg *a)
 {
-	if (op == WL_REGION_DESTROY)
-		plain_destroy(r, op, a);
-	/* add/subtract: zdisplay takes whole surfaces for input and blending */
+	WlRegion *g = r->data;
+	if (op == WL_REGION_DESTROY) {
+		res_destroy(r);
+	} else if ((op == WL_REGION_ADD || op == WL_REGION_SUBTRACT) && g->n < 4096) {
+		g->ops = mem_realloc(g->ops, sizeof(RegionOp) * (usize)(g->n + 1));
+		g->ops[g->n++] = (RegionOp){ (i32)a[0].u, (i32)a[1].u, (i32)a[2].u, (i32)a[3].u, op == WL_REGION_SUBTRACT };
+	}
 }
 
 /* ---- Surfaces ----------------------------------------------------------------------------- */
@@ -617,6 +686,49 @@ i32 wl_surface_height(const WlSurface *s)
 	if (s->vp_h > 0)
 		return s->vp_h;
 	return s->buffer ? s->buffer->height / MAX(1, s->scale) : 0;
+}
+
+/* The surface at the bottom of a tree of subsurfaces (the window's own). */
+static WlSurface *surface_root(WlSurface *s)
+{
+	for (int depth = 0; s && s->sub && s->sub->parent && depth < 16; depth++)
+		s = s->sub->parent;
+	return s;
+}
+
+static Window *surface_window(WlSurface *s)
+{
+	s = surface_root(s);
+	return s ? s->win : NULL;
+}
+
+/* Where a subsurface is in its root surface's coordinates. */
+static void surface_offset(WlSurface *s, i32 *x, i32 *y)
+{
+	*x = *y = 0;
+	for (int depth = 0; s && s->sub && s->sub->parent && depth < 16; depth++) {
+		*x += s->sub->x, *y += s->sub->y;
+		s = s->sub->parent;
+	}
+}
+
+static void sub_unlink(WlSub *k)
+{
+	WlSurface *p = k->parent;
+	if (!p)
+		return;
+	for (int i = 0; i < p->nkids; i++)
+		if (p->kids[i] == k) {
+			memmove(&p->kids[i], &p->kids[i + 1], sizeof(WlSub *) * (usize)(p->nkids - i - 1));
+			p->nkids--;
+			if (i < p->below)
+				p->below--;
+			break;
+		}
+	k->parent = NULL;
+	Window *w = surface_window(p);
+	if (w)
+		window_damage(w);
 }
 
 static void drop_frame_waiter(WlSurface *s)
@@ -652,6 +764,15 @@ static void surface_commit(WlSurface *s)
 	}
 	if (s->pending_scale > 0)
 		s->scale = s->pending_scale;
+	if (s->pending_input_set) {
+		region_free(s->input);
+		s->input = s->pending_input;
+		s->pending_input = NULL;
+		s->pending_input_set = false;
+	}
+	/* subsurfaces move with their parent's commit */
+	for (int i = 0; i < s->nkids; i++)
+		s->kids[i]->x = s->kids[i]->px, s->kids[i]->y = s->kids[i]->py;
 	for (int i = 0; i < s->npending_frames && s->nframes < (int)ARRAY_LEN(s->frames); i++)
 		s->frames[s->nframes++] = s->pending_frames[i];
 	s->npending_frames = 0;
@@ -668,6 +789,12 @@ static void surface_commit(WlSurface *s)
 	case ROLE_TOPLEVEL: toplevel_commit(s); break;
 	case ROLE_POPUP: popup_commit(s); break;
 	case ROLE_CURSOR: cursor_commit(s); break;
+	case ROLE_SUBSURFACE: {
+		Window *w = surface_window(s);
+		if (w)
+			window_damage(w);
+		break;
+	}
 	}
 }
 
@@ -696,6 +823,15 @@ static void surface_destroyed(WlResource *r)
 	drop_frame_waiter(s);
 	if (s->xdg)
 		s->xdg->surface = NULL;
+	if (s->sub) {
+		sub_unlink(s->sub);
+		s->sub->surface = NULL;
+	}
+	for (int i = 0; i < s->nkids; i++)
+		s->kids[i]->parent = NULL;
+	mem_free(s->kids);
+	region_free(s->input);
+	region_free(s->pending_input);
 	mem_free(s);
 }
 
@@ -723,6 +859,11 @@ static void surface_dispatch(WlResource *r, u32 op, WlArg *a)
 	}
 	case WL_SURFACE_COMMIT:
 		surface_commit(s);
+		break;
+	case WL_SURFACE_SET_INPUT_REGION:
+		region_free(s->pending_input);
+		s->pending_input = a[0].obj ? region_copy(a[0].obj->data) : NULL;
+		s->pending_input_set = true;
 		break;
 	case WL_SURFACE_SET_BUFFER_SCALE:
 		if ((i32)a[0].u < 1) {
@@ -757,7 +898,12 @@ static void compositor_dispatch(WlResource *r, u32 op, WlArg *a)
 			event(s->res, WL_SURFACE_EV_PREFERRED_BUFFER_TRANSFORM, "u", 0);
 		}
 	} else if (op == WL_COMPOSITOR_CREATE_REGION) {
-		res_new(r->client, a[0].u, &wl_region_interface, 1, region_dispatch, NULL);
+		WlRegion *g = NEW(WlRegion);
+		WlResource *rr = res_new(r->client, a[0].u, &wl_region_interface, 1, region_dispatch, g);
+		if (rr)
+			rr->destroy = region_destroyed;
+		else
+			mem_free(g);
 	}
 }
 
@@ -873,12 +1019,79 @@ static void data_device_manager_dispatch(WlResource *r, u32 op, WlArg *a)
 		res_new(r->client, a[0].u, &wl_data_device_interface, r->version, data_device_dispatch, NULL);
 }
 
-/* ---- Subsurfaces (accepted; drawn as part of their parent later) -------------------------- */
+/* ---- Subsurfaces ---------------------------------------------------------------------------- */
+
+static void subsurface_destroyed(WlResource *r)
+{
+	WlSub *k = r->data;
+	sub_unlink(k);
+	if (k->surface)
+		k->surface->sub = NULL;
+	mem_free(k);
+}
+
+/* Moves k just above (or below) sibling, which may be the parent itself. */
+static void sub_restack(WlSub *k, WlSurface *sibling, bool above)
+{
+	WlSurface *p = k->parent;
+	if (!p || sibling == k->surface)
+		return;
+	/* the stack with the parent in it (NULL stands for the parent), without k */
+	int n = 0;
+	WlSub **order = mem_alloc(sizeof(WlSub *) * (usize)(p->nkids + 1));
+	for (int i = 0; i <= p->nkids; i++) {
+		if (i == p->below)
+			order[n++] = NULL;
+		if (i < p->nkids && p->kids[i] != k)
+			order[n++] = p->kids[i];
+	}
+	int at = -1;
+	for (int i = 0; i < n && at < 0; i++)
+		if (sibling == p ? order[i] == NULL : order[i] && order[i]->surface == sibling)
+			at = i;
+	if (at < 0) {
+		mem_free(order);
+		return;
+	}
+	int pos = above ? at + 1 : at;
+	memmove(&order[pos + 1], &order[pos], sizeof(WlSub *) * (usize)(n - pos));
+	order[pos] = k;
+	n++;
+	int kids = 0;
+	for (int i = 0; i < n; i++) {
+		if (order[i])
+			p->kids[kids++] = order[i];
+		else
+			p->below = kids;
+	}
+	mem_free(order);
+	Window *w = surface_window(p);
+	if (w)
+		window_damage(w);
+}
 
 static void subsurface_dispatch(WlResource *r, u32 op, WlArg *a)
 {
-	if (op == WL_SUBSURFACE_DESTROY)
-		plain_destroy(r, op, a);
+	WlSub *k = r->data;
+	switch (op) {
+	case WL_SUBSURFACE_DESTROY:
+		res_destroy(r);
+		break;
+	case WL_SUBSURFACE_SET_POSITION:
+		k->px = (i32)a[0].u, k->py = (i32)a[1].u;
+		break;
+	case WL_SUBSURFACE_PLACE_ABOVE:
+	case WL_SUBSURFACE_PLACE_BELOW:
+		if (a[0].obj && a[0].obj->data)
+			sub_restack(k, a[0].obj->data, op == WL_SUBSURFACE_PLACE_ABOVE);
+		break;
+	case WL_SUBSURFACE_SET_SYNC:
+		k->sync = true;
+		break;
+	case WL_SUBSURFACE_SET_DESYNC:
+		k->sync = false;
+		break;
+	}
 }
 
 static void subcompositor_dispatch(WlResource *r, u32 op, WlArg *a)
@@ -891,8 +1104,30 @@ static void subcompositor_dispatch(WlResource *r, u32 op, WlArg *a)
 			protocol_error(r->client, r->id, 0, "surface already has a role");
 			return;
 		}
+		WlSurface *parent = a[2].obj->data;
+		/* a surface can't be its own ancestor */
+		for (WlSurface *p = parent; p; p = p->sub ? p->sub->parent : NULL)
+			if (p == s) {
+				protocol_error(r->client, r->id, 0, "a surface can't be a subsurface of itself");
+				return;
+			}
+		if (s->sub) {
+			protocol_error(r->client, r->id, 0, "surface already is a subsurface");
+			return;
+		}
 		s->role = ROLE_SUBSURFACE;
-		res_new(r->client, a[0].u, &wl_subsurface_interface, 1, subsurface_dispatch, s);
+		WlSub *k = NEW(WlSub);
+		k->surface = s, k->parent = parent, k->sync = true;
+		k->res = res_new(r->client, a[0].u, &wl_subsurface_interface, 1, subsurface_dispatch, k);
+		if (!k->res) {
+			mem_free(k);
+			return;
+		}
+		k->res->destroy = subsurface_destroyed;
+		s->sub = k;
+		/* new subsurfaces go on top of their siblings */
+		parent->kids = mem_realloc(parent->kids, sizeof(WlSub *) * (usize)(parent->nkids + 1));
+		parent->kids[parent->nkids++] = k;
 	}
 }
 
@@ -1798,6 +2033,51 @@ static const Canvas *opaque_copy(WlSurface *s, const Canvas *src, i32 x, i32 y, 
 	return s->opaque;
 }
 
+/* One surface of a tree, its whole buffer at (fx, fy) in the frame; k maps
+ * surface coordinates to frame pixels. */
+static void draw_one(Canvas *frame, WlSurface *s, f32 fx, f32 fy, f32 kx, f32 ky, Rect clip, f32 opacity)
+{
+	WlBuffer *b = s->buffer;
+	if (b && !b->pool)
+		buffer_pixels(b);
+	u8 *pixels = b ? buffer_pixels(b) : NULL;
+	i32 sw = wl_surface_width(s), sh = wl_surface_height(s);
+	if (!pixels || sw <= 0 || sh <= 0)
+		return;
+	buffer_access(b, true);
+	Canvas src = canvas_wrap(pixels, b->width, b->height, b->stride / 4);
+	const Canvas *img = b->format == 1 ? opaque_copy(s, &src, 0, 0, b->width, b->height) : &src;
+	Rect dst = rect(fx, fy, (f32)sw * kx, (f32)sh * ky);
+	Rect saved = frame->clip;
+	frame->clip = rect_intersect(saved, clip);
+	if (!rect_empty(frame->clip)) {
+		if (fabsf(dst.w - (f32)b->width) < 0.5f && fabsf(dst.h - (f32)b->height) < 0.5f)
+			blit(frame, img, (int)roundf(dst.x), (int)roundf(dst.y), opacity);
+		else
+			blit_scaled(frame, img, rect(0, 0, (f32)b->width, (f32)b->height), dst, opacity);
+	}
+	frame->clip = saved;
+	buffer_access(b, false);
+}
+
+/* A surface and its subsurfaces, bottom first. */
+static void draw_tree(Canvas *frame, WlSurface *s, f32 fx, f32 fy, f32 kx, f32 ky, Rect clip, f32 opacity, int depth)
+{
+	if (depth > 8)
+		return;
+	for (int i = 0; i < s->below && i < s->nkids; i++) {
+		WlSub *k = s->kids[i];
+		if (k->surface)
+			draw_tree(frame, k->surface, fx + (f32)k->x * kx, fy + (f32)k->y * ky, kx, ky, clip, opacity, depth + 1);
+	}
+	draw_one(frame, s, fx, fy, kx, ky, clip, opacity);
+	for (int i = s->below; i < s->nkids; i++) {
+		WlSub *k = s->kids[i];
+		if (k->surface)
+			draw_tree(frame, k->surface, fx + (f32)k->x * kx, fy + (f32)k->y * ky, kx, ky, clip, opacity, depth + 1);
+	}
+}
+
 static void draw_surface(Canvas *frame, Window *w, Rect pr, f32 opacity)
 {
 	WlSurface *s = w->wl;
@@ -1812,6 +2092,14 @@ static void draw_surface(Canvas *frame, Window *w, Rect pr, f32 opacity)
 			fill_rect(frame, pr, color_scale_alpha(COLOR_BLACK, opacity));
 			dst = rect(roundf(logical.x * S.scale), roundf(logical.y * S.scale), roundf(logical.w * S.scale), roundf(logical.h * S.scale));
 		}
+	}
+	if (s->nkids) {
+		/* a window made of several surfaces: all of them, cut to the window */
+		i32 gx, gy, gw, gh;
+		geometry(s, &gx, &gy, &gw, &gh);
+		f32 kx = dst.w / (f32)MAX(gw, 1), ky = dst.h / (f32)MAX(gh, 1);
+		draw_tree(frame, s, dst.x - (f32)gx * kx, dst.y - (f32)gy * ky, kx, ky, dst, opacity, 0);
+		return;
 	}
 	bool opaque = s->buffer->format == 1;
 	bool exact = fabsf(dst.w - (f32)bw) < 0.5f && fabsf(dst.h - (f32)bh) < 0.5f;
@@ -2021,18 +2309,68 @@ static u32 linux_button(u32 b)
 	}
 }
 
+/* The surface of a tree under (x, y), in s's coordinates (topmost first,
+ * where its input region says it takes input); its own coordinates in lx, ly. */
+static WlSurface *hit_surface(WlSurface *s, f32 x, f32 y, f32 *lx, f32 *ly, int depth)
+{
+	if (depth > 8)
+		return NULL;
+	for (int i = s->nkids - 1; i >= 0; i--) {
+		if (i == s->below - 1 && x >= 0 && y >= 0 && x < (f32)wl_surface_width(s) && y < (f32)wl_surface_height(s) &&
+		    region_has(s->input, (i32)floorf(x), (i32)floorf(y))) {
+			*lx = x, *ly = y;
+			return s;
+		}
+		WlSub *k = s->kids[i];
+		WlSurface *hit = k->surface && k->surface->buffer
+					 ? hit_surface(k->surface, x - (f32)k->x, y - (f32)k->y, lx, ly, depth + 1) : NULL;
+		if (hit)
+			return hit;
+	}
+	if (s->below <= 0 && x >= 0 && y >= 0 && x < (f32)wl_surface_width(s) && y < (f32)wl_surface_height(s) &&
+	    region_has(s->input, (i32)floorf(x), (i32)floorf(y))) {
+		*lx = x, *ly = y;
+		return s;
+	}
+	return NULL;
+}
+
+/* The surface of window w that gets the pointer at the window coordinates
+ * (sx, sy): the one under it, or the one buttons went down on. */
+static WlSurface *pointer_target(Window *w, f32 sx, f32 sy, f32 *lx, f32 *ly)
+{
+	WlSurface *root = w->wl;
+	if (W.buttons_down > 0 && W.ptr_focus && surface_root(W.ptr_focus) == root) {
+		i32 ox, oy;
+		surface_offset(W.ptr_focus, &ox, &oy);
+		*lx = sx - (f32)ox, *ly = sy - (f32)oy;
+		return W.ptr_focus;
+	}
+	WlSurface *s = root->nkids ? hit_surface(root, sx, sy, lx, ly, 0) : NULL;
+	if (!s) {
+		s = root;
+		*lx = sx, *ly = sy;
+	}
+	return s;
+}
+
 void wl_pointer_event(Window *w, u32 kind, u32 button)
 {
-	WlSurface *s = w->wl;
-	if (!s)
+	if (!w->wl)
 		return;
-	f32 sx, sy;
-	to_surface(w, S.px, S.py, &sx, &sy);
+	f32 wx, wy, sx, sy;
+	to_surface(w, S.px, S.py, &wx, &wy);
 	if (kind == POINTER_LEAVE) {
-		if (W.ptr_focus == s)
+		if (W.ptr_focus && surface_root(W.ptr_focus) == w->wl)
 			ptr_leave();
+		W.buttons_down = 0;
 		return;
 	}
+	WlSurface *s = pointer_target(w, wx, wy, &sx, &sy);
+	if (kind == POINTER_DOWN)
+		W.buttons_down++;
+	else if (kind == POINTER_UP && W.buttons_down > 0)
+		W.buttons_down--;
 	if (W.ptr_focus != s) {
 		ptr_enter(s, sx, sy);
 		if (kind == POINTER_ENTER)
@@ -2055,14 +2393,13 @@ void wl_pointer_event(Window *w, u32 kind, u32 button)
 
 void wl_scroll_event(Window *w, f32 dx, f32 dy, u32 source, u32 phase)
 {
-	WlSurface *s = w->wl;
-	if (!s)
+	if (!w->wl)
 		return;
-	if (W.ptr_focus != s) {
-		f32 sx, sy;
-		to_surface(w, S.px, S.py, &sx, &sy);
+	f32 wx, wy, sx, sy;
+	to_surface(w, S.px, S.py, &wx, &wy);
+	WlSurface *s = pointer_target(w, wx, wy, &sx, &sy);
+	if (W.ptr_focus != s)
 		ptr_enter(s, sx, sy);
-	}
 	WlClient *c = s->client;
 	u32 t = now_ms();
 	/* zdisplay's sign is the wire's (positive scrolls down or right), natural scrolling already applied */
@@ -2128,7 +2465,7 @@ static void cursor_image(WlSurface *cs)
 static void cursor_apply(void)
 {
 	WlSurface *s = W.ptr_focus;
-	Window *w = s ? s->win : NULL;
+	Window *w = s ? surface_window(s) : NULL;
 	if (!w)
 		return;
 	u32 shape = CURSOR_HIDDEN;
@@ -2337,7 +2674,7 @@ static void surface_unmap(WlSurface *s)
 	Window *w = s->win;
 	if (!w)
 		return;
-	if (W.ptr_focus == s)
+	if (W.ptr_focus && surface_root(W.ptr_focus) == s)
 		ptr_leave();
 	window_destroy(w, true); /* calls wl_window_gone */
 	if (s->xdg) {
@@ -2482,8 +2819,9 @@ static void toplevel_dispatch(WlResource *r, u32 op, WlArg *a)
 		if (!w || !S.buttons || S.grab != GRAB_NONE)
 			return;
 		/* the window manager takes the pointer until the button comes up */
-		if (W.ptr_focus == w->wl)
+		if (W.ptr_focus && surface_root(W.ptr_focus) == w->wl)
 			ptr_leave();
+		W.buttons_down = 0;
 		S.pointer_window = NULL;
 		if (op == XDG_TOPLEVEL_MOVE)
 			wm_begin_move(w);
@@ -3016,7 +3354,7 @@ Canvas *wl_window_gone(Window *w, bool keep_picture)
 	Canvas *pic = keep_picture ? window_snapshot(w) : NULL;
 	w->wl = NULL;
 	s->win = NULL;
-	if (W.ptr_focus == s)
+	if (W.ptr_focus && surface_root(W.ptr_focus) == s)
 		ptr_leave();
 	if (s->xdg && s->xdg->popup)
 		popup_dismiss(s->xdg->popup);

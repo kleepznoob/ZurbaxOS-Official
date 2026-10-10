@@ -112,7 +112,31 @@ static void run_command(int fd, char *line)
 			if (mods & (1u << i))
 				input_key(mod_keys[i], false, false);
 	} else if (str_eq(cmd, "type")) {
-		/* Deliver text straight to the focused window or shell. */
+		/* Deliver text straight to the focused window or shell; a Linux
+		 * program's window gets the keys of a US keyboard instead */
+		if (S.focus && S.focus->wl) {
+			static const char lower[] = "1234567890-=\0\0qwertyuiop[]\0\0asdfghjkl;'`\0\\zxcvbnm,./";
+			static const char upper[] = "!@#$%^&*()_+\0\0QWERTYUIOP{}\0\0ASDFGHJKL:\"~\0|ZXCVBNM<>?";
+			for (const char *t = arg; *t; t++) {
+				u32 code = *t == ' ' ? KEY_SPACE : 0;
+				bool shift = false;
+				for (u32 i = 0; !code && i < sizeof lower - 1; i++) {
+					if (lower[i] && lower[i] == *t)
+						code = KEY_1 + i;
+					else if (upper[i] && upper[i] == *t)
+						code = KEY_1 + i, shift = true;
+				}
+				if (!code)
+					continue;
+				if (shift)
+					input_key(KEY_LEFTSHIFT, true, false);
+				input_key(code, true, false);
+				input_key(code, false, false);
+				if (shift)
+					input_key(KEY_LEFTSHIFT, false, false);
+			}
+			return;
+		}
 		for (const char *t = arg; *t;) {
 			u32 cp;
 			char ch[8] = { 0 };
