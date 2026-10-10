@@ -298,7 +298,13 @@ pkg_hwdata() {
 	finish
 }
 
-pkg_libdisplay_info() { unpack libdisplay-info; mesonbuild; }
+pkg_libdisplay_info() {
+	unpack libdisplay-info
+	# it reads hwdata's monitor makers while it builds: the layer's copy, found from the build machine
+	mkdir -p "$NATIVE/share/pkgconfig"
+	sed "s|^prefix=.*|prefix=$ROOT/usr|; s|\${pc_sysrootdir}||" "$ROOT/usr/share/pkgconfig/hwdata.pc" >"$NATIVE/share/pkgconfig/hwdata.pc"
+	mesonbuild
+}
 
 pkg_xcb_util() { xorg xcb-util; }
 
@@ -642,6 +648,8 @@ pkg_gnome_shell() {
 	unpack gnome-shell
 	mesonbuild -Dcamera_monitor=true -Dextensions_tool=true -Dgtk_doc=false -Dman=false -Dtests=false -Dnetworkmanager=true \
 		-Dportal_helper=false -Dsystemd=false
+	# Zurbax's session manager for GNOME (system/zsession)
+	zurbax_program zsession /usr/libexec/zurbax/zsession
 }
 
 ORDER+=(gnome_shell)

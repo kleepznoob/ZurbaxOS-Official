@@ -405,6 +405,11 @@ static int user_spawn(const char *path, char **argv)
 	return pid;
 }
 
+int shell_user_spawn(const char *path, char **argv)
+{
+	return user_spawn(path, argv);
+}
+
 static bool force_new_instance;
 
 /* Starts another copy of an app even if one is already open. */
@@ -480,14 +485,27 @@ void shell_launch(const char *app_id, const char *arg)
 static int zportal_pid;
 static f64 zportal_started = -100;
 
+void shell_stop_portal(void)
+{
+	if (zportal_pid > 0) {
+		sys_kill(zportal_pid, SIGTERM);
+		sys_wait4(zportal_pid, NULL, 0, NULL);
+		zportal_pid = 0;
+	}
+}
+
 void shell_services_tick(void)
 {
 	int st;
 	long pid;
-	while ((pid = sys_wait4(-1, &st, WNOHANG, NULL)) > 0)
+	while ((pid = sys_wait4(-1, &st, WNOHANG, NULL)) > 0) {
 		if (pid == zportal_pid)
 			zportal_pid = 0;
-	if (zportal_pid || S.now - zportal_started < 10)
+		else
+			gnome_reaped((int)pid, st);
+	}
+	/* in a GNOME session GNOME's own portals answer */
+	if (zportal_pid || S.now - zportal_started < 10 || gnome_running())
 		return;
 	char *path = zurbax_path("bin/zportal");
 	if (file_exists(path)) {

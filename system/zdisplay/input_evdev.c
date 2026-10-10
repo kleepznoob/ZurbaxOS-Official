@@ -866,6 +866,8 @@ static void scan(void)
 	dir_list_free(&list);
 }
 
+static bool paused;   /* another compositor has the devices */
+
 static void on_inotify(Loop *loop, int fd, u32 events, void *data)
 {
 	UNUSED(loop), UNUSED(events), UNUSED(data);
@@ -884,8 +886,30 @@ static void on_inotify(Loop *loop, int fd, u32 events, void *data)
 	}
 	/* The node may exist before its permissions are final; opening it on the
 	 * attribute change catches that case. */
-	if (rescan)
+	if (rescan && !paused)
 		scan();
+}
+
+void input_pause(bool pause)
+{
+	if (pause == paused)
+		return;
+	paused = pause;
+	if (pause) {
+		while (ndevices) {
+			Device *d = devices[ndevices - 1];
+			if (d->kind & DEV_GAMEPAD) {
+				pad_announce(d, false);
+				pads[d->pad] = NULL;
+			}
+			loop_del_fd(S.loop, d->fd);
+			sys_close(d->fd);
+			ndevices--;
+			mem_free(d);
+		}
+	} else {
+		scan();
+	}
 }
 
 void input_init(void)

@@ -45,6 +45,9 @@ struct Output {
 	u32 (*fb_import)(Output *o, int dmabuf, u32 width, u32 height, u32 offset, u32 stride, u64 modifier);
 	void (*fb_release)(Output *o, u32 fb);
 	bool (*flip_to)(Output *o, u32 fb);
+	/* Hands the screen to another compositor (a GNOME session) and takes it
+	 * back: the right to set modes goes, then returns with a full redraw. */
+	void (*pause)(Output *o, bool paused);
 };
 
 Output *output_drm_open(void);
@@ -172,6 +175,7 @@ typedef struct {
 	bool pad_rumble;            /* controllers may vibrate */
 	bool alert_sounds;
 	bool setup_done;            /* the first-boot assistant has finished */
+	char desktop[16];           /* what unlocking opens: "zurbax", or "gnome" from the Linux layer */
 } Settings;
 
 /* ---- Global server state --------------------------------------------------------------- */
@@ -353,6 +357,8 @@ void client_disconnect(Client *c);
 
 /* input.c */
 void input_init(void);
+/* Stops reading every input device (another compositor has them), or starts again. */
+void input_pause(bool paused);
 void input_key(u32 code, bool pressed, bool repeat);
 void input_set_layout(const char *name);
 const char *keymap_text(u32 code, u32 mods);
@@ -367,6 +373,17 @@ void shell_init(void);
 void shell_reload_apps(void);
 char *user_runtime_dir(u32 uid, u32 gid);
 void shell_services_tick(void);
+/* Starts a program as the person (home, runtime folder, groups); pid or -errno. */
+int shell_user_spawn(const char *path, char **argv);
+/* Stops zportal (GNOME brings its own portals) until shell_services_tick starts it again. */
+void shell_stop_portal(void);
+
+/* ---- GNOME, the second desktop (gnome.c) ---- */
+bool gnome_available(void);          /* the layer has GNOME, and Zurbax has zsys */
+bool gnome_running(void);            /* the screen is GNOME's now */
+bool gnome_start(void);              /* hands the screen over and starts the session */
+void gnome_reaped(int pid, int status);
+void gnome_ended(int pid, int status);
 void shell_prepare(void);                 /* re-renders the shell overlay if needed */
 void shell_draw(Canvas *frame);           /* blends the overlay onto the frame */
 void shell_mark_dirty(void);

@@ -1796,12 +1796,14 @@ void switcher_draw(Ui *ui)
 static StrBuf lock_password;
 static f64 lock_error_at;
 
+static void lock_open(void);
+
 bool lockscreen_key(Ui *ui, u32 code, u32 mods, const char *text)
 {
 	UNUSED(ui), UNUSED(mods), UNUSED(text);
 	/* Without a password, any key unlocks. */
 	if (!S.set.has_password && code != KEY_LEFTSHIFT && code != KEY_LEFTMETA) {
-		S.locked = false;
+		lock_open();
 		return true;
 	}
 	return false;
@@ -1927,6 +1929,37 @@ static void lock_power(Ui *ui, f32 k)
 	}
 }
 
+/* Unlocked: into the chosen desktop. */
+static void lock_open(void)
+{
+	S.locked = false;
+	if (str_eq(S.set.desktop, "gnome") && gnome_available())
+		gnome_start();
+}
+
+/* Which desktop unlocking opens, when the layer has GNOME: bottom left. */
+static void lock_desktop(Ui *ui, f32 k)
+{
+	if (!gnome_available())
+		return;
+	bool gnome = str_eq(S.set.desktop, "gnome");
+	const char *label = gnome ? "GNOME" : "Zurbax";
+	Font f = ui_font(ui, 12, 650);
+	f32 w = 40 + ui_text_width(ui, f, label) + 30;
+	Rect b = rect(28, S.sh - 86, w, 40);
+	UiInteract it = ui_interact(ui, ui_id(ui, "lock-desktop"), b);
+	f32 hover = ui_fade(ui, ui_id(ui, "lock-desktop"), it.hovered, 0.12f);
+	glass(ui, b, 20, k, color_mix(color_hex("#ffffff1c"), color_hex("#ffffff48"), hover));
+	ui_icon(ui, rect(b.x + 12, b.y + 10, 20, 20), gnome ? "computer" : "zos-mark", color_scale_alpha(COLOR_WHITE, k));
+	ui_text(ui, f, b.x + 40, b.y + 25, label, color_scale_alpha(COLOR_WHITE, k));
+	ui_icon(ui, rect(b.x + w - 26, b.y + 13, 14, 14), "pan-down", color_scale_alpha(color_hex("#ffffffb0"), k));
+	lock_text_center(ui, ui_font(ui, 11, 600), b.x + w / 2, b.y + b.h + 17, "Desktop", k * (0.7f + 0.3f * hover));
+	if (it.clicked) {
+		str_copy(S.set.desktop, gnome ? "zurbax" : "gnome", sizeof S.set.desktop);
+		settings_save();
+	}
+}
+
 void lockscreen_draw(Ui *ui)
 {
 	S.lock_k = ui_anim(ui, ui_id(ui, "lock-k"), S.locked ? 1.0f : 0.0f, 9);
@@ -2008,7 +2041,7 @@ void lockscreen_draw(Ui *ui)
 		}
 		if ((ev & ENTRY_SUBMIT) || (have && it.clicked)) {
 			if (shell_check_password(sb_str(&lock_password))) {
-				S.locked = false;
+				lock_open();
 			} else {
 				lock_error_at = S.now;
 			}
@@ -2021,10 +2054,11 @@ void lockscreen_draw(Ui *ui)
 	} else {
 		lock_text_center(ui, ui_font(ui, 13, 600), cx, field_y + 22, "Click or press any key to unlock", k * 0.85f);
 		if (ui->pressed[BUTTON_LEFT] && ui->my < S.sh - 110)
-			S.locked = false;
+			lock_open();
 	}
 	lock_status(ui, k);
 	lock_power(ui, k);
+	lock_desktop(ui, k);
 }
 
 /* ---- OSD -------------------------------------------------------------------------------- */

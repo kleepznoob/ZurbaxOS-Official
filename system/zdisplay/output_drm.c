@@ -133,6 +133,7 @@ struct drm_gem_close {
 #define DRM_IOCTL_GET_CAP IOWR('d', 0x0c, struct drm_get_cap)
 #define DRM_IOCTL_SET_MASTER IO('d', 0x1e)
 #define DRM_IOCTL_DROP_MASTER IO('d', 0x1f)
+#define DRM_IOCTL_DROP_MASTER IO('d', 0x1f)
 #define DRM_IOCTL_MODE_GETRESOURCES IOWR('d', 0xA0, struct drm_mode_card_res)
 #define DRM_IOCTL_MODE_GETCRTC IOWR('d', 0xA1, struct drm_mode_crtc)
 #define DRM_IOCTL_MODE_SETCRTC IOWR('d', 0xA2, struct drm_mode_crtc)
@@ -543,6 +544,21 @@ out:
 	return ok;
 }
 
+static void drm_pause(Output *o, bool paused)
+{
+	Drm *d = o->impl;
+	if (paused) {
+		drm_ioctl(d->fd, DRM_IOCTL_DROP_MASTER, NULL);
+		return;
+	}
+	drm_ioctl(d->fd, DRM_IOCTL_SET_MASTER, NULL);
+	/* whatever the other compositor showed is gone: set our mode and redraw everything */
+	d->mode_set = false;
+	d->prev_full = true;
+	d->showing_client = false;
+	o->flip_pending = false;
+}
+
 static Output *try_card(const char *path, bool allow_simple)
 {
 	int fd = (int)sys_open(path, O_RDWR | O_CLOEXEC | O_NONBLOCK, 0);
@@ -584,6 +600,7 @@ static Output *try_card(const char *path, bool allow_simple)
 	o->set_gamma = drm_set_gamma;
 	o->fd = fd;
 	o->on_fd = drm_on_fd;
+	o->pause = drm_pause;
 	/* a real GPU driver can take programs' buffers (the firmware framebuffer can't) */
 	cap = (struct drm_get_cap){ .capability = DRM_CAP_ADDFB2_MODIFIERS };
 	d->modifiers = drm_ioctl(fd, DRM_IOCTL_GET_CAP, &cap) >= 0 && cap.value;

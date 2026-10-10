@@ -7,6 +7,8 @@
  *     layerrun [--x11] [--app ID] PROGRAM [ARGS...]
  *     layerrun --session            start the Linux session now, if it isn't running
  *     layerrun --stop               end it
+ *     layerrun --desktop gnome      a GNOME session: the Linux session made for
+ *                                   it, and Zurbax's session manager (zsession) in it
  *     layerrun --isolated [--layer DIR] [--x11] [--sound] PROGRAM [ARGS...]
  *     layerrun --check [--layer DIR]
  *
@@ -668,12 +670,15 @@ static int session_main(const char *user, const char *home)
 		sys_chmod(fsock, 0600);
 	char *bus_path = rt_path("bus");
 	int bus = start_bus(bus_path);
-	int sound = start_sound();
+	/* a GNOME session brings PipeWire (zsession starts it) and its own portals */
+	const char *desktop = env_get("ZURBAX_DESKTOP");
+	bool gnome = desktop && str_eq(desktop, "gnome");
+	int sound = gnome ? 0 : start_sound();
 	int flathub = add_flathub(home);
 	/* the desktop's zportal answers the portals: the first program should
 	 * find them, so wait a moment for it to come onto the new bus */
 	const char *display = env_get("ZUI_SOCKET");
-	if (bus > 0 && file_exists(display && *display ? display : "/run/zurbax/display.sock")) {
+	if (!gnome && bus > 0 && file_exists(display && *display ? display : "/run/zurbax/display.sock")) {
 		char *addr = str_fmt("unix:path=%s", bus_path);
 		DBus *b = dbus_open_address(addr);
 		for (int tries = 0; b && tries < 30 && !dbus_name_has_owner(b, "org.freedesktop.portal.Desktop"); tries++)
@@ -704,7 +709,7 @@ static int session_main(const char *user, const char *home)
 			if (w == bus && !stopping && restarts++ < 5) {
 				print("layerrun: the session bus stopped (%d); starting it again\n", st);
 				bus = start_bus(bus_path);
-			} else if (w == sound && !stopping && restarts++ < 5) {
+			} else if (w == sound && sound > 0 && !stopping && restarts++ < 5) {
 				print("layerrun: the sound server stopped (%d); starting it again\n", st);
 				sound = start_sound();
 			} else if (w == flathub) {
@@ -877,10 +882,46 @@ static int run_isolated(char **argv, bool x11, bool sound, const char *app, cons
 	return wait_program(pid, xpid, helpers, ARRAY_LEN(helpers));
 }
 
+/* A whole desktop from the layer. The Linux session that runs is made for
+ * it (a session started for the Zurbax desktop ends first), and the
+ * desktop's session manager takes this process's place inside it. */
+static int run_desktop(const char *desktop, const char *user, const char *home)
+{
+	if (!str_eq(desktop, "gnome"))
+		fail("no desktop called %s", desktop);
+	char *zsession = in_layer("/usr/libexec/zurbax/zsession");
+	if (!file_exists(zsession))
+		fail("the layer has no GNOME");
+	mem_free(zsession);
+	int old = session_pid();
+	if (old) {
+		sys_kill(old, SIGTERM);
+		for (int tries = 0; tries < 100 && session_pid(); tries++)
+			sleep_ms(50);
+	}
+	env_set("ZURBAX_DESKTOP", desktop);
+	int pid = ensure_session();
+	copy_environ();
+	join(pid);
+	session_env(user, home);
+	setenv_("WAYLAND_DISPLAY", "");
+	sys_chdir(home);
+	char *args[4] = { "zsession", NULL, NULL, NULL };
+	/* tests: GNOME Shell without a screen */
+	const char *headless = env_get("ZURBAX_GNOME_HEADLESS");
+	if (headless && *headless) {
+		args[1] = "--headless";
+		args[2] = (char *)headless;
+	}
+	long r = sys_execve("/usr/libexec/zurbax/zsession", args, env);
+	fail("cannot start the GNOME session: %s", err_str(r));
+	return 1;
+}
+
 int main(int argc, char **argv)
 {
 	bool x11 = false, sound = false, check_only = false, isolated = false;
-	const char *app = NULL, *mode = NULL;
+	const char *app = NULL, *mode = NULL, *desktop = NULL;
 	int i = 1;
 	for (; i < argc && argv[i][0] == '-'; i++) {
 		if (str_eq(argv[i], "--layer") && i + 1 < argc)
@@ -897,6 +938,8 @@ int main(int argc, char **argv)
 			isolated = true;
 		else if (str_eq(argv[i], "--session") || str_eq(argv[i], "--stop") || str_eq(argv[i], "--session-daemon"))
 			mode = argv[i];
+		else if (str_eq(argv[i], "--desktop") && i + 1 < argc)
+			desktop = argv[++i];
 		else
 			break;
 	}
@@ -928,9 +971,12 @@ int main(int argc, char **argv)
 		print("%d\n", ensure_session());
 		return 0;
 	}
+	if (desktop)
+		return run_desktop(desktop, user, home);
 	if (i >= argc) {
 		eprint("usage: layerrun [--x11] [--app ID] PROGRAM [ARGS...]\n"
 		       "       layerrun --session | --stop\n"
+		       "       layerrun --desktop gnome\n"
 		       "       layerrun --isolated [--layer DIR] [--x11] [--sound] PROGRAM [ARGS...]\n"
 		       "       layerrun --check [--layer DIR]\n");
 		return 2;

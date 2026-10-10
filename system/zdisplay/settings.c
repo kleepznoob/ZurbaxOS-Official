@@ -74,6 +74,7 @@ void settings_load(void)
 	s->mouse_accel = conf_get_bool(c, "mouse_accel", true);
 	s->pad_rumble = conf_get_bool(c, "pad_rumble", true);
 	s->alert_sounds = conf_get_bool(c, "alert_sounds", true);
+	str_copy(s->desktop, conf_get(c, "desktop", "zurbax"), sizeof s->desktop);
 	S.volume = (int)conf_get_int(c, "volume", 60);
 	conf_free(c);
 	if (!s->timezone[0]) {
@@ -94,6 +95,7 @@ void settings_save(void)
 	conf_set_bool(c, "dark", S.set.dark);
 	conf_set_bool(c, "night_light", S.set.night_light);
 	conf_set_bool(c, "do_not_disturb", S.set.do_not_disturb);
+	conf_set(c, "desktop", S.set.desktop);
 	conf_set(c, "dock_apps", S.set.dock_apps);
 	conf_set_int(c, "volume", S.volume);
 	conf_save(c);

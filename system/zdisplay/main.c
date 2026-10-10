@@ -163,10 +163,12 @@ int main(int argc, char **argv)
 		wm_animate(dt);
 		shell_tick();
 		splash_tick();
-		if (needs_frame() && !S.out->flip_pending)
+		/* while GNOME has the screen there is nothing of ours to draw */
+		bool ours = !gnome_running();
+		if (ours && needs_frame() && !S.out->flip_pending)
 			compose_frame();
-		int timeout = -1;
-		if (needs_frame())
+		int timeout = ours ? -1 : 1000;
+		if (ours && needs_frame())
 			timeout = S.out->flip_pending ? 50 : (S.headless ? 16 : 0);
 		/* While idle, wake for the clock in the panel once a second. */
 		if (timeout < 0) {
