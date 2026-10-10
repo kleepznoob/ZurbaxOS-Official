@@ -1,5 +1,5 @@
 #!/bin/sh
-# Starts a headless ZOS desktop for development: tools/run-headless.sh [WxH] [seconds]
+# Starts a headless Zurbax desktop for development: tools/run-headless.sh [WxH] [seconds]
 # Control it with tools/zctl.py /tmp/zx/ctl.sock 'command' ...
 set -e
 cd "$(dirname "$0")/.."

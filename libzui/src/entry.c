@@ -353,9 +353,8 @@ int ui_entry(Ui *ui, Rect r, const char *id, StrBuf *text, const char *placehold
 	/* Frame */
 	if (!(flags & ENTRY_FLAT)) {
 		ui_round(ui, r, radius, t->input);
-		ui_line(ui, r.x + radius, r.y + 1.5f, r.x + r.w - radius, r.y + 1.5f, 1, color_hex(t->dark ? "#00000040" : "#0000000f"));
 		if (focused) {
-			ui_border(ui, rect_inset(r, -2, -2), radius + 2, 2, color_with_alpha(t->accent, 0x55));
+			ui_border(ui, rect_inset(r, -2, -2), radius + 2, 2, color_with_alpha(t->accent, 0x40));
 			ui_border(ui, r, radius, 1, t->accent);
 		} else {
 			ui_border(ui, r, radius, 1, it.hovered ? color_mix(t->border_strong, t->text_faint, 0.4f) : t->border_strong);

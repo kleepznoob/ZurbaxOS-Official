@@ -1,4 +1,4 @@
-/* layertest: checks the Linux layer inside ZOS, as the desktop's user would
+/* layertest: checks the Linux layer inside Zurbax, as the desktop's user would
  * use it, and reports to the kernel log:
  *
  *     layertest: mounted /data/layers/steam
@@ -13,7 +13,7 @@
  * user 1000 like the desktop's apps. Test builds start it from /system/test
  * when the kernel is told "zurbax.test"; it is never part of a release.
  *
- * With "zurbax.layertest=install" it instead installs ZOS on the virtual
+ * With "zurbax.layertest=install" it instead installs Zurbax on the virtual
  * disk vda (erasing it) and logs the installer's steps, including the copy
  * of the layer; the next boot, from that disk, then checks the layer the
  * installed system mounts from /data/layers/steam.sfs. */

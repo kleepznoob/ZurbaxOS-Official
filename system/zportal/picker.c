@@ -2,7 +2,7 @@
  *              [--filters EXTS] [--folder DIR] [--name NAME]
  *
  * The file chooser a Linux app gets when it asks the FileChooser portal:
- * ZOS's own, in a window of its own. Prints the chosen path and exits 0, or
+ * Zurbax's own, in a window of its own. Prints the chosen path and exits 0, or
  * exits 1 when the user cancels. */
 #include "zportal.h"
 

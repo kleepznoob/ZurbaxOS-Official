@@ -278,7 +278,7 @@ static u8 *read_from(const char *dev, const char *fs, const char *marker, const 
 	return data;
 }
 
-/* Reads the bootable EFI file from what ZOS started from: the install stick
+/* Reads the bootable EFI file from what Zurbax started from: the install stick
  * (or the ISO written to one), a disc, or a stick the ISO's files were
  * copied onto. */
 static u8 *read_system(usize *len)
@@ -305,7 +305,7 @@ static u8 *read_system(usize *len)
 			else if (pass == 1 && str_starts(name, "sr"))
 				data = read_from(dev, "iso9660", "zos.txt", disc, len); /* not some other system's disc */
 			else if (pass == 2 && str_eq(type, "partition"))
-				data = read_from(dev, "vfat", "ZOS.TXT", efi, len);
+				data = read_from(dev, "vfat", "ZURBAX.TXT", efi, len);
 			mem_free(dev);
 		}
 	dir_list_free(&list);
@@ -527,14 +527,14 @@ static void install_erase(Disk *d, int fd, const u8 *sys, usize sys_len)
 		fail("The partition table couldn't be written.");
 
 	step(0.25f, "Copying " OS_NAME);
-	FatWriter *w = fat_format(fd, parts[0].first_lba, parts[0].last_lba - parts[0].first_lba + 1, "ZOS");
+	FatWriter *w = fat_format(fd, parts[0].first_lba, parts[0].last_lba - parts[0].first_lba + 1, "Zurbax");
 	if (!w)
 		fail("The startup partition couldn't be formatted.");
 	bool ok = fat_mkdir(w, "/EFI/ZURBAX") && fat_add_file(w, "/EFI/ZURBAX/ZURBAX.EFI", sys, sys_len) &&
 		  /* The fallback path: firmware boots it even with no boot entry. */
 		  fat_add_file(w, "/EFI/BOOT/BOOTX64.EFI", sys, sys_len);
 	if (!fat_finish(w) || !ok)
-		fail("ZOS couldn't be copied to the disk.");
+		fail("Zurbax couldn't be copied to the disk.");
 
 	step(0.55f, "Preparing storage for your files");
 	u8 uuid[16];
@@ -550,7 +550,7 @@ static void install_erase(Disk *d, int fd, const u8 *sys, usize sys_len)
 
 /* Puts the system in the disk's existing EFI system partition (shared with
  * Windows, often only 100 MB). Checked before anything on the disk changes:
- * the space free plus an older ZOS being replaced must hold the new one. */
+ * the space free plus an older Zurbax being replaced must hold the new one. */
 static void copy_to_esp(Disk *d, u32 slot, const u8 *sys, usize sys_len)
 {
 	char espdev[48] = { 0 };
@@ -571,8 +571,8 @@ static void copy_to_esp(Disk *d, u32 slot, const u8 *sys, usize sys_len)
 		sys_umount(WORK "/esp", 0);
 		char msg[256];
 		fmt(msg, sizeof msg,
-		    "The EFI system partition has %llu MB free, and ZOS needs %llu MB there. "
-		    "Nothing on the disk was changed. Installing by erasing the disk gives ZOS its own.",
+		    "The EFI system partition has %llu MB free, and Zurbax needs %llu MB there. "
+		    "Nothing on the disk was changed. Installing by erasing the disk gives Zurbax its own.",
 		    (unsigned long long)((room + old_size) >> 20), (unsigned long long)(need >> 20));
 		fail(msg);
 	}
@@ -596,7 +596,7 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 	u8 disk_guid[16];
 	int n = gpt_read(fd, sectors, parts, 128, disk_guid);
 	if (n < 0)
-		fail("This disk has no GPT partition table, so ZOS can only be installed by erasing it.");
+		fail("This disk has no GPT partition table, so Zurbax can only be installed by erasing it.");
 	int esp = -1, data = -1;
 	for (int i = 0; i < n; i++) {
 		if (memcmp(parts[i].type, GPT_TYPE_ESP, 16) == 0 && esp < 0)
@@ -605,7 +605,7 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 			data = i;
 	}
 	if (esp < 0)
-		fail("This disk has no EFI system partition to start ZOS from.");
+		fail("This disk has no EFI system partition to start Zurbax from.");
 	step(0.12f, "Copying " OS_NAME);
 	copy_to_esp(d, parts[esp].slot, sys, sys_len);
 	if (data < 0) {
@@ -644,7 +644,7 @@ static void install_alongside(Disk *d, int fd, const u8 *sys, usize sys_len)
 
 /* The Linux layer (Steam and Proton) that the live session uses from the
  * install medium (zinit mounted it there) goes onto the new data partition,
- * where zinit finds it from then on. Not essential: without it ZOS works
+ * where zinit finds it from then on. Not essential: without it Zurbax works
  * and Steam says what's missing. */
 static void copy_layer(const char *disk)
 {
@@ -706,7 +706,7 @@ static void copy_layer(const char *disk)
 	sys_sync();
 	sys_umount(WORK "/data", 0);
 	if (!ok)
-		say("note Steam's Linux layer couldn't be copied; ZOS works without it");
+		say("note Steam's Linux layer couldn't be copied; Zurbax works without it");
 }
 
 static int cmd_install(const char *name, const char *mode)
@@ -718,7 +718,7 @@ static int cmd_install(const char *name, const char *mode)
 	if (!load_disk(name, &d))
 		fail("That disk isn't connected any more.");
 	if (d.boot_medium)
-		fail("ZOS can't be installed on the stick it's running from.");
+		fail("Zurbax can't be installed on the stick it's running from.");
 	step(0.02f, "Reading the install media");
 	usize sys_len;
 	u8 *sys = read_system(&sys_len);
@@ -753,7 +753,7 @@ int main(int argc, char **argv)
 	/* Only in the live session, which only process 1 can mark. */
 	struct stat st;
 	if (sys_stat("/run/zurbax-live", &st) < 0 || st.st_uid != 0) {
-		say("error ZOS can only be installed while running from the install media.");
+		say("error Zurbax can only be installed while running from the install media.");
 		return 1;
 	}
 	if (sys_setresgid(0, 0, 0) < 0 || sys_setresuid(0, 0, 0) < 0) {

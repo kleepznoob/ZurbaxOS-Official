@@ -10,7 +10,7 @@
  *
  * Surfaces with the xdg_toplevel role become ordinary zdisplay windows, so
  * they get the same focus, stacking, animations, dock and full screen as
- * ZOS apps. Pixels come from shared memory (wl_shm). The keyboard layout is
+ * Zurbax apps. Pixels come from shared memory (wl_shm). The keyboard layout is
  * described to clients as an XKB keymap made from zdisplay's own layouts.
  */
 #include "zdisplay.h"
@@ -67,7 +67,7 @@ struct WlClient {
 	int fd;
 	bool dead;
 	int pid;
-	char app_id[96];     /* from ZOS_APP_ID in its environment, when ZOS started it */
+	char app_id[96];     /* from ZOS_APP_ID in its environment, when Zurbax started it */
 	u8 in[WL_BUF];
 	usize in_len;
 	int in_fds[WL_MAX_FDS];
@@ -947,13 +947,13 @@ static void output_send(WlResource *o)
 	i32 refresh = S.out && S.out->refresh_mhz > 0 ? S.out->refresh_mhz : 60000;
 	f32 dpi = S.out && S.out->dpi > 0 ? S.out->dpi : 96;
 	event(o, WL_OUTPUT_EV_GEOMETRY, "iiiiissi", 0, 0, (u32)(i32)((f32)w / dpi * 25.4f), (u32)(i32)((f32)h / dpi * 25.4f), 0,
-	      "ZOS", S.out ? S.out->name : "screen", 0);
+	      "Zurbax", S.out ? S.out->name : "screen", 0);
 	event(o, WL_OUTPUT_EV_MODE, "uiii", 3 /* current, preferred */, (u32)w, (u32)h, (u32)refresh);
 	if (o->version >= 2)
 		event(o, WL_OUTPUT_EV_SCALE, "i", (u32)MAX(1, (i32)ceilf(S.scale - 0.01f)));
 	if (o->version >= 4) {
-		event(o, WL_OUTPUT_EV_NAME, "s", "ZOS-1");
-		event(o, WL_OUTPUT_EV_DESCRIPTION, "s", "The ZOS screen");
+		event(o, WL_OUTPUT_EV_NAME, "s", "Zurbax-1");
+		event(o, WL_OUTPUT_EV_DESCRIPTION, "s", "The Zurbax screen");
 	}
 	if (o->version >= 2)
 		event(o, WL_OUTPUT_EV_DONE, "");
@@ -987,8 +987,8 @@ static void xdg_output_manager_dispatch(WlResource *r, u32 op, WlArg *a)
 		event(x, ZXDG_OUTPUT_V1_EV_LOGICAL_POSITION, "ii", 0, 0);
 		event(x, ZXDG_OUTPUT_V1_EV_LOGICAL_SIZE, "ii", (u32)(i32)S.sw, (u32)(i32)S.sh);
 		if (x->version >= 2) {
-			event(x, ZXDG_OUTPUT_V1_EV_NAME, "s", "ZOS-1");
-			event(x, ZXDG_OUTPUT_V1_EV_DESCRIPTION, "s", "The ZOS screen");
+			event(x, ZXDG_OUTPUT_V1_EV_NAME, "s", "Zurbax-1");
+			event(x, ZXDG_OUTPUT_V1_EV_DESCRIPTION, "s", "The Zurbax screen");
 		}
 		if (x->version < 3)
 			event(x, ZXDG_OUTPUT_V1_EV_DONE, "");
@@ -997,7 +997,7 @@ static void xdg_output_manager_dispatch(WlResource *r, u32 op, WlArg *a)
 	}
 }
 
-/* ---- Clipboard (accepted, not yet connected to ZOS's) ------------------------------------- */
+/* ---- Clipboard (accepted, not yet connected to Zurbax's) ------------------------------------- */
 
 static void data_source_dispatch(WlResource *r, u32 op, WlArg *a)
 {
@@ -1305,7 +1305,7 @@ static void build_keymap(StrBuf *sb)
 		    "\tinterpret Any + Any { action = SetMods(modifiers=modMapMods); };\n"
 		    "\tindicator \"Caps Lock\" { whichModState = locked; modifiers = Lock; };\n"
 		    "\tindicator \"Num Lock\" { whichModState = locked; modifiers = NumLock; };\n};\n");
-	sb_adds(sb, "xkb_symbols \"zos\" {\n\tname[group1] = \"ZOS\";\n");
+	sb_adds(sb, "xkb_symbols \"zos\" {\n\tname[group1] = \"Zurbax\";\n");
 	for (usize i = 0; i < ARRAY_LEN(SPECIAL_KEYS); i++)
 		sb_fmt(sb, "\tkey <K%d> { [ %s ] };\n", SPECIAL_KEYS[i].code, SPECIAL_KEYS[i].sym);
 	for (usize i = 0; i < ARRAY_LEN(KEYPAD); i++)
@@ -1806,7 +1806,7 @@ static void client_kill(WlClient *c)
 static WlClient *graveyard[WL_MAX_CLIENTS * 2];
 static int ngraveyard;
 
-/* Programs ZOS starts carry ZOS_APP_ID, so their windows join the right dock icon. */
+/* Programs Zurbax starts carry ZOS_APP_ID, so their windows join the right dock icon. */
 static void client_identify(WlClient *c)
 {
 	struct ucred cred = { 0 };
@@ -3131,7 +3131,7 @@ static void bind_xdg_wm_base(WlClient *c, u32 id, u32 v)
 	res_new(c, id, &xdg_wm_base_interface, v, wm_base_dispatch, NULL);
 }
 
-/* ---- Decorations: ZOS windows draw their own, and so do Wayland programs ---------------------------------- */
+/* ---- Decorations: Zurbax windows draw their own, and so do Wayland programs ---------------------------------- */
 
 static void decoration_dispatch(WlResource *r, u32 op, WlArg *a)
 {

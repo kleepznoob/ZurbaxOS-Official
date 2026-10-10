@@ -1,11 +1,11 @@
-# ZOS build.
+# Zurbax build.
 #
 #   make            build every library, system program and app into build/
 #   make test       build and run the test suites
 #   make image      build the kernel with the system inside and the install
-#                   media: build/zos.iso (a DVD, or write it to a USB stick)
-#                   and build/zos.img (a plain USB stick image)
-#   make run        boot build/zos.img in QEMU with UEFI firmware
+#                   media: build/zurbax.iso (a DVD, or write it to a USB stick)
+#                   and build/zurbax.img (a plain USB stick image)
+#   make run        boot build/zurbax.img in QEMU with UEFI firmware
 #
 # Every program is a static, freestanding binary: no C library, no outside code.
 
@@ -115,8 +115,8 @@ image: all
 	@python3 tools/fetch-firmware.py $(OUT)/firmware || echo "   note: no Wi-Fi or GPU firmware fetched (offline?)"
 	@$(OUT)/tools/mkimage cpio $(OUT)/system.cpio
 	@kernel/build.sh $(OUT)/system.cpio
-	@$(OUT)/tools/mkimage disk $(OUT)/zos.img $(EFI_FILE) $(LAYER)
-	@$(OUT)/tools/mkimage iso $(OUT)/zos.iso $(EFI_FILE) $(LAYER)
+	@$(OUT)/tools/mkimage disk $(OUT)/zurbax.img $(EFI_FILE) $(LAYER)
+	@$(OUT)/tools/mkimage iso $(OUT)/zurbax.iso $(EFI_FILE) $(LAYER)
 
 OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd
 OVMF_VARS ?= /usr/share/OVMF/OVMF_VARS_4M.fd
@@ -125,7 +125,7 @@ run:
 	qemu-system-x86_64 -machine q35 -m 2G -smp 2 $(if $(wildcard /dev/kvm),-enable-kvm -cpu host,-cpu max) \
 		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) \
 		-drive if=pflash,format=raw,file=$(OUT)/ovmf-vars.fd \
-		-drive file=$(OUT)/zos.img,format=raw,if=virtio \
+		-drive file=$(OUT)/zurbax.img,format=raw,if=virtio \
 		-device virtio-vga -device qemu-xhci -device usb-tablet -device usb-kbd \
 		-nic user,model=virtio-net-pci -audiodev none,id=snd -device intel-hda -device hda-output,audiodev=snd
 

@@ -1,7 +1,7 @@
 /*
  * zos-xwm: the window manager inside the Linux layer's Xwayland.
  *
- * layerrun runs Xwayland full screen on ZOS's display (rootful), so X11
+ * layerrun runs Xwayland full screen on Zurbax's display (rootful), so X11
  * programs live in that one big X screen, where nobody arranges their
  * windows unless a window manager does. This one is made for Steam and
  * games, with no decorations:
@@ -327,7 +327,7 @@ static void setup_ewmh(void)
 {
 	check = XCreateSimpleWindow(dpy, root, -10, -10, 1, 1, 0, 0, 0);
 	XChangeProperty(dpy, check, atoms[A_NET_SUPPORTING_WM_CHECK], XA_WINDOW, 32, PropModeReplace, (unsigned char *)&check, 1);
-	XChangeProperty(dpy, check, atoms[A_NET_WM_NAME], atoms[A_UTF8_STRING], 8, PropModeReplace, (unsigned char *)"ZOS", 3);
+	XChangeProperty(dpy, check, atoms[A_NET_WM_NAME], atoms[A_UTF8_STRING], 8, PropModeReplace, (unsigned char *)"Zurbax", 3);
 	XChangeProperty(dpy, root, atoms[A_NET_SUPPORTING_WM_CHECK], XA_WINDOW, 32, PropModeReplace, (unsigned char *)&check, 1);
 	Atom supported[] = { atoms[A_NET_SUPPORTED], atoms[A_NET_SUPPORTING_WM_CHECK], atoms[A_NET_WM_NAME],
 			     atoms[A_NET_WM_STATE], atoms[A_NET_WM_STATE_FULLSCREEN], atoms[A_NET_WM_STATE_MAXIMIZED_VERT],

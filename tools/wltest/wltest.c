@@ -1,5 +1,5 @@
 /* wltest: a small Wayland program for testing zdisplay's Wayland server
- * inside ZOS, where no other Wayland programs exist.
+ * inside Zurbax, where no other Wayland programs exist.
  *
  *     wltest [dmabuf] [fullscreen] [frames=N] [delay=SECONDS]
  *

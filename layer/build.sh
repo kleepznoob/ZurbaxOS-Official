@@ -6,9 +6,9 @@
 #   layer/build.sh --fetch         only download the sources
 #   layer/build.sh --image         only pack build/layer/root into steam.sfs
 #
-# ZOS itself doesn't use any of this. The layer is a separate root file
+# Zurbax itself doesn't use any of this. The layer is a separate root file
 # system (glibc, the GCC runtime, a small GNU userland, X11 with Xwayland,
-# and Mesa's graphics drivers, 64- and 32-bit) that ZOS starts Steam in.
+# and Mesa's graphics drivers, 64- and 32-bit) that Zurbax starts Steam in.
 #
 # Everything lands in build/layer/root, laid out like most distributions
 # (64-bit libraries in /usr/lib, 32-bit in /usr/lib32). Sources are pinned
@@ -255,7 +255,7 @@ pkg_venv() {
 
 pkg_layout() {
 	cd "$ROOT"
-	# data: ZOS's home folders; .zos: layerrun's private files for each session
+	# data: Zurbax's home folders; .zos: layerrun's private files for each session
 	mkdir -p usr/bin usr/lib usr/lib32 usr/include usr/share etc var/tmp tmp home root proc sys dev run data .zos
 	for l in bin:usr/bin sbin:usr/bin lib:usr/lib lib64:usr/lib lib32:usr/lib32 usr/sbin:bin usr/lib64:lib; do
 		[ -e "${l%%:*}" ] || ln -s "${l#*:}" "${l%%:*}"
@@ -337,10 +337,10 @@ pkg_toolchain() {
 	rm -f "$ROOT"/usr/lib*/libstdc++.so.6*-gdb.py
 }
 
-# ---- The image ZOS mounts ------------------------------------------------------------------
+# ---- The image Zurbax mounts ------------------------------------------------------------------
 # build/layer/steam.sfs: the layer as one compressed, read-only SquashFS
 # image, without what only building needs (headers, static libraries,
-# pkg-config files, manuals). ZOS mounts it at /data/layers/steam.
+# pkg-config files, manuals). Zurbax mounts it at /data/layers/steam.
 
 image() {
 	local out=$L/steam.sfs

@@ -1,4 +1,4 @@
-/* zportal: ZOS's side of the freedesktop.org desktop services, for the
+/* zportal: Zurbax's side of the freedesktop.org desktop services, for the
  * Linux programs in the user's Linux session (Flatpak apps and others). */
 #pragma once
 

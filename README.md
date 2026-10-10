@@ -1,16 +1,16 @@
-# ZOS 2.0 "Golden Rain"
+# Zurbax 2.0
 
 A desktop operating system written from scratch in C. The Linux kernel is
 the only outside code.
 
-**ZOS 2.0, code name Golden Rain, is the release for playing:** game
-controllers everywhere, Glide (a 3D game drawn by ZOS's own renderer),
+**Zurbax 2.0 is the release for playing:** game
+controllers everywhere, Glide (a 3D game drawn by Zurbax's own renderer),
 controller vibration, F11 full screen, and the Golden Rain wallpaper. It
 also brings Wi-Fi and Mail. (Inside the source, programs, paths and
-settings still carry the project's first name, `zurbax`.)
+settings carry the name in lower case, `zurbax`.)
 
 There's no glibc, no X server or libwayland, no GTK or Qt, no GRUB and no
-distribution underneath. ZOS has its own pieces for everything:
+distribution underneath. Zurbax has its own pieces for everything:
 - the C runtime,
 - graphics engine and font,
 - display server and desktop,
@@ -21,30 +21,34 @@ distribution underneath. ZOS has its own pieces for everything:
 - installer and disk tools,
 - every app.
 
-The look takes its cues from elementary OS: a calm top bar, a dock, rounded
-windows with header bars and readable text. The focus is on games and on
-making the desktop your own.
+The desktop has a top bar (the app in front with its menu, the date and
+time, and the status icons) and a taskbar along the bottom: Start, a search
+box, a button for each pinned or running app with live window previews,
+and the tray. The launcher fills the screen with every app. Windows are
+flat, with minimize, maximize and close on the right of their header bars,
+one accent colour (Iris, a blue-violet, out of the box) and light or dark
+style. The focus is on games and on making the desktop your own.
 
-![The ZOS desktop with the Golden Rain wallpaper and the Arc dock](docs/screenshots/desktop.jpg)
+![The Zurbax desktop](docs/screenshots/desktop.jpg)
 
 ## Download
 
-**[ZOS 2.0 Golden Rain on the Releases page](https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest)**
+**[Zurbax 2.0 on the Releases page](https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest)**
 
-- `zos.iso`: for a DVD, or for a USB stick written with balenaEtcher, Rufus
+- `zurbax.iso`: for a DVD, or for a USB stick written with balenaEtcher, Rufus
   or `dd`. It's a hybrid image, so the same file works for both.
-- `zos.img`: a plain USB stick image.
+- `zurbax.img`: a plain USB stick image.
 - `SHA256SUMS`: checksums to verify the download.
 
 Boot it in UEFI mode (on ASUS machines, press F8 or Esc for the boot menu).
-You can try ZOS from the stick first, and install it from there when you
+You can try Zurbax from the stick first, and install it from there when you
 want to.
 
 ## Screenshots
 
 | | |
 |---|---|
-| ![Lock screen](docs/screenshots/lock.jpg) **Lock screen**: the date over a large clock, notifications on frosted glass | ![Applications menu](docs/screenshots/launcher.jpg) **Applications menu**: every app, with search |
+| ![Launcher](docs/screenshots/launcher.jpg) **Launcher**: every app, with search | ![Lock screen](docs/screenshots/lock.jpg) **Lock screen**: the date over a large clock |
 | ![Dashboard](docs/screenshots/dashboard.jpg) **Dashboard**: weather, today's events, recent files and screen time | ![Settings](docs/screenshots/settings.jpg) **Settings**: light or dark style, accent colours and wallpapers |
 | ![Arcade](docs/screenshots/arcade.jpg) **Arcade**: Glide in 3D, plus Blocks, Snake, 2048, Mines and Breakout | ![Steam](docs/screenshots/steam.jpg) **Steam**: checks the Linux layer and GPU, then starts Big Picture |
 | ![Harbor](docs/screenshots/harbor.jpg) **Harbor**: the app store | ![Music](docs/screenshots/music.jpg) **Music**: albums, songs and artists |
@@ -53,30 +57,43 @@ want to.
 ## What it does
 
 **Boot.** The firmware's own logo (the ASUS logo on an ASUS PC) stays on
-screen from power-on to the desktop, with a spinner under it. The kernel
-has the whole system inside it, and the firmware starts it directly, with no
-boot loader in between.
+screen from power-on to the desktop, with a spinner under it, and not one
+line of text: the kernel is built without a text console, its boot code
+and early console are silent, and its log level lets nothing through. The
+kernel has the whole system inside it, and the firmware starts it
+directly, with no boot loader in between.
 
-**Desktop.** A top bar with an applications menu, clock, quick settings
-(Wi-Fi networks, sound, brightness, night light, Do Not Disturb) and power
-menu. The dock is the Arc: apps sit in round glass bubbles along a gentle
-curve at the bottom of the screen, higher in the middle like the sun over
-the horizon, strung on a golden thread. Running apps wear a golden ring with
-a pip per window, the app in front glows under a raindrop, and a starting
-app has a golden arc running round it; the dock steps aside for windows
-that need the room. The lock screen shows the wallpaper as it is, the date
-over a large clock, waiting notifications on frosted glass, and you with a
-password field at the bottom; it softly blurs the picture while you type,
-and unlocking lifts it all away. Plus notifications with sounds and
-screenshots (Print Screen).
+**Desktop.** The top bar shows the app in front (click it for New Window,
+Minimize, Maximize, Show Desktop and Quit), the date and time (the
+calendar and your notifications) and the status icons (quick settings:
+Wi-Fi networks, dark style, night light, Do Not Disturb, sound,
+brightness and power). The taskbar has Start, a search box, and a button
+for each pinned or running app: a line under it marks an open app (in the
+accent colour for the one in front), a badge counts its unread
+notifications, hovering shows live previews of its windows (click one to
+switch, or close it from there), middle-click opens a new window and
+right-click pins, unpins or closes. At the right are notifications and a
+show-desktop strip. Settings → Desktop changes it all: the taskbar's size
+(small, medium, large), centred or left-aligned buttons, app names beside
+the icons, the search box, previews, auto-hide, a light taskbar in the
+light style, and turning the top bar off (the clock and status icons then
+move into the taskbar's tray). The launcher (Start, the search box, or a
+tap of the Super key) fills the screen: the apps you open most, the
+categories, and every app A to Z. Typing searches apps, Settings pages and
+power actions, works out sums (Enter copies the answer), and offers to
+search the web in Drift or Flathub's apps in Harbor. The lock screen shows
+the wallpaper, the date over a large clock, waiting notifications, and you
+with a password field. Plus notification sounds and screenshots (Print
+Screen).
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
-French, Spanish) are built in. Wallpapers: the Lake at Dusk photo (the default), Golden
-Rain, and five painted landscapes, all drawn to fit any screen.
+French, Spanish) are built in. Wallpapers: Horizon (the default: soft
+hills under a sky going from ink to iris to the first gold of the day) and
+Daybreak, its pale morning, Golden Rain, the Lake at Dusk photo and five
+painted landscapes, all drawn to fit any screen.
 
 **Game controllers.** Xbox, PlayStation, Switch Pro, Steam and other USB
 controllers work the moment they're plugged in, up to four at once. The
-Guide button opens the applications menu, and the D-pad, A and B move
-around it. Every app can be used with a controller: the D-pad and left
+Guide button opens Apps, and the D-pad, A and B move around it. Every app can be used with a controller: the D-pad and left
 stick act as the arrow keys, A as Enter and B as Escape. Games can make
 controllers vibrate, the top bar shows when one is connected, and a notice
 gives its battery level. The Arcade's games have proper controller
@@ -86,9 +103,9 @@ which also turns on game mode.
 
 **Linux programs.** zdisplay also speaks Wayland, the window protocol
 standard Linux programs use (its own implementation of it, not libwayland's).
-Wayland programs, and X11 programs through Xwayland, open as ordinary ZOS
+Wayland programs, and X11 programs through Xwayland, open as ordinary Zurbax
 windows: they move, resize, maximize, go full screen, show their menus and
-cursors and sit in the dock like ZOS apps, and they type with the keyboard
+cursors and sit in the taskbar like Zurbax apps, and they type with the keyboard
 layout chosen in Settings. Games can lock the pointer and read raw mouse
 motion for mouse-look. A full-screen game that keeps a smaller picture is
 shown centred at its own aspect ratio. Programs that draw with the GPU share
@@ -102,7 +119,7 @@ root file system built from upstream sources by `layer/build.sh`: glibc
 2.42 and GCC 15.2's runtime (64- and 32-bit), Mesa 26.2 with AMD's
 (radeonsi, RADV) and Intel's (iris, crocus, ANV, HASVK) OpenGL and Vulkan
 drivers plus zink, virgl and softpipe, libglvnd, the Vulkan loader, X11's
-libraries, Xwayland, PulseAudio playing through ZOS's sound service, fonts,
+libraries, Xwayland, PulseAudio playing through Zurbax's sound service, fonts,
 a GNU userland and Valve's launcher. It ships as one compressed image
 (`steam.sfs`) on the install stick and ISO; zinit mounts it at
 `/data/layers/steam`, from the stick in a live session and from the disk
@@ -113,7 +130,7 @@ screen for games and Big Picture, focus, centred dialogs), a D-Bus session
 bus and the sound server. The Steam app checks that everything is in place
 and names the GPU games will use. Valve's client starts from the layer,
 updates itself, builds its runtime container inside layerrun's namespace,
-and shows Big Picture full screen on ZOS's display, taking clicks and
+and shows Big Picture full screen on Zurbax's display, taking clicks and
 typing.
 
 **Graphics drivers.** The kernel carries AMD's and Intel's GPU drivers with
@@ -124,10 +141,10 @@ these use the firmware's framebuffer.
 
 **First start.** The Welcome assistant covers keyboard, time zone, an
 account and a look. Every step can be skipped. When started from the USB
-stick, it offers to try ZOS or install it.
+stick, it offers to try Zurbax or install it.
 
 **Installing.** The Installer either erases a disk or installs into its
-free space next to Windows, and adds a "ZOS" entry to the firmware's
+free space next to Windows, and adds a "Zurbax" entry to the firmware's
 boot menu. It takes about a minute.
 
 **Apps**
@@ -139,7 +156,7 @@ boot menu. It takes about a minute.
 | Mail | Email for Gmail, Outlook, iCloud, Yahoo or any IMAP account: HTML mail, attachments, search, drafts, undo |
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
-| Help | A searchable guide to ZOS, with what's new in 2.0 |
+| Help | A searchable guide to Zurbax, with what's new in 2.0 |
 | Arcade | Glide, a 3D flying game, plus Blocks, Snake, 2048, Mines and Breakout, with best scores; keyboard, mouse or controller |
 | Music | Albums, songs and artists from your Music folder (FLAC, Ogg Vorbis, WAV) |
 | Weather | Live forecasts with an hourly strip, the week and details |
@@ -156,7 +173,7 @@ boot menu. It takes about a minute.
 
 **Glide** is the Arcade's 3D game: fly a paper glider through golden rings
 over an endless low-poly land of lakes, hills and forests at sunset. It's
-drawn by ZOS's own 3D renderer on every processor core, and lowers its
+drawn by Zurbax's own 3D renderer on every processor core, and lowers its
 resolution by itself when a machine can't keep up.
 
 **In Harbor** (installed when you want them): Chess, with a computer
@@ -184,8 +201,8 @@ needs an app password (Mail explains how when you type a Gmail address).
 ```sh
 make            # everything: libraries, system programs, apps
 make test       # the test suites (runtime, graphics, 3D, toolkit, TLS/crypto, audio, Wi-Fi, disks)
-make image      # the kernel with the system inside, build/zos.iso and build/zos.img
-make run        # boot build/zos.img in QEMU with UEFI firmware
+make image      # the kernel with the system inside, build/zurbax.iso and build/zurbax.img
+make run        # boot build/zurbax.img in QEMU with UEFI firmware
 layer/build.sh  # the Linux layer for Steam (hours), build/layer/steam.sfs
 ```
 
@@ -201,15 +218,15 @@ Mesa's OpenCL compiler, meson, cmake, autotools, mksquashfs) and about
 10 GB of space. Its sources are pinned with their SHA-256 sums in
 `layer/sources.txt`.
 
-To try it on a real PC, burn `build/zos.iso` to a DVD, or write it to a
+To try it on a real PC, burn `build/zurbax.iso` to a DVD, or write it to a
 USB stick with balenaEtcher, Rufus or `dd`, and boot from it in UEFI mode.
 On ASUS machines, press F8 or Esc for the boot menu. The ISO is a hybrid:
 a UEFI El Torito image for discs, and a GPT for USB sticks, sharing one
-copy of the kernel. `build/zos.img` is a plain USB stick image. GitHub
+copy of the kernel. `build/zurbax.img` is a plain USB stick image. GitHub
 Actions builds both on every push (see the `zos-2.0-golden-rain` artifact),
 and publishes them as a release when the `build` workflow is started by
 hand with a tag name (for example `v2.0.0`). The Installer finds the system
-on whichever one ZOS started from.
+on whichever one Zurbax started from.
 
 ## Layout
 
@@ -242,17 +259,17 @@ on whichever one ZOS started from.
   FLAC, Ogg Vorbis and WAV play.
 - **Steam on real hardware.** Tested so far without a GPU: in QEMU, zinit
   mounts the layer from the stick and layerrun, Mesa (software OpenGL) and
-  Xwayland run in it as the desktop's user; on a headless ZOS desktop,
+  Xwayland run in it as the desktop's user; on a headless Zurbax desktop,
   Steam starts and reaches its sign-in screen. Signing in, Proton games and
   GPU acceleration (RADV, radeonsi, ANV, iris, and Xwayland's glamor) need
   a real AMD or Intel GPU and haven't been tried on one yet. Building the
   layer takes a few hours (CI caches it); images built without it work, and
   the Steam app says what's missing. Controllers plugged in while Steam
-  runs are seen through the layer's libudev, which ZOS feeds with device
+  runs are seen through the layer's libudev, which Zurbax feeds with device
   events.
-- **Hardware 3D in ZOS's own apps.** The desktop and Glide are drawn in
+- **Hardware 3D in Zurbax's own apps.** The desktop and Glide are drawn in
   software, so they work on any GPU.
-- **NVIDIA graphics.** NVIDIA's driver is a kernel module, and the ZOS
+- **NVIDIA graphics.** NVIDIA's driver is a kernel module, and the Zurbax
   kernel has no module loader; on laptops with NVIDIA and AMD/Intel
   graphics, the AMD or Intel GPU drives the screen.
 - **Windows programs outside Steam.** `.exe` files don't run on their own.

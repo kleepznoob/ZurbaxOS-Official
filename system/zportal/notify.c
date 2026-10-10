@@ -1,5 +1,5 @@
 /* Notifications from Linux programs (the Desktop Notifications
- * Specification, 1.2) on ZOS's notification banners and in its notification
+ * Specification, 1.2) on Zurbax's notification banners and in its notification
  * center; and org.freedesktop.ScreenSaver, which video players and games
  * use to keep the screen on. */
 #include "zportal.h"
@@ -20,7 +20,7 @@ static const char NOTIFY_XML[] =
 
 static u32 next_id;
 
-/* Bodies may carry a little HTML (b, i, u, a, img): ZOS shows plain text. */
+/* Bodies may carry a little HTML (b, i, u, a, img): Zurbax shows plain text. */
 static char *plain_text(const char *s)
 {
 	StrBuf sb = { 0 };
@@ -51,7 +51,7 @@ static char *plain_text(const char *s)
 	return sb_take(&sb);
 }
 
-/* The icon ZOS shows: the app's own (its menu entry's id), from the hints,
+/* The icon Zurbax shows: the app's own (its menu entry's id), from the hints,
  * the caller's Flatpak id, or what the program called itself. */
 static void notice_icon(const char *sender, const char *app_name, const DBusVal *hints, char *out, usize cap)
 {
@@ -98,7 +98,7 @@ static bool notifications_method(DBus *bus, DBusMsg *call, void *data)
 		dbus_send(bus, s);
 	} else if (dbus_is_call(call, "org.freedesktop.Notifications", "GetServerInformation")) {
 		DBusMsg *r = dbus_new_reply(call);
-		dbus_add(r, "ssss", "ZOS", "ZOS", "2.1", "1.2");
+		dbus_add(r, "ssss", "Zurbax", "Zurbax", "2.1", "1.2");
 		dbus_send(bus, r);
 	} else {
 		return false;

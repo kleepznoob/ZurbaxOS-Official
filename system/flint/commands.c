@@ -1501,7 +1501,7 @@ static int cmd_theme(int argc, char **argv)
 	mem_free(path);
 	if (argc < 2) {
 		outf("Style: %s · Accent: %s · Wallpaper: %s\n", conf_get_bool(c, "dark", false) ? "dark" : "light",
-		     conf_get(c, "accent", "blue"), conf_get(c, "wallpaper", "lake"));
+		     conf_get(c, "accent", "iris"), conf_get(c, "wallpaper", "horizon"));
 		out("Change it with: theme dark | theme light | theme accent NAME | theme wallpaper NAME\n");
 		conf_free(c);
 		return 0;
@@ -1745,7 +1745,7 @@ static int cmd_help(int argc, char **argv)
 		outf("%s%s%s — %s\n", paint(C_BOLD), c->usage, paint(C_RESET), c->help);
 		return 0;
 	}
-	outf("\n  %sFlint%s, the ZOS shell. Built-in commands:\n\n", paint(C_BOLD), paint(C_RESET));
+	outf("\n  %sFlint%s, the Zurbax shell. Built-in commands:\n\n", paint(C_BOLD), paint(C_RESET));
 	for (int i = 0; i < COMMAND_COUNT; i++)
 		outf("  %s%-10s%s %s\n", paint(C_BGREEN), COMMANDS[i].name, paint(C_RESET), COMMANDS[i].help);
 	outf("\n  Combine commands with %s|%s, %s&&%s and %s||%s; save output with %s>%s; run in the background with %s&%s.\n",

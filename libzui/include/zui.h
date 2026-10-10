@@ -42,7 +42,8 @@ typedef struct {
 } Theme;
 
 void theme_build(Theme *t, const ThemeInfo *info);
-Color theme_accent_named(const char *name); /* "blue", "teal", "green"... */
+#define THEME_ACCENT_DEFAULT "iris"
+Color theme_accent_named(const char *name); /* "iris", "blue", "teal"... */
 extern const char *const THEME_ACCENT_NAMES[];
 extern const u32 THEME_ACCENT_COLORS[];
 extern const int THEME_ACCENT_COUNT;
@@ -308,7 +309,7 @@ void ui_scroll_to(Ui *ui, const char *id, f32 offset);
 
 /* Window chrome: an elementary-style header bar with close (left) and
  * maximize (right) controls. Returns the space between the controls. */
-enum { HEADER_FLAT = 1, HEADER_NO_TITLE = 2, HEADER_TRANSPARENT = 4, HEADER_NO_MAXIMIZE = 8 };
+enum { HEADER_FLAT = 1, HEADER_NO_TITLE = 2, HEADER_TRANSPARENT = 4, HEADER_NO_MAXIMIZE = 8, HEADER_NO_MINIMIZE = 16 };
 Rect ui_headerbar(Ui *ui, Rect r, const char *title, u32 flags);
 /* The window background with rounded corners; call first in a frame. */
 void ui_window_background(Ui *ui, Color c);
@@ -338,6 +339,7 @@ bool ui_file_dialog_is_open(Ui *ui, const char *id); /* false once picked from o
 const char *ui_file_icon(const char *name, bool is_dir); /* symbolic icon for a file type */
 
 /* Wallpapers: built-in names, or an absolute path to a picture. */
+#define WALLPAPER_DEFAULT "horizon"
 extern const char *const WALLPAPER_NAMES[];
 extern const char *const WALLPAPER_TITLES[];
 extern const int WALLPAPER_COUNT;

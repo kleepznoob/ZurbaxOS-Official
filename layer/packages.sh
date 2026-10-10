@@ -86,7 +86,7 @@ pkg_libxcrypt() {
 }
 
 # libudev for programs that look for devices with it (Steam and SDL find game
-# controllers this way); ZOS has no udev, and this one reads /sys directly.
+# controllers this way); Zurbax has no udev, and this one reads /sys directly.
 # zinit passes on device events in the form it listens for.
 pkg_libudev_zero() {
 	unpack libudev-zero
@@ -259,7 +259,7 @@ pkg_gpucheck() {
 
 ORDER+=(libglvnd libglvnd:32 mesa mesa:32 vulkan_loader vulkan_loader:32 gpucheck)
 
-# ---- Xwayland: X11 programs (Steam) on ZOS's display -------------------------------------------
+# ---- Xwayland: X11 programs (Steam) on Zurbax's display -------------------------------------------
 
 pkg_pixman() {
 	unpack pixman
@@ -280,7 +280,7 @@ pkg_xwayland() {
 	unpack xwayland
 	# GLX's software renderer is loaded from Mesa's driver folder, which the
 	# build reads from dri.pc, where pkg-config has put the build's system
-	# root in front of it; on ZOS it is just /usr/lib/dri
+	# root in front of it; on Zurbax it is just /usr/lib/dri
 	sed -i "s|dri_dep.get_variable(pkgconfig : 'dridriverdir')|'/usr/lib/dri'|" include/meson.build
 	mesonbuild -Dglamor=true -Ddri3=true -Dxvfb=false -Dsecure-rpc=false -Dxdmcp=false -Dxdm-auth-1=false \
 		-Dsha1=libnettle -Dlibdecor=false -Dxwayland_ei=false -Ddocs=false -Ddevel-docs=false -Dxcsecurity=true \
@@ -302,7 +302,7 @@ pkg_xkeyboard_config() {
 
 ORDER+=(pixman nettle libepoxy xwayland xkbcomp xkeyboard_config xwm)
 
-# ---- Sound: ALSA's library, playing through ZOS's sound service --------------------------
+# ---- Sound: ALSA's library, playing through Zurbax's sound service --------------------------
 
 pkg_alsa_lib() {
 	unpack alsa-lib
@@ -318,7 +318,7 @@ pkg_zaudio_alsa() {
 		"$HERE/zaudio-alsa/pcm_zaudio.c" $LDFLAGS -lasound
 	if [ "$ARCH" = 64 ]; then
 		cat >"$ROOT/etc/asound.conf" <<-'CONF'
-			# ZOS: sound goes to zaudio, ZOS's sound service, which owns the sound card
+			# Zurbax: sound goes to zaudio, Zurbax's sound service, which owns the sound card
 			pcm.zaudio { type zaudio }
 			pcm.!default { type plug slave.pcm "zaudio" }
 		CONF
@@ -327,7 +327,7 @@ pkg_zaudio_alsa() {
 
 # PulseAudio: Proton's Wine, SDL and Steam's runtime play sound through it;
 # Steam passes its socket into the containers games run in. Here it has one
-# output, ALSA's zaudio plugin, so everything reaches ZOS's sound service.
+# output, ALSA's zaudio plugin, so everything reaches Zurbax's sound service.
 # layerrun starts it with a Steam session.
 # libltdl, libtool's module loader: PulseAudio loads its modules with it
 pkg_libltdl() {
@@ -346,13 +346,13 @@ pkg_libsndfile() {
 		-DENABLE_EXTERNAL_LIBS=OFF -DENABLE_MPEG=OFF -DENABLE_CPACK=OFF -DINSTALL_MANPAGES=OFF
 }
 
-# The server's start-up script. Without ZOS's sound service (it restarts, or
+# The server's start-up script. Without Zurbax's sound service (it restarts, or
 # a machine has no sound card) the server still runs, with a silent output.
 zos_pa() {
 	cat <<-'EOF'
-		# ZOS: one output, ALSA's zaudio plugin (ZOS's sound service); see layer/packages.sh
+		# Zurbax: one output, ALSA's zaudio plugin (Zurbax's sound service); see layer/packages.sh
 		.nofail
-		load-module module-alsa-sink device=zaudio sink_name=zos sink_properties=device.description=ZOS tsched=0
+		load-module module-alsa-sink device=zaudio sink_name=zos sink_properties=device.description=Zurbax tsched=0
 		.fail
 		load-module module-null-source source_name=silence
 		load-module module-native-protocol-unix auth-anonymous=1
@@ -375,7 +375,7 @@ pkg_pulseaudio() {
 	zos_pa >"$ROOT/etc/pulse/zos.pa"
 	cat >>"$ROOT/etc/pulse/daemon.conf" <<-'EOF'
 
-		; ZOS: started by layerrun for the session, no real-time priority to ask for
+		; Zurbax: started by layerrun for the session, no real-time priority to ask for
 		exit-idle-time = -1
 		realtime-scheduling = no
 		flat-volumes = no
@@ -383,7 +383,7 @@ pkg_pulseaudio() {
 		resample-method = speex-float-1
 	EOF
 	printf '
-; ZOS: layerrun starts the server
+; Zurbax: layerrun starts the server
 autospawn = no
 ' >>"$ROOT/etc/pulse/client.conf"
 }
@@ -468,8 +468,8 @@ ORDER+=(bash coreutils sed grep gawk findutils diffutils tar gzip which xz file 
 # Flatpak runs apps in sandboxes of their own (bubblewrap), each with the
 # runtime it was built for, so one app works the same on every distribution.
 # Its downloads go through OSTree, whose repositories are signed with GnuPG;
-# AppStream reads the catalogue of apps. ZOS installs apps per user, in the
-# home folder (the layer itself is read-only). ZOS's own portal service
+# AppStream reads the catalogue of apps. Zurbax installs apps per user, in the
+# home folder (the layer itself is read-only). Zurbax's own portal service
 # (system/zportal) gives the apps file choosers, settings and notifications.
 # All of this is 64-bit only.
 
@@ -601,7 +601,7 @@ pkg_libseccomp() {
 }
 
 # FUSE's library (the document portal and AppImages serve files with it);
-# ZOS has its own fusermount3, which asks layerrun's session to mount
+# Zurbax has its own fusermount3, which asks layerrun's session to mount
 pkg_fuse() {
 	unpack fuse
 	mesonbuild -Dutils=false -Dexamples=false -Dtests=false -Duseroot=false -Ddisable-mtab=true
@@ -693,7 +693,7 @@ pkg_tzdata() {
 }
 
 pkg_etc() {
-	# the certificate authorities ZOS itself trusts, where Linux programs look for them
+	# the certificate authorities Zurbax itself trusts, where Linux programs look for them
 	install -Dm644 "$TOP/data/certs/roots.pem" "$ROOT/etc/ssl/certs/ca-certificates.crt"
 	ln -sf certs/ca-certificates.crt "$ROOT/etc/ssl/cert.pem"
 	install -d "$ROOT/etc/pki/tls/certs"

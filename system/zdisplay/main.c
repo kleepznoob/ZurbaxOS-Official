@@ -46,8 +46,8 @@ void damage_all(void)
 
 Rect work_area(void)
 {
-	f32 top = shell_panel_height();
-	return rect(0, top, S.sw, S.sh - top);
+	f32 top = shell_panel_height(), bottom = shell_taskbar_reserved();
+	return rect(0, top, S.sw, S.sh - top - bottom);
 }
 
 static f32 pick_scale(void)

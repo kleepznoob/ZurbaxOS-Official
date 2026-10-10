@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drives ZOS in QEMU for end-to-end tests: boots with UEFI firmware, takes
+"""Drives Zurbax in QEMU for end-to-end tests: boots with UEFI firmware, takes
 screenshots, clicks and types through QMP.
 
     tools/qemu.py OUTDIR [--stick IMG] [--cdrom ISO] [--disk IMG] [--vars FILE] [--debug] SCRIPT...

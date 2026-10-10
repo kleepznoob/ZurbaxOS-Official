@@ -53,14 +53,14 @@ Window *wm_top_window(void)
 static Rect place_new(Window *w, u32 width, u32 height)
 {
 	Rect wa = work_area();
-	f32 ww = minf((f32)width, wa.w - 40), wh = minf((f32)height, wa.h - 40 - shell_dock_height());
+	f32 ww = minf((f32)width, wa.w - 40), wh = minf((f32)height, wa.h - 40);
 	ww = maxf(ww, (f32)w->min_w), wh = maxf(wh, (f32)w->min_h);
 	if (w->parent && (w->flags & WIN_DIALOG)) {
 		Rect p = w->parent->rect;
 		return rect(p.x + (p.w - ww) / 2, p.y + (p.h - wh) / 3, ww, wh);
 	}
 	/* Centre, then cascade away from windows of the same app already there. */
-	f32 x = wa.x + (wa.w - ww) / 2, y = wa.y + (wa.h - shell_dock_height() - wh) / 2;
+	f32 x = wa.x + (wa.w - ww) / 2, y = wa.y + (wa.h - wh) / 2;
 	for (int tries = 0; tries < 8; tries++) {
 		bool clash = false;
 		for (int i = 0; i < S.nwin; i++) {
@@ -316,6 +316,29 @@ void window_tile(Window *w, int side)
 	Rect r = side < 0 ? rect(wa.x, wa.y, floorf(wa.w / 2), wa.h) : rect(wa.x + floorf(wa.w / 2), wa.y, ceilf(wa.w / 2), wa.h);
 	window_set_rect(w, r, true);
 	window_configure(w);
+}
+
+/* The work area changed (the top bar or the taskbar came, went or changed
+ * size): maximized and tiled windows follow it. */
+void wm_refit(void)
+{
+	Rect wa = work_area();
+	for (int i = 0; i < S.nwin; i++) {
+		Window *w = S.windows[i];
+		if (w->closing || (w->flags & WIN_POPUP) || (w->states & STATE_FULLSCREEN))
+			continue;
+		Rect r;
+		if (w->states & STATE_MAXIMIZED)
+			r = wa;
+		else if (w->states & STATE_TILED_LEFT)
+			r = rect(wa.x, wa.y, floorf(wa.w / 2), wa.h);
+		else if (w->states & STATE_TILED_RIGHT)
+			r = rect(wa.x + floorf(wa.w / 2), wa.y, ceilf(wa.w / 2), wa.h);
+		else
+			continue;
+		window_set_rect(w, r, true);
+		window_configure(w);
+	}
 }
 
 void window_minimize(Window *w, bool on)

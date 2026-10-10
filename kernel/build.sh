@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the ZOS kernel: upstream Linux LTS + kernel/zurbax.config.
+# Builds the Zurbax kernel: upstream Linux LTS + kernel/zurbax.config.
 #
 #   kernel/build.sh                 build bzImage with no embedded system
 #   kernel/build.sh system.cpio     embed system.cpio -> one bootable EFI file

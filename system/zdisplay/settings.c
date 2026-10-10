@@ -12,7 +12,7 @@ static void load_account(void)
 	Conf *u = conf_load(path);
 	mem_free(path);
 	str_copy(S.set.user_name, conf_get(u, "user", "user"), sizeof S.set.user_name);
-	str_copy(S.set.full_name, conf_get(u, "full_name", "ZOS User"), sizeof S.set.full_name);
+	str_copy(S.set.full_name, conf_get(u, "full_name", "Zurbax User"), sizeof S.set.full_name);
 	S.set.uid = (u32)conf_get_int(u, "uid", 1000);
 	S.set.setup_done = conf_get_bool(u, "setup_done", false);
 	S.set.gid = (u32)conf_get_int(u, "gid", 1000);
@@ -40,9 +40,9 @@ void settings_load(void)
 	mem_free(path);
 	Settings *s = &S.set;
 	s->dark = conf_get_bool(c, "dark", false);
-	str_copy(s->accent_name, conf_get(c, "accent", "blue"), sizeof s->accent_name);
+	str_copy(s->accent_name, conf_get(c, "accent", THEME_ACCENT_DEFAULT), sizeof s->accent_name);
 	s->accent = s->accent_name[0] == '#' ? color_hex(s->accent_name) : theme_accent_named(s->accent_name);
-	str_copy(s->wallpaper, conf_get(c, "wallpaper", "lake"), sizeof s->wallpaper);
+	str_copy(s->wallpaper, conf_get(c, "wallpaper", WALLPAPER_DEFAULT), sizeof s->wallpaper);
 	s->text_scale = (f32)conf_get_float(c, "text_scale", 1.0);
 	s->scale_override = (f32)conf_get_float(c, "display_scale", 0);
 	s->natural_scroll = conf_get_bool(c, "natural_scroll", true);
@@ -55,7 +55,14 @@ void settings_load(void)
 	s->clock_seconds = conf_get_bool(c, "clock_seconds", false);
 	s->reduce_motion = conf_get_bool(c, "reduce_motion", false);
 	s->dock_autohide = conf_get_bool(c, "dock_autohide", false);
-	s->dock_magnify = conf_get_bool(c, "dock_magnify", false);
+	s->topbar = conf_get_bool(c, "topbar", true);
+	s->taskbar_size = CLAMP((int)conf_get_int(c, "taskbar_size", 1), 0, 2);
+	s->taskbar_center = str_eq(conf_get(c, "taskbar_align", "left"), "center");
+	s->taskbar_labels = conf_get_bool(c, "taskbar_labels", false);
+	s->taskbar_search = conf_get_bool(c, "taskbar_search", true);
+	s->taskbar_desktop = conf_get_bool(c, "taskbar_desktop", true);
+	s->taskbar_previews = conf_get_bool(c, "taskbar_previews", true);
+	s->taskbar_light = str_eq(conf_get(c, "taskbar_color", "dark"), "style");
 	str_copy(s->dock_apps, conf_get(c, "dock_apps", "vault,drift,mail,music,photos,calendar,notes,forge,harbor,settings"),
 		 sizeof s->dock_apps);
 	s->do_not_disturb = conf_get_bool(c, "do_not_disturb", false);

@@ -1,8 +1,8 @@
 /* Standard widgets. */
 #include "zui.h"
 
-#define CTL_RADIUS 6.0f
-#define WINDOW_RADIUS 10.0f
+#define CTL_RADIUS 8.0f
+#define WINDOW_RADIUS 12.0f
 
 static f32 window_radius(Ui *ui)
 {
@@ -24,29 +24,14 @@ static void button_frame(Ui *ui, Rect r, ButtonKind kind, UiInteract it, f32 hov
 			ui_round(ui, r, CTL_RADIUS, color_scale_alpha(t->hover, hover));
 		return;
 	}
-	Color top, bottom, border;
-	if (kind == BTN_NORMAL) {
-		top = t->button_top, bottom = t->button_bottom, border = t->button_border;
-	} else {
-		Color base = kind == BTN_SUGGESTED ? t->accent : t->danger;
-		top = color_lighten(base, 0.1f), bottom = base, border = color_lighten(base, -0.25f);
-	}
-	if (hover > 0 && !down) {
-		top = color_mix(top, color_lighten(top, t->dark ? 0.08f : 0.25f), hover);
-		bottom = color_mix(bottom, color_lighten(bottom, t->dark ? 0.08f : 0.2f), hover);
-	}
-	if (down) {
-		Color tmp = top;
-		top = color_lighten(bottom, -0.06f);
-		bottom = color_lighten(tmp, -0.02f);
-	}
-	if (!down)
-		ui_shadow(ui, rect(r.x, r.y + 0.5f, r.w, r.h), CTL_RADIUS, 1.5f, 0.5f, color_hex(t->dark ? "#00000050" : "#0000001a"));
-	ui_gradient(ui, r, CTL_RADIUS, top, bottom);
-	ui_border(ui, r, CTL_RADIUS, 1, border);
-	if (!down) /* top inner highlight */
-		ui_line(ui, r.x + CTL_RADIUS, r.y + 1.5f, r.x + r.w - CTL_RADIUS, r.y + 1.5f, 1,
-			color_hex(kind == BTN_NORMAL && !t->dark ? "#ffffffcc" : "#ffffff2a"));
+	/* Flat: one solid fill, a shade deeper under the pointer and deeper
+	 * still while pressed. No bevels, no borders. */
+	Color base = kind == BTN_NORMAL ? t->button_top : kind == BTN_SUGGESTED ? t->accent : t->danger;
+	Color hot = kind == BTN_NORMAL ? color_lighten(base, t->dark ? 0.07f : -0.045f) : color_lighten(base, t->dark ? 0.08f : 0.06f);
+	Color fill = color_mix(base, hot, hover);
+	if (down)
+		fill = kind == BTN_NORMAL ? color_lighten(base, t->dark ? 0.12f : -0.09f) : color_lighten(base, -0.1f);
+	ui_round(ui, r, CTL_RADIUS, fill);
 }
 
 static bool button_impl(Ui *ui, Rect r, const char *label, const char *icon, ButtonKind kind)
@@ -129,15 +114,13 @@ bool ui_switch(Ui *ui, Rect r, bool *on)
 		ui_set_cursor(ui, CURSOR_POINTER);
 	Theme *t = &ui->theme;
 	f32 k = ui_anim(ui, id, *on ? 1.0f : 0.0f, 18);
-	Color off = t->dark ? color_hex("#4a4b51") : color_hex("#d3d4d8");
+	Color off = t->dark ? color_hex("#47484d") : color_hex("#d6d6d3");
 	Color bg = color_mix(off, t->accent, k);
 	ui_round(ui, track, 12, bg);
-	ui_border(ui, track, 12, 1, color_hex(t->dark ? "#00000060" : "#0000001f"));
 	f32 kx = track.x + 2 + k * 20;
 	Rect knob = { kx, track.y + 2, 20, 20 };
-	ui_shadow(ui, knob, 10, 2, 1, color_hex("#00000045"));
+	ui_shadow(ui, knob, 10, 2, 1, color_hex("#00000035"));
 	ui_circle(ui, kx + 10, track.y + 12, 10, COLOR_WHITE);
-	ui_ring(ui, kx + 10, track.y + 12, 9.75f, 0.5f, color_hex("#00000022"));
 	return it.clicked;
 }
 
@@ -213,9 +196,13 @@ bool ui_segmented(Ui *ui, Rect r, const char *const *items, int n, int *selected
 {
 	Theme *t = &ui->theme;
 	bool changed = false;
-	ui_shadow(ui, r, CTL_RADIUS, 1.5f, 0.5f, color_hex(t->dark ? "#00000050" : "#0000001a"));
-	ui_gradient(ui, r, CTL_RADIUS, t->button_top, t->button_bottom);
+	ui_round(ui, r, CTL_RADIUS, t->button_top);
 	f32 w = r.w / (f32)n;
+	/* the selected item sits on a raised thumb that glides between items */
+	f32 at = ui_anim(ui, ui_id(ui, items[0]) ^ (UiId)n * 0x9e37, (f32)*selected, 20);
+	Rect thumb = rect(r.x + w * at + 2, r.y + 2, w - 4, r.h - 4);
+	ui_shadow(ui, thumb, CTL_RADIUS - 2, 3, 1, color_hex(t->dark ? "#00000060" : "#00000022"));
+	ui_round(ui, thumb, CTL_RADIUS - 2, t->dark ? color_hex("#4a4b50") : COLOR_WHITE);
 	for (int i = 0; i < n; i++) {
 		Rect cell = { r.x + w * (f32)i, r.y, w, r.h };
 		ui_push_id(ui, i);
@@ -226,18 +213,10 @@ bool ui_segmented(Ui *ui, Rect r, const char *const *items, int n, int *selected
 			*selected = i;
 			changed = true;
 		}
-		if (*selected == i) {
-			f32 tl = i == 0 ? CTL_RADIUS : 0, tr = i == n - 1 ? CTL_RADIUS : 0;
-			ui_round4(ui, cell, tl, tr, tr, tl, t->dark ? color_hex("#00000040") : color_hex("#0000001a"));
-		} else if (it.hovered) {
-			f32 tl = i == 0 ? CTL_RADIUS : 0, tr = i == n - 1 ? CTL_RADIUS : 0;
-			ui_round4(ui, cell, tl, tr, tr, tl, t->hover);
-		}
-		if (i > 0)
-			ui_vseparator(ui, cell.x, r.y + 1, r.y + r.h - 1);
-		ui_text_in(ui, ui_font(ui, 13, *selected == i ? 600 : 500), cell, items[i], t->text, ALIGN_CENTER);
+		if (*selected != i && it.hovered)
+			ui_round(ui, pad(cell, 2), CTL_RADIUS - 2, t->hover);
+		ui_text_in(ui, ui_font(ui, 13, *selected == i ? 600 : 500), cell, items[i], *selected == i ? t->text : t->text_dim, ALIGN_CENTER);
 	}
-	ui_border(ui, r, CTL_RADIUS, 1, t->button_border);
 	return changed;
 }
 
@@ -309,7 +288,7 @@ void ui_progress(Ui *ui, Rect r, f32 fraction)
 	ui_round(ui, track, h / 2, t->dark ? color_hex("#ffffff1c") : color_hex("#0000001a"));
 	f32 w = track.w * clampf(fraction, 0, 1);
 	if (w > 0.5f)
-		ui_gradient(ui, rect(track.x, track.y, maxf(w, h), h), h / 2, color_lighten(t->accent, 0.15f), t->accent);
+		ui_round(ui, rect(track.x, track.y, maxf(w, h), h), h / 2, t->accent);
 }
 
 void ui_spinner(Ui *ui, Rect r)
@@ -335,9 +314,9 @@ void ui_vseparator(Ui *ui, f32 x, f32 y0, f32 y1)
 void ui_card(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	ui_shadow(ui, r, 8, 4, 1, color_hex(t->dark ? "#00000055" : "#00000014"));
-	ui_round(ui, r, 8, t->card);
-	ui_border(ui, r, 8, 1, t->border);
+	ui_shadow(ui, r, 12, 6, 1, color_hex(t->dark ? "#00000050" : "#0000000f"));
+	ui_round(ui, r, 12, t->card);
+	ui_border(ui, r, 12, 1, t->border);
 }
 
 void ui_badge(Ui *ui, f32 cx, f32 cy, const char *text)
@@ -437,8 +416,8 @@ bool ui_sidebar_item(Ui *ui, Rect r, const char *icon, const char *label, bool s
 	f32 hover = ui_fade(ui, id, it.hovered, 0.1f);
 	Color fg = t->text, ic = t->text_dim;
 	if (selected) {
-		ui_round(ui, r, CTL_RADIUS, t->accent);
-		fg = ic = t->on_accent;
+		ui_round(ui, r, CTL_RADIUS, t->dark ? color_hex("#ffffff14") : color_hex("#0000000f"));
+		ic = t->accent;
 	} else if (hover > 0) {
 		ui_round(ui, r, CTL_RADIUS, color_scale_alpha(t->hover, hover));
 	}
@@ -574,20 +553,28 @@ void ui_window_background(Ui *ui, Color c)
 	Rect r = rect(0, 0, ui->width, ui->height);
 	ui_round(ui, r, rad, c);
 	if (rad > 0)
-		ui_border(ui, r, rad, 1, color_hex(ui->theme.dark ? "#000000a0" : "#00000048"));
+		ui_border(ui, r, rad, 1, color_hex(ui->theme.dark ? "#ffffff1a" : "#00000030"));
 }
 
-static bool window_button(Ui *ui, Rect r, const char *icon, const char *id)
+/* The window controls: small round buttons on a faint disc; close turns
+ * red under the pointer. */
+static bool window_button(Ui *ui, Rect r, const char *icon, const char *id, bool danger)
 {
 	UiId bid = ui_id(ui, id);
 	UiInteract it = ui_interact(ui, bid, r);
 	f32 hover = ui_fade(ui, bid, it.hovered, 0.12f);
 	Theme *t = &ui->theme;
+	f32 cx = r.x + r.w / 2, cy = r.y + r.h / 2, rad = r.w / 2;
+	Color disc = t->dark ? color_hex("#ffffff14") : color_hex("#0000000e");
+	Color hot = danger ? t->danger : (t->dark ? color_hex("#ffffff26") : color_hex("#0000001c"));
+	Color c = color_mix(disc, hot, hover);
 	if (it.held && it.hovered)
-		ui_circle(ui, r.x + r.w / 2, r.y + r.h / 2, r.w / 2, t->press);
-	else if (hover > 0)
-		ui_circle(ui, r.x + r.w / 2, r.y + r.h / 2, r.w / 2, color_scale_alpha(t->hover, hover * 1.4f));
-	ui_icon(ui, center_in(r, 16, 16), icon, color_mix(t->text_dim, t->text, 0.5f + hover * 0.5f));
+		c = danger ? color_lighten(t->danger, -0.1f) : (t->dark ? color_hex("#ffffff33") : color_hex("#00000028"));
+	if (!ui->window_focused && hover == 0)
+		c = color_scale_alpha(c, 0.6f);
+	ui_circle(ui, cx, cy, rad, c);
+	Color fg = danger ? color_mix(t->text_dim, COLOR_WHITE, hover) : color_mix(t->text_dim, t->text, hover);
+	ui_icon(ui, center_in(r, 14, 14), icon, fg);
 	return it.clicked;
 }
 
@@ -596,19 +583,9 @@ Rect ui_headerbar(Ui *ui, Rect r, const char *title, u32 flags)
 	Theme *t = &ui->theme;
 	f32 rad = window_radius(ui);
 	if (!(flags & HEADER_TRANSPARENT)) {
-		if (flags & HEADER_FLAT)
-			ui_round4(ui, r, rad, rad, 0, 0, t->window);
-		else {
-			Path p = { 0 };
-			Rect d = ui_to_device(ui, r);
-			path_round_rect4(&p, d, rad * ui->scale, rad * ui->scale, 0, 0);
-			Paint g = paint_linear(0, d.y, 0, d.y + d.h, t->header_top, t->header_bottom);
-			fill_path(ui->canvas, &p, mat_identity(), &g, FILL_NONZERO);
-			path_free(&p);
-			ui_fill(ui, rect(r.x, r.y + r.h - 1, r.w, 1), t->border_strong);
-		}
-		if (!t->dark && rad > 0)
-			ui_line(ui, r.x + rad, r.y + 1.5f, r.x + r.w - rad, r.y + 1.5f, 1, color_hex("#ffffffb0"));
+		ui_round4(ui, r, rad, rad, 0, 0, (flags & HEADER_FLAT) ? t->window : t->header_top);
+		if (!(flags & HEADER_FLAT))
+			ui_fill(ui, rect(r.x, r.y + r.h - 1, r.w, 1), t->border);
 	}
 	/* Dragging the empty bar moves the window; double-click maximizes. */
 	UiId drag_id = ui_id(ui, "__headerbar");
@@ -620,19 +597,28 @@ Rect ui_headerbar(Ui *ui, Rect r, const char *title, u32 flags)
 	if (it.right_clicked)
 		ui->action = ACTION_SHOW_MENU;
 
-	Rect close_r = { r.x + 9, r.y + (r.h - 30) / 2, 30, 30 };
-	if (window_button(ui, close_r, "window-close", "__close"))
+	/* minimize, maximize and close, at the right */
+	f32 size = 24, gap = 10, x = r.x + r.w - 12 - size, y = r.y + roundf((r.h - size) / 2);
+	if (window_button(ui, rect(x, y, size, size), "window-close", "__close", true))
 		ui->action = ACTION_CLOSE;
-	Rect inner = { close_r.x + close_r.w + 6, r.y, r.w - 2 * (close_r.w + 15), r.h };
 	if (!(flags & HEADER_NO_MAXIMIZE)) {
-		Rect max_r = { r.x + r.w - 39, close_r.y, 30, 30 };
+		x -= size + gap;
 		bool maxed = ui->win_states & STATE_MAXIMIZED;
-		if (window_button(ui, max_r, maxed ? "window-restore" : "window-maximize", "__max"))
+		if (window_button(ui, rect(x, y, size, size), maxed ? "window-restore" : "window-maximize", "__max", false))
 			ui->action = ACTION_TOGGLE_MAXIMIZE;
 	}
-	if (title && !(flags & HEADER_NO_TITLE))
-		ui_text_in(ui, ui_font(ui, 13, 700), rect(r.x + 60, r.y, r.w - 120, r.h), title,
+	if (!(flags & HEADER_NO_MINIMIZE)) {
+		x -= size + gap;
+		if (window_button(ui, rect(x, y, size, size), "window-minimize", "__min", false))
+			ui->action = ACTION_MINIMIZE;
+	}
+	Rect inner = { r.x + 8, r.y, x - 10 - (r.x + 8), r.h };
+	if (title && !(flags & HEADER_NO_TITLE)) {
+		/* centred on the window, but never under the controls */
+		f32 side = r.x + r.w - x + 10;
+		ui_text_in(ui, ui_font(ui, 13, 600), rect(r.x + side, r.y, r.w - 2 * side, r.h), title,
 			   ui->window_focused ? t->text : t->text_dim, ALIGN_CENTER);
+	}
 	return inner;
 }
 
@@ -690,10 +676,10 @@ bool ui_popover_begin(Ui *ui, const char *id, Rect anchor, f32 w, f32 h, Rect *c
 		return false;
 	Rect a = { anchor.x + ui->ox, anchor.y + ui->oy, anchor.w, anchor.h };
 	f32 x = clampf(a.x + a.w / 2 - w / 2, 6, ui->width - w - 6);
-	f32 y = a.y + a.h + 10;
-	bool above = y + h > ui->height - 6 && a.y - h - 10 > 6;
+	f32 y = a.y + a.h + 6;
+	bool above = y + h > ui->height - 6 && a.y - h - 6 > 6;
 	if (above)
-		y = a.y - h - 10;
+		y = a.y - h - 6;
 	Rect r = { x, y, w, h };
 	/* Clicking outside (but not on the anchor, which toggles) or Escape closes it. */
 	bool outside_click = ui->pressed[BUTTON_LEFT] && !rect_contains(r, ui->mx, ui->my) && !rect_contains(a, ui->mx, ui->my);
@@ -706,25 +692,10 @@ bool ui_popover_begin(Ui *ui, const char *id, Rect anchor, f32 w, f32 h, Rect *c
 	ui->overlay_rect = rect_union(ui->overlay_rect, rect_inset(r, -2, -12));
 	Theme *t = &ui->theme;
 	f32 k = ui_fade(ui, pid, true, 0.12f);
-	Color bg = t->dark ? color_hex("#36373c") : COLOR_WHITE;
-	ui_shadow(ui, r, 10, 14, 4, color_scale_alpha(color_hex("#00000045"), k));
-	/* Arrow pointing at the anchor. */
-	f32 ax = clampf(a.x + a.w / 2, x + 16, x + w - 16);
-	Path p = { 0 };
-	if (above) {
-		path_move(&p, ax - 9, y + h - 1);
-		path_line(&p, ax, y + h + 8);
-		path_line(&p, ax + 9, y + h - 1);
-	} else {
-		path_move(&p, ax - 9, y + 1);
-		path_line(&p, ax, y - 8);
-		path_line(&p, ax + 9, y + 1);
-	}
-	path_close(&p);
-	ui_round(ui, r, 10, color_scale_alpha(bg, k));
-	ui_path_fill(ui, &p, color_scale_alpha(bg, k));
-	path_free(&p);
-	ui_border(ui, r, 10, 1, color_scale_alpha(t->border_strong, k));
+	Color bg = t->dark ? color_hex("#2c2d31") : COLOR_WHITE;
+	ui_shadow(ui, r, 12, 18, 6, color_scale_alpha(color_hex(t->dark ? "#00000070" : "#00000030"), k));
+	ui_round(ui, r, 12, color_scale_alpha(bg, k));
+	ui_border(ui, r, 12, 1, color_scale_alpha(t->border_strong, k));
 	ui_push_clip(ui, r);
 	*content = pad(r, 6);
 	return true;
@@ -742,10 +713,8 @@ bool ui_menu_item(Ui *ui, Rect r, const char *icon, const char *label, const cha
 	UiInteract it = ui_interact(ui, id, r);
 	Theme *t = &ui->theme;
 	Color fg = t->text, dim = t->text_dim;
-	if (it.hovered) {
-		ui_round(ui, r, 6, t->accent);
-		fg = dim = t->on_accent;
-	}
+	if (it.hovered)
+		ui_round(ui, r, 8, t->dark ? color_hex("#ffffff14") : color_hex("#0000000f"));
 	f32 x = r.x + 10;
 	if (icon)
 		ui_icon(ui, rect(x, r.y + (r.h - 16) / 2, 16, 16), icon, dim);
@@ -787,9 +756,9 @@ bool ui_dialog_begin(Ui *ui, const char *id, f32 w, f32 h, Rect *content)
 	Rect r = center_in(rect(0, 0, ui->width, ui->height), w, h);
 	r.y += (1 - k) * 12;
 	Theme *t = &ui->theme;
-	ui_shadow(ui, r, 12, 22, 8, color_scale_alpha(color_hex("#00000060"), k));
-	ui_round(ui, r, 12, color_scale_alpha(t->window, k));
-	ui_border(ui, r, 12, 1, color_scale_alpha(t->border_strong, k));
+	ui_shadow(ui, r, 16, 26, 8, color_scale_alpha(color_hex("#00000060"), k));
+	ui_round(ui, r, 16, color_scale_alpha(t->window, k));
+	ui_border(ui, r, 16, 1, color_scale_alpha(t->border, k));
 	if (ui_key_pressed(ui, KEY_ESC, 0)) {
 		ui->open_dialog = 0;
 		ui->redraw = true;

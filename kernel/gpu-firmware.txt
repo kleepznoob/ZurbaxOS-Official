@@ -1,4 +1,4 @@
-# Firmware the GPU drivers built into the ZOS kernel load (AMD amdgpu, Intel
+# Firmware the GPU drivers built into the Zurbax kernel load (AMD amdgpu, Intel
 # i915 and xe), fetched by tools/fetch-firmware.py into the system image.
 #
 # Made from the kernel's own list (build/kernel/modules.builtin.modinfo,

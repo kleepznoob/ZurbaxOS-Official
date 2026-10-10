@@ -1,7 +1,7 @@
 /* The portals (org.freedesktop.portal.*): what a program in Flatpak's
  * sandbox asks the desktop for, on /org/freedesktop/portal/desktop. Each
- * interface is answered the ZOS way: links open in Drift, emails in Mail,
- * files are picked in ZOS's own file chooser, the look follows ZOS's
+ * interface is answered the Zurbax way: links open in Drift, emails in Mail,
+ * files are picked in Zurbax's own file chooser, the look follows Zurbax's
  * Appearance settings, trash goes to Vault's Trash. */
 #include "zportal.h"
 
@@ -18,7 +18,7 @@ typedef struct {
 static Look look, sent_look;
 static bool have_sent;
 
-/* From ZOS's settings (the same file Settings and zdisplay use). */
+/* From Zurbax's settings (the same file Settings and zdisplay use). */
 static Look read_look(void)
 {
 	Look l = { 0 };
@@ -26,7 +26,7 @@ static Look read_look(void)
 	Conf *c = conf_load(path);
 	mem_free(path);
 	l.dark = conf_get_bool(c, "dark", false);
-	const char *accent = conf_get(c, "accent", "blue");
+	const char *accent = conf_get(c, "accent", THEME_ACCENT_DEFAULT);
 	l.accent = accent[0] == '#' ? color_hex(accent) : theme_accent_named(accent);
 	l.reduce_motion = conf_get_bool(c, "reduce_motion", false);
 	l.text_scale = (f32)conf_get_float(c, "text_scale", 1.0);
@@ -55,7 +55,7 @@ static const SettingKey SETTINGS[] = {
 	{ "org.gnome.desktop.wm.preferences", "button-layout", "s" },
 };
 
-/* GNOME's accent names, nearest to ZOS's accent */
+/* GNOME's accent names, nearest to Zurbax's accent */
 static const char *gnome_accent(Color c)
 {
 	static const struct {
@@ -108,8 +108,8 @@ static void add_setting(DBusMsg *m, const SettingKey *k, const Look *l)
 	else if (str_eq(key, "accent-color"))
 		dbus_add(m, "s", gnome_accent(l->accent));
 	else
-		/* ZOS's windows have close on the left, maximize on the right */
-		dbus_add(m, "s", "close:maximize");
+		/* Zurbax's windows have minimize, maximize and close at the right */
+		dbus_add(m, "s", "appmenu:minimize,maximize,close");
 }
 
 static const SettingKey *find_setting(const char *ns, const char *key)
@@ -341,7 +341,7 @@ static bool email_method(DBus *bus, DBusMsg *call, void *data)
 	return true;
 }
 
-/* ---- FileChooser: ZOS's own file chooser ----------------------------------------------------------- */
+/* ---- FileChooser: Zurbax's own file chooser ----------------------------------------------------------- */
 
 typedef struct {
 	bool save, sandboxed, writable;
@@ -630,7 +630,7 @@ static bool inhibit_method(DBus *bus, DBusMsg *call, void *data)
 		return true;
 	}
 	if (dbus_is_call(call, "org.freedesktop.portal.Inhibit", "CreateMonitor")) {
-		dbus_reply_error(bus, call, "org.freedesktop.portal.Error.NotAllowed", "ZOS has no session end to watch for");
+		dbus_reply_error(bus, call, "org.freedesktop.portal.Error.NotAllowed", "Zurbax has no session end to watch for");
 		return true;
 	}
 	return false;
@@ -910,7 +910,7 @@ static bool monitor_method(DBus *bus, DBusMsg *call, void *data)
 	return reply_version(bus, call, 1);
 }
 
-/* GameMode: games ask for it; ZOS keeps a count (its own game mode comes
+/* GameMode: games ask for it; Zurbax keeps a count (its own game mode comes
  * with full screen). */
 static int games;
 

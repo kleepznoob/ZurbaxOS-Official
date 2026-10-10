@@ -333,6 +333,22 @@ static void draw_window(Canvas *frame, Window *w)
 		blit_scaled(frame, img, rect(0, 0, (f32)img->width, (f32)img->height), pr, opacity);
 }
 
+/* A window's picture scaled into pr (physical pixels) on any canvas: the
+ * taskbar's window previews. */
+void compose_window_thumb(Canvas *dst, Window *w, Rect pr)
+{
+	if (w->closing || !w->mapped)
+		return;
+	if (w->wl) {
+		wl_window_draw(dst, w, pr, 1);
+		return;
+	}
+	if (w->front < 0 || !w->map)
+		return;
+	Canvas src = canvas_wrap(w->map + (usize)w->front * w->slot_bytes, (int)w->bw, (int)w->bh, (int)w->stride);
+	blit_scaled(dst, &src, rect(0, 0, (f32)src.width, (f32)src.height), pr, 1);
+}
+
 /* A full-screen program alone on screen, with nothing of the shell over it,
  * goes straight to the display from its own GPU buffer. */
 static bool scanning;

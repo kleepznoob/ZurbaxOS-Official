@@ -1,13 +1,13 @@
 /*
- * Wallpapers: the pictures that ship with ZOS and the procedural
+ * Wallpapers: the pictures that ship with Zurbax and the procedural
  * landscapes, rendered at any size. Used by the desktop and by Settings
  * for previews.
  */
 #include "zui.h"
 
-const char *const WALLPAPER_NAMES[] = { "lake", "golden-rain", "ridgeline", "glacier", "nightfall", "ember", "meadow" };
-const char *const WALLPAPER_TITLES[] = { "Lake at Dusk", "Golden Rain", "Ridgeline", "Glacier", "Nightfall", "Ember", "Meadow" };
-const int WALLPAPER_COUNT = 7;
+const char *const WALLPAPER_NAMES[] = { "horizon", "daybreak", "golden-rain", "lake", "ridgeline", "glacier", "nightfall", "ember", "meadow" };
+const char *const WALLPAPER_TITLES[] = { "Horizon", "Daybreak", "Golden Rain", "Lake at Dusk", "Ridgeline", "Glacier", "Nightfall", "Ember", "Meadow" };
+const int WALLPAPER_COUNT = 9;
 
 static f32 hash1(int i, u32 seed)
 {
@@ -85,7 +85,7 @@ static Canvas *cover(Canvas *img, int w, int h, f32 focus_y)
 	return c;
 }
 
-/* Pictures that ship with ZOS, in /system/share/wallpapers. */
+/* Pictures that ship with Zurbax, in /system/share/wallpapers. */
 static const struct {
 	const char *name, *file;
 	f32 focus_y;
@@ -105,7 +105,7 @@ static void light_streak(Canvas *c, f32 x0, f32 y0, f32 x1, f32 y1, f32 width, C
 	path_free(&p);
 }
 
-/* Golden Rain, the picture of ZOS 2.0: a lake at sundown under a shower of
+/* Golden Rain, the picture of Zurbax 2.0: a lake at sundown under a shower of
  * golden light, with ripples where the drops land. */
 static Canvas *golden_rain(int w, int h)
 {
@@ -209,8 +209,103 @@ static Canvas *golden_rain(int w, int h)
 	return c;
 }
 
+/* Horizon, the picture of Zurbax: night lifting off a calm world. Soft hills
+ * sweep across the screen in layers, each with light running along its
+ * crest, under a sky that goes from deep ink to iris to the first gold of
+ * the day. Daybreak is the same scene a little later, in pale light. */
+typedef struct {
+	const char *sky[5];          /* top .. horizon */
+	const char *glow, *rim;
+	const char *hills[4][2];     /* far .. near: crest color, foot color */
+	f32 rim_alpha;
+} Dawn;
+
+static const Dawn HORIZON = {
+	{ "#06071a", "#111342", "#29287c", "#6250c8", "#f4b47c" },
+	"#ffc98a", "#ffd9a6",
+	{ { "#2f2a7c", "#1d1955" }, { "#231e66", "#13103b" }, { "#17134a", "#0b0927" }, { "#0e0b30", "#05040e" } },
+	0.85f,
+};
+
+static const Dawn DAYBREAK = {
+	{ "#7f8fd6", "#a7aee6", "#cfc8ef", "#f3d9e4", "#ffe6c4" },
+	"#fff1d6", "#ffffff",
+	{ { "#b9b4ea", "#a59fe0" }, { "#9c96dc", "#837ccf" }, { "#7d76c8", "#615aae" }, { "#5d55aa", "#3f3884" } },
+	0.7f,
+};
+
+/* One hill: a smooth crest from the left edge to the right, as a path. */
+static void hill_crest(Path *p, f32 fw, f32 y, f32 amp, f32 freq, f32 phase, f32 tilt)
+{
+	int steps = 128;
+	for (int i = 0; i <= steps; i++) {
+		f32 u = (f32)i / (f32)steps, x = u * fw;
+		f32 yy = y + tilt * (u - 0.5f) - amp * (0.8f * sinf((u * freq + phase) * PI_F) + 0.2f * sinf((u * freq * 2.2f + phase * 1.7f) * PI_F));
+		if (i == 0)
+			path_move(p, x, yy);
+		else
+			path_line(p, x, yy);
+	}
+}
+
+static Canvas *dawn(const Dawn *d, int w, int h)
+{
+	Canvas *c = canvas_new(w, h);
+	f32 fw = (f32)w, fh = (f32)h, k = fh / 1080;
+	f32 horizon = fh * 0.66f, gx = fw * 0.6f;
+	Paint sky = paint_linear(0, 0, 0, horizon, color_hex(d->sky[0]), color_hex(d->sky[4]));
+	paint_add_stop(&sky, 0.3f, color_hex(d->sky[1]));
+	paint_add_stop(&sky, 0.62f, color_hex(d->sky[2]));
+	paint_add_stop(&sky, 0.86f, color_hex(d->sky[3]));
+	fill_rect_paint(c, rect(0, 0, fw, horizon + fh * 0.1f), &sky);
+	/* the light before the sun, low over the hills */
+	Paint glow = paint_radial(gx, horizon, fw * 0.4f, color_scale_alpha(color_hex(d->glow), 0.42f), color_scale_alpha(color_hex(d->glow), 0));
+	paint_add_stop(&glow, 0.45f, color_scale_alpha(color_hex(d->glow), 0.12f));
+	fill_rect_paint(c, rect(0, 0, fw, fh), &glow);
+	Paint core = paint_radial(gx, horizon, fw * 0.14f, color_scale_alpha(color_hex(d->glow), 0.7f), color_scale_alpha(color_hex(d->glow), 0));
+	fill_rect_paint(c, rect(gx - fw * 0.2f, horizon - fw * 0.2f, fw * 0.4f, fw * 0.4f), &core);
+	blur_region(c, rect(0, 0, fw, fh), 24 * k);
+	/* the hills, far to near, each crest catching the light */
+	static const f32 Y[] = { 0.67f, 0.76f, 0.85f, 0.95f }, AMP[] = { 0.06f, 0.075f, 0.07f, 0.06f }, FREQ[] = { 0.9f, 1.25f, 1.05f, 1.5f },
+			 PHASE[] = { 0.1f, 0.85f, 0.35f, 1.3f }, TILT[] = { -0.03f, 0.05f, -0.06f, 0.04f };
+	for (int i = 0; i < 4; i++) {
+		f32 y = fh * Y[i];
+		Path p = { 0 };
+		hill_crest(&p, fw, y, fh * AMP[i], FREQ[i], PHASE[i], fh * TILT[i]);
+		path_line(&p, fw, fh);
+		path_line(&p, 0, fh);
+		path_close(&p);
+		Paint fill = paint_linear(0, y - fh * 0.06f, 0, fh, color_hex(d->hills[i][0]), color_hex(d->hills[i][1]));
+		fill_path(c, &p, mat_identity(), &fill, FILL_NONZERO);
+		path_free(&p);
+		/* the crest: bright under the glow, fading toward the edges */
+		Path crest = { 0 };
+		hill_crest(&crest, fw, y, fh * AMP[i], FREQ[i], PHASE[i], fh * TILT[i]);
+		Paint line = paint_linear(0, 0, fw, 0, color_scale_alpha(color_hex(d->rim), 0), color_scale_alpha(color_hex(d->rim), 0));
+		f32 a = d->rim_alpha * (1 - 0.15f * (f32)i);
+		paint_add_stop(&line, clampf(gx / fw - 0.32f, 0.02f, 0.5f), color_scale_alpha(color_hex(d->rim), a * 0.15f));
+		paint_add_stop(&line, gx / fw, color_scale_alpha(color_hex(d->rim), a));
+		paint_add_stop(&line, clampf(gx / fw + 0.3f, 0.5f, 0.98f), color_scale_alpha(color_hex(d->rim), a * 0.15f));
+		StrokeStyle st = { .width = maxf(1, 1.6f * k), .cap = CAP_ROUND, .join = JOIN_ROUND, .miter_limit = 4 };
+		stroke_path(c, &crest, mat_identity(), &line, &st);
+		/* and a haze of the same light just above it */
+		StrokeStyle haze = { .width = 14 * k, .cap = CAP_ROUND, .join = JOIN_ROUND, .miter_limit = 4 };
+		Paint soft = line;
+		for (int s = 0; s < soft.nstops; s++)
+			soft.stops[s].color = color_scale_alpha(soft.stops[s].color, 0.12f);
+		stroke_path(c, &crest, mat_identity(), &soft, &haze);
+		path_free(&crest);
+	}
+	add_grain(c, 2020, 0.018f);
+	return c;
+}
+
 Canvas *wallpaper_render(const char *name, int w, int h)
 {
+	if (!name || !*name || str_eq(name, "horizon"))
+		return dawn(&HORIZON, w, h);
+	if (str_eq(name, "daybreak"))
+		return dawn(&DAYBREAK, w, h);
 	if (name && str_eq(name, "golden-rain"))
 		return golden_rain(w, h);
 	/* A user picture? */

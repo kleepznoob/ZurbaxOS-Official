@@ -4,7 +4,7 @@
  * Keyboard, Wi-Fi (when there's no cable), time zone, an account and a look,
  * one page each, over the blurred wallpaper. Every step can be skipped: without an account Zurbax
  * simply starts with a user that has no password. Booted from the install
- * USB stick or disc it offers to try ZOS or install it.
+ * USB stick or disc it offers to try Zurbax or install it.
  */
 #include "zui.h"
 
@@ -70,7 +70,7 @@ static void draw_backdrop(Ui *ui)
 	if (!wl.backdrop || wl.backdrop_w != w || wl.backdrop_h != h) {
 		canvas_free(wl.backdrop);
 		int sw = MAX(1, w / 6), sh = MAX(1, h / 6);
-		Canvas *small = wallpaper_render(conf_get(wl.conf, "wallpaper", "lake"), sw, sh);
+		Canvas *small = wallpaper_render(conf_get(wl.conf, "wallpaper", WALLPAPER_DEFAULT), sw, sh);
 		blur_region(small, rect(0, 0, (f32)sw, (f32)sh), 6);
 		wl.backdrop = canvas_new(w, h);
 		blit_scaled(wl.backdrop, small, rect(0, 0, (f32)sw, (f32)sh), rect(0, 0, (f32)w, (f32)h), 1);
@@ -339,7 +339,7 @@ static void form_look(Ui *ui, Rect r)
 	ui_heading(ui, cut_top(&r, 28), "Accent Colour");
 	cut_top(&r, 6);
 	Rect row = cut_top(&r, 40);
-	const char *cur = conf_get(wl.conf, "accent", "blue");
+	const char *cur = conf_get(wl.conf, "accent", THEME_ACCENT_DEFAULT);
 	for (int i = 0; i < THEME_ACCENT_COUNT; i++) {
 		Rect sw = rect(row.x + (f32)i * 40, row.y, 36, 36);
 		ui_push_id(ui, i);
@@ -368,7 +368,7 @@ static void finish(Ui *ui)
 	bool pw = !wl.skip_password && wl.pw.len && str_eq(sb_str(&wl.pw), sb_str(&wl.pw2));
 	if (pw)
 		flags |= ACCOUNT_SET_PASSWORD;
-	const char *name = wl.name.len ? sb_str(&wl.name) : "ZOS User";
+	const char *name = wl.name.len ? sb_str(&wl.name) : "Zurbax User";
 	wl.pending = ui_account_update(ui, flags, name, NULL, pw ? sb_str(&wl.pw) : NULL);
 	if (!wl.pending)
 		ui->quit = true; /* not connected (preview): nothing to wait for */
@@ -419,9 +419,9 @@ static void frame(Ui *ui)
 	switch (wl.page) {
 	case P_WELCOME:
 		page_intro(ui, left, "zurbax", true, "Welcome to " OS_NAME, "Let's get your computer ready. It takes about a minute.");
-		/* the release, in gold under the greeting */
-		ui_text_in(ui, ui_font(ui, 13, 700), rect(left.x, left.y + left.h * 0.5f + 46, left.w, 18), OS_VERSION " · " OS_CODENAME,
-			   color_hex("#d99a1e"), ALIGN_CENTER);
+		/* the release, under the greeting */
+		ui_text_in(ui, ui_font(ui, 13, 700), rect(left.x, left.y + left.h * 0.5f + 46, left.w, 18), "Version " OS_VERSION,
+			   t->accent, ALIGN_CENTER);
 		form_welcome(ui, right);
 		break;
 	case P_KEYBOARD:
@@ -449,7 +449,7 @@ static void frame(Ui *ui)
 		{
 			Rect c = center_in(right, right.w, 120);
 			ui_text_wrapped(ui, ui_font(ui, 14, 400), cut_top(&c, 50),
-					"Open apps from Applications in the top left or the dock at the bottom. Settings has everything else.", t->text_dim,
+					"Start, at the left of the taskbar, has every app. The top bar has the clock and quick settings.", t->text_dim,
 					ALIGN_CENTER);
 			cut_top(&c, 16);
 			if (ui_button_suggested(ui, center_in(cut_top(&c, 44), 220, 44), wl.finishing ? "Starting…" : "Start Using " OS_NAME) ||

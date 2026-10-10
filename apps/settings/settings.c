@@ -16,7 +16,7 @@ static const struct {
 	const char *title, *icon, *keywords, *group;
 } PAGES[PAGE_COUNT] = {
 	{ "Appearance", "palette", "dark light style accent colour color wallpaper background text size motion", "Personal" },
-	{ "Desktop", "computer", "dock panel clock seconds battery lock autohide magnify", "Personal" },
+	{ "Desktop", "computer", "taskbar top bar panel start search previews clock seconds battery lock autohide", "Personal" },
 	{ "Network", "network-wireless", "wifi wi-fi internet ethernet wireless", "Network" },
 	{ "Bluetooth", "bluetooth", "bluetooth headphones devices", "Network" },
 	{ "Display", "display", "scale resolution night light brightness hidpi", "Hardware" },
@@ -205,7 +205,7 @@ static void page_appearance(Ui *ui, Rect r)
 	b.y = y0 + 26;
 	b.h = 100000; /* scrolling content: room to lay out everything */
 	f32 top = b.y;
-	page_title(ui, &b, "Appearance", "Make ZOS yours: style, colour and wallpaper.");
+	page_title(ui, &b, "Appearance", "Make Zurbax yours: style, colour and wallpaper.");
 
 	section(ui, &b, "Style");
 	Rect styles = cut_top(&b, 150);
@@ -216,7 +216,7 @@ static void page_appearance(Ui *ui, Rect r)
 
 	section(ui, &b, "Accent Colour");
 	Rect acc = cut_top(&b, 44);
-	const char *cur = get("accent", "blue");
+	const char *cur = get("accent", THEME_ACCENT_DEFAULT);
 	for (int i = 0; i < THEME_ACCENT_COUNT; i++) {
 		Rect sw = rect(acc.x + (f32)i * 52, acc.y, 44, 44);
 		ui_push_id(ui, i);
@@ -225,11 +225,9 @@ static void page_appearance(Ui *ui, Rect r)
 		f32 cx = sw.x + 22, cy = sw.y + 22;
 		bool sel = str_eq(cur, THEME_ACCENT_NAMES[i]);
 		Color c = THEME_ACCENT_COLORS[i];
-		ui_shadow(ui, rect(cx - 15, cy - 15, 30, 30), 15, 4, 1, color_hex("#00000030"));
 		ui_circle(ui, cx, cy, it.hovered ? 16 : 15, c);
-		ui_circle(ui, cx - 4, cy - 5, 6, color_hex("#ffffff30"));
 		if (sel) {
-			ui_ring(ui, cx, cy, 20, 2.5f, c);
+			ui_ring(ui, cx, cy, 20, 2, c);
 			ui_icon(ui, rect(cx - 8, cy - 8, 16, 16), "check", COLOR_WHITE);
 		}
 		if (it.clicked)
@@ -244,7 +242,7 @@ static void page_appearance(Ui *ui, Rect r)
 	cut_top(&b, 14);
 
 	section(ui, &b, "Wallpaper");
-	const char *wall = get("wallpaper", "lake");
+	const char *wall = get("wallpaper", WALLPAPER_DEFAULT);
 	f32 tw = 160, th = 100, gap = 14;
 	int cols = MAX(1, (int)((b.w + gap) / (tw + gap)));
 	int n = WALLPAPER_COUNT + 1;
@@ -311,13 +309,49 @@ static void page_appearance(Ui *ui, Rect r)
 static void page_desktop(Ui *ui, Rect r)
 {
 	Rect b = page_body(r);
-	page_title(ui, &b, "Desktop", "The dock, the top bar and locking.");
-	section(ui, &b, "Dock");
-	Rect rows = card_rows(ui, &b, 2, 60);
-	switch_row(ui, &rows, 60, false, "Hide automatically", "Show the dock when the pointer reaches the bottom", "dock_autohide", false);
-	switch_row(ui, &rows, 60, true, "Magnify icons", "Icons grow as the pointer passes over them", "dock_magnify", false);
+	f32 y0 = ui_scroll_begin(ui, r, "page-scroll");
+	b.y = y0 + 26;
+	b.h = 100000; /* scrolling content: room to lay out everything */
+	f32 top = b.y;
+	page_title(ui, &b, "Desktop", "The taskbar, the top bar and locking.");
+	section(ui, &b, "Taskbar");
+	Rect rows = card_rows(ui, &b, 8, 60);
+	{
+		Rect row = cut_top(&rows, 60);
+		ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
+		row_label(ui, row, "Size", NULL);
+		static const char *const sizes[] = { "Small", "Medium", "Large" };
+		int size = (int)CLAMP(conf_get_int(st.conf, "taskbar_size", 1), 0, 2);
+		if (ui_segmented(ui, center_in(cut_right(&row, 290), 280, 32), sizes, 3, &size)) {
+			conf_set_int(st.conf, "taskbar_size", size);
+			commit(ui);
+		}
+	}
+	{
+		Rect row = cut_top(&rows, 60);
+		ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
+		row_label(ui, row, "Buttons", "Start and the apps from the left, or in the middle");
+		static const char *const aligns[] = { "Left", "Centre" };
+		int align = str_eq(get("taskbar_align", "left"), "center");
+		if (ui_segmented(ui, center_in(cut_right(&row, 200), 190, 32), aligns, 2, &align))
+			set_str(ui, "taskbar_align", align ? "center" : "left");
+	}
+	switch_row(ui, &rows, 60, false, "App names", "Show each app's name beside its icon", "taskbar_labels", false);
+	switch_row(ui, &rows, 60, false, "Search box", "Type here to search, next to Start", "taskbar_search", true);
+	switch_row(ui, &rows, 60, false, "Window previews", "Pictures of an app's windows when the pointer rests on it", "taskbar_previews", true);
+	switch_row(ui, &rows, 60, false, "Show desktop button", "A thin button at the far right", "taskbar_desktop", true);
+	switch_row(ui, &rows, 60, false, "Hide automatically", "Show the taskbar when the pointer reaches the bottom edge", "dock_autohide", false);
+	{
+		Rect row = cut_top(&rows, 60);
+		row_label(ui, row, "Colour", "Dark, or light in the light style");
+		static const char *const colors[] = { "Dark", "Match style" };
+		int c = str_eq(get("taskbar_color", "dark"), "style");
+		if (ui_segmented(ui, center_in(cut_right(&row, 250), 240, 32), colors, 2, &c))
+			set_str(ui, "taskbar_color", c ? "style" : "dark");
+	}
 	section(ui, &b, "Top Bar");
-	rows = card_rows(ui, &b, 3, 56);
+	rows = card_rows(ui, &b, 4, 56);
+	switch_row(ui, &rows, 56, false, "Show the top bar", "Off: the clock and status icons move into the taskbar", "topbar", true);
 	switch_row(ui, &rows, 56, false, "24-hour clock", NULL, "clock_24h", true);
 	switch_row(ui, &rows, 56, false, "Show seconds", NULL, "clock_seconds", false);
 	switch_row(ui, &rows, 56, true, "Battery percentage", NULL, "battery_percent", true);
@@ -335,6 +369,7 @@ static void page_desktop(Ui *ui, Rect r)
 		conf_set_int(st.conf, "lock_after_minutes", mins[sel]);
 		commit(ui);
 	}
+	ui_scroll_end(ui, b.y - top + 40);
 }
 
 static void page_display(Ui *ui, Rect r)
@@ -898,7 +933,7 @@ static void page_gaming(Ui *ui, Rect r)
 	ui_icon(ui, rect(in.x, in.y + 4, 32, 32), "computer", t->text_dim);
 	ui_text(ui, ui_font(ui, 14, 600), in.x + 48, in.y + 16, "Running .exe programs", t->text);
 	ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(in.x + 48, in.y + 24, in.w - 48, 40),
-			"ZOS can't run Windows programs yet. Games made for ZOS are in Harbor and Arcade.", t->text_dim, ALIGN_START);
+			"Zurbax can't run Windows programs yet. Games made for Zurbax are in Harbor and Arcade.", t->text_dim, ALIGN_START);
 	cut_top(&b, 14);
 	if (ui_button(ui, cut_left(&(Rect){ b.x, b.y, 200, 34 }, 200), "Browse Games in Harbor"))
 		ui_launch(ui, "harbor", "games");
@@ -1025,10 +1060,9 @@ static void page_about(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
 	Rect b = page_body(r);
-	Rect top = cut_top(&b, 200);
+	Rect top = cut_top(&b, 180);
 	ui_app_icon(ui, center_in(cut_top(&top, 110), 100, 100), "zurbax");
 	ui_text_in(ui, ui_font(ui, 28, 300), cut_top(&top, 40), OS_NAME " " OS_VERSION, t->text, ALIGN_CENTER);
-	ui_text_in(ui, ui_font(ui, 13, 600), cut_top(&top, 20), OS_CODENAME, color_hex("#d99a1e"), ALIGN_CENTER);
 	ui_text_in(ui, ui_font(ui, 12, 400), cut_top(&top, 18), "Built from scratch on the Linux kernel", t->text_dim, ALIGN_CENTER);
 	Rect rows = card_rows(ui, &b, 6, 44);
 	char mem[32], disk[64], tot[32], fr[32];
@@ -1169,17 +1203,17 @@ static void init(Ui *ui)
 	st.conf = conf_load(st.conf_path);
 	char *path = str_fmt("%s/system/users.conf", zurbax_data());
 	Conf *u = conf_load(path);
-	sb_adds(&st.full_name, conf_get(u, "full_name", "ZOS User"));
+	sb_adds(&st.full_name, conf_get(u, "full_name", "Zurbax User"));
 	str_copy(st.user_name, conf_get(u, "user", "user"), sizeof st.user_name);
 	st.has_password = conf_get_bool(u, "has_password", false);
 	conf_free(u);
 	mem_free(path);
-	const char *w = get("wallpaper", "lake");
+	const char *w = get("wallpaper", WALLPAPER_DEFAULT);
 	if (w[0] == '/')
 		st.custom_thumb = image_load_thumb(w, 320);
 	load_about();
 	if (start_page && str_starts(start_page, "wifi:")) {
-		/* from the top bar: a secured network to join */
+		/* from quick settings: a secured network to join */
 		str_copy(wf.pick.hex, start_page + 5, sizeof wf.pick.hex);
 		u8 raw[32];
 		usize rl = strlen(wf.pick.hex) / 2;

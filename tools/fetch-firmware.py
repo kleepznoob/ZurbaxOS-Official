@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetches the firmware ZOS's Wi-Fi and GPU drivers load, for the system image.
+"""Fetches the firmware Zurbax's Wi-Fi and GPU drivers load, for the system image.
 
     tools/fetch-firmware.py OUTDIR
 
@@ -147,7 +147,7 @@ def plan(files, out):
 
 
 def firmware(out):
-    """Streams the newest linux-firmware release, keeping what ZOS needs."""
+    """Streams the newest linux-firmware release, keeping what Zurbax needs."""
     release = newest(FIRMWARE, r"linux-firmware-\d{8}\.tar\.xz")
     print(f">> firmware from {release}")
     want, kept = None, 0

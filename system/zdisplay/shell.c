@@ -1,11 +1,11 @@
 /*
- * The desktop shell: top panel, dock, launcher, notifications, control
- * center, window switcher, lock screen and OSDs.
+ * The desktop shell: the top bar, the taskbar, the app launcher,
+ * notifications, quick settings, window switcher, lock screen and OSDs.
  *
  * The shell draws with libzui onto its own transparent overlay canvas, which
  * the compositor blends over the wallpaper and windows each frame. Shell
- * surfaces (panel, dock, popovers) sit above app windows; the lock screen
- * covers everything.
+ * surfaces (the bars and the panels that open from them) sit above app
+ * windows; the lock screen covers everything.
  */
 #include "zdisplay.h"
 
@@ -26,7 +26,7 @@ static int app_cmp(const void *a, const void *b, void *ctx)
 
 /* ---- Linux apps: the menu entries Flatpak exports ------------------------------------------ */
 
-/* A menu entry's freedesktop.org categories as one of ZOS's. */
+/* A menu entry's freedesktop.org categories as one of Zurbax's. */
 static const char *category_of(const char *cats)
 {
 	static const struct {
@@ -51,7 +51,7 @@ static const char *category_of(const char *cats)
 	return "Other";
 }
 
-/* File types Linux apps declare (MIME), as the extensions ZOS opens files by. */
+/* File types Linux apps declare (MIME), as the extensions Zurbax opens files by. */
 static void mime_to_exts(const char *mimes, char *out, usize cap)
 {
 	static const struct {
@@ -84,7 +84,7 @@ static void mime_to_exts(const char *mimes, char *out, usize cap)
 }
 
 /* The picture for a menu entry's Icon in a share folder's icon theme:
- * the larger pictures first (ZOS draws them down to size). */
+ * the larger pictures first (Zurbax draws them down to size). */
 static bool find_icon(const char *share, const char *name, char *out, usize cap)
 {
 	if (name[0] == '/') {
@@ -159,7 +159,7 @@ static void load_desktop_entries(const char *share)
 			    vals[3] ? vals[3] : "");
 			mime_to_exts(vals[10] ? vals[10] : "", a->opens, sizeof a->opens);
 			a->is_linux = true;
-			/* a ZOS app of the same id stays */
+			/* a Zurbax app of the same id stays */
 			if (!shell_app(a->id))
 				S.napps++;
 		}
@@ -301,7 +301,7 @@ static const AppInfo *app_for_file(const char *path)
 	const char *ext = path_ext(path);
 	if (!*ext)
 		return shell_app("writer");
-	/* ZOS's own apps first, then Linux apps */
+	/* Zurbax's own apps first, then Linux apps */
 	for (int pass = 0; pass < 2; pass++)
 	for (int i = 0; i < S.napps; i++) {
 		if (S.apps[i].is_linux != (pass == 1))
@@ -535,17 +535,28 @@ void shell_osd(const char *icon, f32 value)
 	shell_mark_dirty();
 }
 
-/* ---- Geometry ----------------------------------------------------------------------- */
+/* ---- Top bar and taskbar geometry ----------------------------------------------------
+ * The top bar holds the app menu, the clock and the status icons. The
+ * taskbar along the bottom holds Start, the search box, a button for each
+ * pinned or running app, and the tray: notifications, and the clock and
+ * status icons too while the top bar is turned off. */
 
 f32 shell_panel_height(void)
 {
-	return PANEL_HEIGHT;
+	return S.set.topbar && !S.setup_mode ? PANEL_HEIGHT : 0;
 }
 
-/* ---- Dock geometry -------------------------------------------------------------------
- * The Arc: round glass bubbles along a gentle curve at the bottom of the
- * screen, the middle ones higher, like the sun over the horizon. There's no
- * shelf or bar: the bubbles float over the wallpaper. */
+static const f32 TASKBAR_H[] = { 40, 48, 56 }, TASKBAR_ICON[] = { 24, 28, 32 };
+
+f32 shell_taskbar_height(void)
+{
+	return TASKBAR_H[CLAMP(S.set.taskbar_size, 0, 2)];
+}
+
+f32 shell_taskbar_reserved(void)
+{
+	return S.set.dock_autohide || S.setup_mode ? 0 : shell_taskbar_height();
+}
 
 int shell_dock_items(char ids[][48], int max)
 {
@@ -573,95 +584,121 @@ int shell_dock_items(char ids[][48], int max)
 	return n;
 }
 
-/* Bubbles close up when there are many, so the arc always fits. */
-static f32 dock_step(int n)
+/* The status icons: controller, quiet mode, network, sound, battery, power. */
+int shell_status_icons(const char *icons[8], int *battery_at)
 {
-	return n > 0 ? minf(DOCK_STEP, (S.sw - 80) / (f32)n) : DOCK_STEP;
+	int n = 0;
+	char pads[PAD_MAX][64];
+	*battery_at = -1;
+	if (input_gamepads(pads, PAD_MAX) > 0)
+		icons[n++] = "gamepad";
+	if (S.set.do_not_disturb)
+		icons[n++] = "notifications-disabled";
+	icons[n++] = S.wifi_connected && S.net_wired ? "network-wired"
+		     : S.wifi_connected ? (S.wifi_strength > 66 ? "network-wireless" : S.wifi_strength > 33 ? "network-wireless-good" : "network-wireless-weak")
+					: "network-wireless-none";
+	icons[n++] = S.muted || S.volume == 0 ? "audio-volume-muted" : S.volume < 34 ? "audio-volume-low"
+		     : S.volume < 67 ? "audio-volume-medium" : "audio-volume-high";
+	if (S.battery >= 0) {
+		*battery_at = n;
+		icons[n++] = S.charging ? "battery-charging" : S.battery > 80 ? "battery-full" : S.battery > 45 ? "battery-good"
+			     : S.battery > 15 ? "battery-low" : "battery-caution";
+	}
+	icons[n++] = "system-shutdown";
+	return n;
 }
 
-static f32 dock_lift(int n)
+void shell_taskbar(Taskbar *t)
 {
-	return n > 1 ? minf(DOCK_LIFT, 5.0f * (f32)(n - 1)) : 0;
-}
-
-/* A point on the arc: position i (fractional between bubbles) of n. */
-void shell_dock_point(int n, f32 i, f32 *x, f32 *y)
-{
-	f32 mid = (f32)(n - 1) / 2, u = n > 1 ? (i - mid) / (mid + 0.5f) : 0;
-	*x = S.sw / 2 + (i - mid) * dock_step(n);
-	*y = S.sh - DOCK_BOTTOM - DOCK_BUBBLE / 2.0f - dock_lift(n) * (1 - u * u);
-}
-
-void shell_dock_center(int n, int i, f32 *cx, f32 *cy)
-{
-	shell_dock_point(n, (f32)i, cx, cy);
-	*cx = roundf(*cx), *cy = roundf(*cy);
-}
-
-/* The whole arc: from the first bubble to the last, from the top of the
- * middle one down to the bottom edge. */
-Rect shell_dock_bar(int n)
-{
-	f32 w = (f32)MAX(n - 1, 0) * dock_step(n) + DOCK_BUBBLE;
-	f32 top = S.sh - DOCK_BOTTOM - DOCK_BUBBLE - dock_lift(n);
-	return rect(roundf((S.sw - w) / 2), top, w, S.sh - top);
+	memset(t, 0, sizeof *t);
+	char ids[32][48];
+	t->n = shell_dock_items(ids, 32);
+	f32 h = shell_taskbar_height();
+	t->icon = TASKBAR_ICON[CLAMP(S.set.taskbar_size, 0, 2)];
+	t->bar = rect(0, S.sh - h, S.sw, h);
+	/* the tray, from the right edge */
+	f32 x = S.sw;
+	if (S.set.taskbar_desktop) {
+		t->desktop = rect(x - 10, t->bar.y, 10, h);
+		x -= 10;
+	}
+	if (!shell_panel_height()) {
+		t->clock = rect(x - 88, t->bar.y, 88, h);
+		x -= 88;
+		const char *icons[8];
+		int bat, ni = shell_status_icons(icons, &bat);
+		f32 sw = (f32)ni * 26 + 16 + (bat >= 0 && S.set.show_battery_percent ? 34 : 0);
+		t->status = rect(x - sw, t->bar.y, sw, h);
+		x -= sw;
+	}
+	t->bell = rect(x - 40, t->bar.y, 40, h);
+	x -= 40;
+	t->tray = rect(x - 4, t->bar.y, S.sw - x + 4, h);
+	/* Start, search and the task buttons */
+	f32 room = t->tray.x - 12;
+	f32 start_w = h + 4;
+	f32 search_w = S.set.taskbar_search ? (S.set.taskbar_center ? 200 : 240) : 0;
+	t->labels = S.set.taskbar_labels;
+	t->slot_w = t->labels ? 172 : h + 4;
+	f32 group = start_w + (search_w ? search_w + 8 : 0) + 6 + (f32)t->n * t->slot_w;
+	if (group > room && t->labels) {
+		t->slot_w = maxf(h + 4, floorf((room - start_w - search_w - 14) / (f32)MAX(t->n, 1)));
+		t->labels = t->slot_w >= 110;
+		if (!t->labels)
+			t->slot_w = h + 4;
+		group = start_w + (search_w ? search_w + 8 : 0) + 6 + (f32)t->n * t->slot_w;
+	}
+	if (group > room && search_w) {
+		search_w = 0;
+		group = start_w + 6 + (f32)t->n * t->slot_w;
+	}
+	if (group > room)
+		t->slot_w = floorf(maxf(28, (room - start_w - 6) / (f32)MAX(t->n, 1)));
+	group = start_w + (search_w ? search_w + 8 : 0) + 6 + (f32)t->n * t->slot_w;
+	f32 x0 = S.set.taskbar_center ? roundf(minf((S.sw - group) / 2, room - group)) : 4;
+	t->start = rect(maxf(4, x0), t->bar.y, start_w, h);
+	f32 ax = t->start.x + start_w + 4;
+	if (search_w) {
+		f32 sh = roundf(h * 0.66f);
+		t->search = rect(ax, roundf(t->bar.y + (h - sh) / 2), search_w, sh);
+		ax += search_w + 8;
+	}
+	t->apps_x = ax + 2;
 }
 
 Rect shell_dock_slot(int n, int i)
 {
-	f32 cx, cy;
-	shell_dock_center(n, i, &cx, &cy);
-	return rect(cx - DOCK_BUBBLE / 2.0f, cy - DOCK_BUBBLE / 2.0f, DOCK_BUBBLE, DOCK_BUBBLE);
+	Taskbar t;
+	shell_taskbar(&t);
+	UNUSED(n);
+	return rect(t.apps_x + (f32)i * t.slot_w, t.bar.y, t.slot_w, t.bar.h);
 }
 
-/* Everything the dock covers. */
-static Rect dock_rect(int *out_n)
-{
-	char ids[32][48];
-	int n = shell_dock_items(ids, 32);
-	if (out_n)
-		*out_n = n;
-	if (n == 0)
-		return rect(S.sw / 2, S.sh, 0, 0);
-	return rect_inset(shell_dock_bar(n), -6, 0);
-}
-
-/* Is (x, y) on the dock? Each bubble owns the column from just above it to
- * the bottom edge; the space above the lower, outer bubbles stays the
- * windows'. */
+/* Is (x, y) on the taskbar? */
 static bool dock_hit(f32 x, f32 y)
 {
-	char ids[32][48];
-	int n = shell_dock_items(ids, 32);
-	f32 half = dock_step(n) / 2;
-	for (int i = 0; i < n; i++) {
-		f32 cx, cy;
-		shell_dock_center(n, i, &cx, &cy);
-		if (fabsf(x - cx) <= half && y >= cy - DOCK_BUBBLE / 2.0f - 10)
-			return true;
-	}
-	return false;
-}
-
-f32 shell_dock_height(void)
-{
-	return DOCK_BOTTOM + DOCK_BUBBLE + DOCK_LIFT / 2.0f;
+	UNUSED(x);
+	return y >= S.sh - shell_taskbar_height();
 }
 
 Rect shell_dock_icon_rect(const char *app_id)
 {
+	Taskbar t;
+	shell_taskbar(&t);
 	char ids[32][48];
 	int n = shell_dock_items(ids, 32);
 	for (int i = 0; i < n; i++)
-		if (str_eq(ids[i], app_id))
-			return shell_dock_slot(n, i);
-	return rect(S.sw / 2 - DOCK_BUBBLE / 2.0f, S.sh, DOCK_BUBBLE, DOCK_BUBBLE);
+		if (str_eq(ids[i], app_id)) {
+			Rect s = shell_dock_slot(n, i);
+			return rect(t.labels ? s.x + 10 : s.x + (s.w - t.icon) / 2, s.y + (s.h - t.icon) / 2, t.icon, t.icon);
+		}
+	return center_in(t.start, t.icon, t.icon);
 }
 
 /* ---- Drawing dispatch (in zui frame) ------------------------------------------------- */
 
-void panel_draw(Ui *ui);
-void dock_draw(Ui *ui);
+void topbar_draw(Ui *ui);
+void taskbar_draw(Ui *ui);
 void launcher_draw(Ui *ui);
 void notifications_draw(Ui *ui);
 void controlcenter_draw(Ui *ui);
@@ -677,13 +714,12 @@ static void shell_frame(Ui *ui)
 {
 	if (S.locked || S.lock_k > 0)
 		lockscreen_draw(ui);
-	bool fullscreen = S.focus && (S.focus->states & STATE_FULLSCREEN) && !S.focus->minimized && !S.focus->closing;
 	if (!S.locked && !S.setup_mode) {
-		if (!fullscreen)
-			panel_draw(ui);
-		dock_draw(ui);
+		/* the launcher fills the screen between the bars */
 		if (S.launcher_open || S.launcher_k > 0)
 			launcher_draw(ui);
+		topbar_draw(ui);
+		taskbar_draw(ui);
 		notifications_draw(ui);
 		controlcenter_draw(ui);
 		if (S.switcher_open)
@@ -697,7 +733,7 @@ static void shell_frame(Ui *ui)
 		fmt(f, sizeof f, "%d FPS", (int)roundf(S.fps));
 		Font ff = ui_font(ui, 12, 700);
 		f32 w = ui_text_width(ui, ff, f) + 18;
-		Rect r = rect(S.sw - w - 10, PANEL_HEIGHT + 10, w, 24);
+		Rect r = rect(S.sw - w - 10, shell_panel_height() + 10, w, 24);
 		ui_round(ui, r, 12, color_hex("#000000a0"));
 		ui_text_in(ui, ff, r, f, S.fps >= 55 ? color_hex("#7be07b") : S.fps >= 30 ? color_hex("#f9c440") : color_hex("#ff6b6b"),
 			   ALIGN_CENTER);
@@ -813,32 +849,21 @@ static bool shell_wants_pointer(void)
 	return false;
 }
 
-/* Intellihide: the dock steps aside when a window needs the space (or always,
- * with auto-hide on) and comes back when the pointer touches the bottom edge. */
+/* The taskbar stays put, keeping its strip of the screen. With auto-hide on
+ * it slides away and comes back when the pointer reaches the bottom edge;
+ * it is also out of the way of full-screen windows. */
 static bool dock_should_hide(void)
 {
-	if (S.launcher_open || S.switcher_open || S.locked || S.dock_menu[0])
+	if (S.launcher_open || S.switcher_open || S.locked || S.dock_menu[0] || S.notifications_open || S.session_menu_open)
 		return false;
-	Rect d = dock_rect(NULL);
-	Rect zone = rect_inset(d, -16, -20);
+	f32 h = shell_taskbar_height();
 	if (S.py >= S.sh - 3)
 		S.dock_revealed = true;
-	else if (S.dock_revealed && !rect_contains(rect(zone.x, zone.y, zone.w, S.sh - zone.y), S.px, S.py))
+	else if (S.dock_revealed && S.py < S.sh - h - 40)
 		S.dock_revealed = false;
 	if (S.focus && (S.focus->states & STATE_FULLSCREEN) && !S.focus->minimized)
 		return !S.dock_revealed;
-	if (S.dock_revealed)
-		return false;
-	if (S.set.dock_autohide)
-		return true;
-	for (int i = 0; i < S.nwin; i++) {
-		Window *w = S.windows[i];
-		if (!w->mapped || w->closing || w->minimized || (w->flags & WIN_POPUP))
-			continue;
-		if (!rect_empty(rect_intersect(window_visual_rect(w), rect_inset(d, -6, -6))))
-			return true;
-	}
-	return false;
+	return S.set.dock_autohide && !S.dock_revealed;
 }
 
 static void finish_area(bool cancel);

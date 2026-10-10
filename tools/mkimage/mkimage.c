@@ -221,13 +221,13 @@ static int make_disk(const char *out, const char *efi, const char *layer)
 	u8 disk[16];
 	guid_random(disk);
 	check(gpt_write(fd, sectors, &esp, 1, disk), "partition table");
-	FatWriter *w = fat_format(fd, esp.first_lba, esp.last_lba - esp.first_lba + 1, "ZOS"); /* the name Windows shows for the stick */
+	FatWriter *w = fat_format(fd, esp.first_lba, esp.last_lba - esp.first_lba + 1, "Zurbax"); /* the name Windows shows for the stick */
 	check(w != NULL, "FAT32 format");
 	if (w) {
 		check(fat_mkdir(w, "/EFI"), "EFI folder");
 		check(fat_mkdir(w, "/EFI/BOOT"), "EFI/BOOT folder");
 		check(fat_add_file_from(w, "/EFI/BOOT/BOOTX64.EFI", efi), "BOOTX64.EFI");
-		check(fat_add_file(w, "/ZOS.TXT", README, sizeof README - 1), "ZOS.TXT");
+		check(fat_add_file(w, "/ZURBAX.TXT", README, sizeof README - 1), "ZURBAX.TXT");
 		add_layer(w, layer);
 		check(fat_finish(w), "FAT32 tables");
 	}
@@ -278,13 +278,13 @@ static int make_iso(const char *out, const char *efi, const char *layer)
 	guid_random(disk);
 	check(gpt_write(fd, total / SECTOR, &esp, 1, disk), "partition table");
 	u64 kernel_byte = 0, layer_byte = 0;
-	FatWriter *w = fat_format(fd, esp.first_lba, fat_bytes / SECTOR, "ZOS");
+	FatWriter *w = fat_format(fd, esp.first_lba, fat_bytes / SECTOR, "Zurbax");
 	check(w != NULL, "FAT32 format");
 	if (w) {
 		check(fat_mkdir(w, "/EFI"), "EFI folder");
 		check(fat_mkdir(w, "/EFI/BOOT"), "EFI/BOOT folder");
 		check(fat_add_file_from(w, "/EFI/BOOT/BOOTX64.EFI", efi), "BOOTX64.EFI");
-		check(fat_add_file(w, "/ZOS.TXT", README, sizeof README - 1), "ZOS.TXT");
+		check(fat_add_file(w, "/ZURBAX.TXT", README, sizeof README - 1), "ZURBAX.TXT");
 		kernel_byte = fat_file_byte(w, "/EFI/BOOT/BOOTX64.EFI");
 		check(kernel_byte && kernel_byte % ISO_BLOCK == 0, "kernel alignment");
 		add_layer(w, layer);
@@ -298,7 +298,7 @@ static int make_iso(const char *out, const char *efi, const char *layer)
 	/* the layer too is stored once, seen from both file systems */
 	IsoFile files[] = {
 		{ "/EFI/BOOT/BOOTX64.EFI", kernel_byte, (u64)efi_size },
-		{ "/ZOS.TXT", readme_byte, sizeof README - 1 },
+		{ "/ZURBAX.TXT", readme_byte, sizeof README - 1 },
 		{ LAYER_FILE, layer_byte, (u64)lsize },
 	};
 	IsoVolume v = { .system_id = OS_NAME, .volume_id = "ZOS_2_0_GOLDEN_RAIN", .publisher = OS_NAME, .app_id = OS_PRETTY_NAME,

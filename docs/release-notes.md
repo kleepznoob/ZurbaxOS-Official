@@ -1,26 +1,26 @@
-ZOS 2.0, code name **Golden Rain**: a desktop operating system written from
+Zurbax 2.0: a desktop operating system written from
 scratch in C, on the Linux kernel, made for playing.
 
-![The ZOS desktop](https://raw.githubusercontent.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/claude/zurbax-os/docs/screenshots/desktop.jpg)
+![The Zurbax desktop](https://raw.githubusercontent.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/claude/zurbax-os/docs/screenshots/desktop.jpg)
 
 ## Which file to download
 
 | File | Use it for |
 |------|------------|
-| `zos.iso` | A DVD, or a USB stick (it's a hybrid image, so the same file works for both) |
-| `zos.img` | A USB stick, written as a plain disk image |
+| `zurbax.iso` | A DVD, or a USB stick (it's a hybrid image, so the same file works for both) |
+| `zurbax.img` | A USB stick, written as a plain disk image |
 | `SHA256SUMS` | Checking that the download arrived intact (`sha256sum -c SHA256SUMS`) |
 
 ## Starting it
 
-1. Write `zos.iso` to a USB stick with balenaEtcher, Rufus
+1. Write `zurbax.iso` to a USB stick with balenaEtcher, Rufus
    (in DD mode) or `dd`, or burn it to a DVD.
 2. Restart the PC and open its boot menu (F8 or Esc on ASUS machines, F12
-   on many others), then pick the stick. ZOS starts in UEFI mode; turn off
+   on many others), then pick the stick. Zurbax starts in UEFI mode; turn off
    Secure Boot if the firmware refuses it.
-3. The Welcome assistant offers to try ZOS from the stick or install it.
+3. The Welcome assistant offers to try Zurbax from the stick or install it.
    The Installer can erase a disk or install into its free space next to
-   Windows, and adds a "ZOS" entry to the firmware's boot menu.
+   Windows, and adds a "Zurbax" entry to the firmware's boot menu.
 
 ## What's in it
 

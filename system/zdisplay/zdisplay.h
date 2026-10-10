@@ -4,8 +4,8 @@
  * One process owns the screen: it drives the display hardware (or an
  * offscreen buffer for testing), reads input devices, composites app
  * windows with shadows and animations, manages windows, and draws the
- * shell itself — top panel, dock, application menu, notifications, lock
- * screen and the boot splash that keeps the firmware logo on screen.
+ * shell itself — the top bar, the taskbar, the launcher, notifications,
+ * lock screen and the boot splash that keeps the firmware logo on screen.
  */
 #pragma once
 
@@ -14,18 +14,10 @@
 
 #define MAX_WINDOWS 128
 #define MAX_CLIENTS 64
-#define PANEL_HEIGHT 30
+#define PANEL_HEIGHT 30         /* the top bar */
 #define RESIZE_MARGIN 8
 #define CURSOR_CUSTOM 12            /* after the protocol's shapes: S.cursor_custom */
 
-/* The dock, an arc of round bubbles along the bottom: bubble size, the app
- * icon inside, centre-to-centre step, the outer bubbles' gap above the
- * bottom edge, and how much higher the middle of the arc sits. */
-#define DOCK_BUBBLE 58
-#define DOCK_ICON 40
-#define DOCK_STEP 68
-#define DOCK_BOTTOM 14
-#define DOCK_LIFT 24
 
 /* ---- Output backends ---------------------------------------------------------- */
 
@@ -154,8 +146,15 @@ typedef struct {
 	bool clock_24h;
 	bool clock_seconds;
 	bool reduce_motion;
-	bool dock_autohide;
-	bool dock_magnify;
+	bool dock_autohide;         /* the taskbar hides until the pointer reaches the bottom edge */
+	bool topbar;                /* the bar across the top: app menu, clock, status */
+	int taskbar_size;           /* 0 small, 1 medium, 2 large */
+	bool taskbar_center;        /* the buttons centred, or from the left */
+	bool taskbar_labels;        /* app names beside the icons */
+	bool taskbar_search;        /* the search box */
+	bool taskbar_desktop;       /* the show-desktop button at the far right */
+	bool taskbar_previews;      /* window previews when hovering a button */
+	bool taskbar_light;         /* in the light style the taskbar is light too (otherwise always dark) */
 	char dock_apps[512];        /* comma-separated app ids */
 	bool do_not_disturb;
 	int lock_after_min;
@@ -303,6 +302,7 @@ void compose_init(void);
 void compose_splash_frame(Rect area);
 void wallpaper_reload(void);
 void cursor_update(void);
+void compose_window_thumb(Canvas *dst, Window *w, Rect physical);
 
 /* wm.c */
 Window *window_create(Client *c, const MsgWinCreate *m);
@@ -327,6 +327,7 @@ void wm_animate(f64 dt);
 bool wm_any_animation(void);
 Window *wm_top_window(void);
 void wm_show_desktop(bool on);
+void wm_refit(void);
 
 /* server.c */
 void server_init(void);
@@ -385,12 +386,26 @@ void shell_launch_new(const char *app_id);
 const AppInfo *shell_app(const char *id);
 Rect shell_dock_icon_rect(const char *app_id);
 int shell_dock_items(char ids[][48], int max);
-Rect shell_dock_bar(int n);
+/* The taskbar along the bottom, laid out for the current settings. */
+typedef struct {
+	Rect bar;
+	Rect start;                           /* the Start button */
+	Rect search;                          /* the search box (empty when it's turned off) */
+	Rect tray;                            /* the right end */
+	Rect clock;                           /* the clock in the tray (empty while the top bar shows it) */
+	Rect bell;                            /* notifications */
+	Rect status;                          /* status icons in the tray (empty while the top bar shows them) */
+	Rect desktop;                         /* show the desktop, at the far right (empty when turned off) */
+	f32 apps_x, slot_w, icon;             /* the first task button's left edge, a task button's width, icon size */
+	int n;                                /* task buttons */
+	bool labels;                          /* names beside the icons */
+} Taskbar;
+void shell_taskbar(Taskbar *t);
+int shell_status_icons(const char *icons[8], int *battery_at);
 Rect shell_dock_slot(int n, int i);
-void shell_dock_center(int n, int i, f32 *cx, f32 *cy);
-void shell_dock_point(int n, f32 i, f32 *x, f32 *y);
-f32 shell_panel_height(void);
-f32 shell_dock_height(void);
+f32 shell_panel_height(void);             /* the top bar, or 0 when it's turned off */
+f32 shell_taskbar_height(void);
+f32 shell_taskbar_reserved(void);         /* the screen kept for the taskbar (0 while it auto-hides) */
 void shell_session_action(u32 action);
 void shell_screenshot(void);
 void screenshot_request(Client *c, u32 win, u32 mode);

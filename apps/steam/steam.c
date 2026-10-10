@@ -1,9 +1,9 @@
 /*
  * Steam — starts Valve's Steam client, and through it Proton for Windows
- * games, on ZOS.
+ * games, on Zurbax.
  *
  * Steam is a standard Linux program: it needs glibc, an X server, Mesa's
- * GPU drivers and more, none of which ZOS uses itself. They come as the
+ * GPU drivers and more, none of which Zurbax uses itself. They come as the
  * Linux layer (layer/build.sh, installed in /data/layers/steam), and
  * layerrun starts Steam inside it with a full-screen Xwayland on zdisplay.
  * This window checks that everything is in place, says what's missing, and
@@ -137,7 +137,7 @@ static void run_checks(Ui *ui)
 	Check *c = add("Linux layer", layer, true);
 	str_copy(c->detail,
 		 layer ? "Ready in " LAYER
-		       : "Missing: it comes on ZOS's install media when built with it (layer/build.sh)",
+		       : "Missing: it comes on Zurbax's install media when built with it (layer/build.sh)",
 		 sizeof c->detail);
 	bool steam = layer && (in_layer("/usr/bin/steam") || in_layer("/usr/games/steam"));
 	c = add("Steam client", steam, true);
@@ -222,7 +222,7 @@ static void frame(Ui *ui)
 	Rect hero = cut_top(&b, 76);
 	ui_app_icon(ui, rect(hero.x, hero.y + 6, 64, 64), "steam");
 	Rect words = pad4(hero, 10, 0, 0, 82);
-	ui_text_in(ui, ui_font(ui, 22, 700), cut_top(&words, 30), "Your Steam library on ZOS", t->text, ALIGN_START);
+	ui_text_in(ui, ui_font(ui, 22, 700), cut_top(&words, 30), "Your Steam library on Zurbax", t->text, ALIGN_START);
 	ui_text_in(ui, ui_font(ui, 13, 400), cut_top(&words, 20),
 		   ready ? "Everything is in place. Windows games run through Proton." : "A few things are needed first.", t->text_dim, ALIGN_START);
 	cut_top(&b, 12);
@@ -246,7 +246,7 @@ static void frame(Ui *ui)
 	} else {
 		ui_text_wrapped(ui, ui_font(ui, 12, 400), bottom,
 				"The Linux layer holds the standard Linux pieces Steam needs (the C library, Xwayland, Mesa). "
-				"ZOS doesn't use them itself, so they're kept apart.",
+				"Zurbax doesn't use them itself, so they're kept apart.",
 				t->text_faint, ALIGN_START);
 	}
 }

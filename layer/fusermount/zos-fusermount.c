@@ -1,4 +1,4 @@
-/* fusermount3 for the Linux layer on ZOS.
+/* fusermount3 for the Linux layer on Zurbax.
  *
  * On other systems fusermount3 is a setuid-root program that mounts FUSE
  * file systems for users. The layer has no root to become: here it asks the
@@ -39,15 +39,15 @@ static char *ask(const char *request, int *fd)
 {
 	const char *rt = getenv("XDG_RUNTIME_DIR");
 	if (!rt || !*rt)
-		die("XDG_RUNTIME_DIR isn't set (run this in the ZOS Linux session)");
+		die("XDG_RUNTIME_DIR isn't set (run this in the Zurbax Linux session)");
 	struct sockaddr_un a = { .sun_family = AF_UNIX };
 	if (snprintf(a.sun_path, sizeof a.sun_path, "%s/zos-linux/fuse.sock", rt) >= (int)sizeof a.sun_path)
 		die("runtime folder path too long");
 	int s = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
 	if (s < 0 || connect(s, (struct sockaddr *)&a, sizeof a) < 0)
-		die("cannot reach the ZOS Linux session");
+		die("cannot reach the Zurbax Linux session");
 	if (send(s, request, strlen(request), MSG_NOSIGNAL) < 0)
-		die("cannot talk to the ZOS Linux session");
+		die("cannot talk to the Zurbax Linux session");
 	static char answer[512];
 	struct iovec iov = { answer, sizeof answer - 1 };
 	union {
@@ -60,7 +60,7 @@ static char *ask(const char *request, int *fd)
 		;
 	close(s);
 	if (n <= 0)
-		die("no answer from the ZOS Linux session");
+		die("no answer from the Zurbax Linux session");
 	answer[n] = 0;
 	*fd = -1;
 	struct cmsghdr *c = CMSG_FIRSTHDR(&m);
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
 		} else if (!strcmp(a, "--auto-unmount")) {
 			autoun = 1;
 		} else if (!strcmp(a, "-V") || !strcmp(a, "--version")) {
-			puts("fusermount3 version: 3.18 (ZOS)");
+			puts("fusermount3 version: 3.18 (Zurbax)");
 			return 0;
 		} else if (a[0] != '-') {
 			mp = a;

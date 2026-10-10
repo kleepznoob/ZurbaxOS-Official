@@ -1,7 +1,7 @@
 /*
  * layerrun: starts a program from a Linux layer, a root file system laid out
  * like a standard distribution (glibc, Mesa, X11, Flatpak...) made by
- * layer/build.sh. ZOS itself has none of that; the layer is how Flatpak
+ * layer/build.sh. Zurbax itself has none of that; the layer is how Flatpak
  * apps, Steam, Proton and other standard Linux programs run on it.
  *
  *     layerrun [--x11] [--app ID] PROGRAM [ARGS...]
@@ -10,7 +10,7 @@
  *     layerrun --isolated [--layer DIR] [--x11] [--sound] PROGRAM [ARGS...]
  *     layerrun --check [--layer DIR]
  *
- * The program sees the layer as its whole file system, with ZOS's /dev,
+ * The program sees the layer as its whole file system, with Zurbax's /dev,
  * /proc, /sys, /tmp, /run (where the Wayland socket is) and /data (the home
  * folders) passed through, and a passwd, group, hosts and resolv.conf made
  * for it. A user namespace and a mount namespace do this without any
@@ -28,7 +28,7 @@
  *
  * With --x11 an Xwayland of the program's own runs first, full screen on
  * zdisplay, with zos-xwm arranging its windows (Steam, X11 games). --app
- * names the ZOS app the windows belong to, for the dock. --isolated gives a
+ * names the Zurbax app the windows belong to, for the dock. --isolated gives a
  * program a namespace and helpers of its own, the way layerrun worked
  * before sessions. The layer is /data/layers/steam (or --layer).
  */
@@ -155,7 +155,7 @@ static void must_mount(const char *src, const char *dst, const char *type, unsig
 		fail("cannot mount %s on %s: %s", src ? src : type, dst, err_str(r));
 }
 
-/* Passes a ZOS directory through to the same place in the layer. */
+/* Passes a Zurbax directory through to the same place in the layer. */
 static void pass_through(const char *dir)
 {
 	if (!dir_exists(dir))
@@ -282,9 +282,9 @@ static void build_root(const char *user, const char *home)
 	if (r >= 0)
 		r = sys_pivot_root(".", ".");
 	if (r >= 0) {
-		sys_umount(".", MNT_DETACH); /* ZOS's own root, now under the layer */
+		sys_umount(".", MNT_DETACH); /* Zurbax's own root, now under the layer */
 	} else if (r == -EINVAL) {
-		/* ZOS runs from the initial RAM file system, which can't be pivoted
+		/* Zurbax runs from the initial RAM file system, which can't be pivoted
 		 * away from: the layer moves over it instead, as switch_root does.
 		 * The layer's root is then a mount of its own, so containers made
 		 * inside it (Steam's runtime, Flatpak's sandboxes) can pivot. */
@@ -441,7 +441,7 @@ static int start_bus(const char *path)
 /* ---- The session's environment ------------------------------------------------------------ */
 
 /* What programs of a standard Wayland desktop session find in their
- * environment, with ZOS's runtime folder. */
+ * environment, with Zurbax's runtime folder. */
 static void session_env(const char *user, const char *home)
 {
 	setenv_("PATH", "/usr/local/bin:/usr/bin:/bin");
@@ -455,7 +455,7 @@ static void session_env(const char *user, const char *home)
 	mem_free(bus);
 	setenv_("WAYLAND_DISPLAY", "wayland-0");
 	setenv_("XDG_SESSION_TYPE", "wayland");
-	setenv_("XDG_CURRENT_DESKTOP", "ZOS");
+	setenv_("XDG_CURRENT_DESKTOP", "Zurbax");
 	setenv_("XDG_SESSION_DESKTOP", "zos");
 	setenv_("DESKTOP_SESSION", "zos");
 	/* Flatpak apps' menu entries and icons, then the layer's own */

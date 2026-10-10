@@ -1,7 +1,7 @@
 /*
- * An ALSA output for the Linux layer that plays through zaudio, ZOS's sound
+ * An ALSA output for the Linux layer that plays through zaudio, Zurbax's sound
  * service, so Steam, Proton (Wine's ALSA driver) and Linux games are heard
- * like ZOS's own apps, with the same volume control.
+ * like Zurbax's own apps, with the same volume control.
  *
  * zaudio owns the sound card; this plugin sends it 16-bit PCM over its socket
  * (/run/zurbax/audio.sock, the protocol in libzui/include/zui/audio.h) and
@@ -12,7 +12,7 @@
  *     pcm.!default { type plug slave.pcm "zaudio" }
  *     pcm.zaudio { type zaudio }
  *
- * Unlike the rest of ZOS this is built against the layer's glibc and
+ * Unlike the rest of Zurbax this is built against the layer's glibc and
  * alsa-lib, by layer/build.sh, into the layer's alsa-lib plugin folder.
  */
 /* a plugin is always a shared object: alsa-lib's symbol macros need to know */
@@ -221,14 +221,14 @@ SND_PCM_PLUGIN_DEFINE_FUNC(zaudio)
 	struct sockaddr_un sa = { .sun_family = AF_UNIX };
 	snprintf(sa.sun_path, sizeof sa.sun_path, "%s", getenv("ZURBAX_AUDIO_SOCKET") ? getenv("ZURBAX_AUDIO_SOCKET") : SOCKET_PATH);
 	if (z->fd < 0 || connect(z->fd, (struct sockaddr *)&sa, sizeof sa) < 0) {
-		SNDERR("no ZOS sound service at %s", sa.sun_path);
+		SNDERR("no Zurbax sound service at %s", sa.sun_path);
 		if (z->fd >= 0)
 			close(z->fd);
 		free(z);
 		return -ENOENT;
 	}
 	z->io.version = SND_PCM_IOPLUG_VERSION;
-	z->io.name = "ZOS sound (zaudio)";
+	z->io.name = "Zurbax sound (zaudio)";
 	z->io.callback = &callbacks;
 	z->io.private_data = z;
 	z->io.poll_fd = z->fd;

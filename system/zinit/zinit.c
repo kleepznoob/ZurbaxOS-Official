@@ -216,7 +216,7 @@ static bool mount_layer(const char *image, const char *dir)
 	return ok;
 }
 
-/* The medium ZOS started from, if it carries a layer: the install stick's
+/* The medium Zurbax started from, if it carries a layer: the install stick's
  * partition, or a disc. Left mounted at MEDIUM, where the installer copies
  * the layer from. */
 static void medium_layers(void)

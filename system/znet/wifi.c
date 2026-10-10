@@ -6,7 +6,7 @@
  * keys to the kernel. Saved networks keep only the derived key (PMK), never
  * the password, in /data/system/wifi, readable by root alone.
  *
- * Settings and the top bar talk to it over /run/zurbax/wifi.sock:
+ * Settings and the quick settings talk to it over /run/zurbax/wifi.sock:
  *     scan | connect SSIDHEX [PASSHEX] | disconnect | forget SSIDHEX | radio on|off
  * and read what it finds from /run/zurbax/wifi.networks, one line per network:
  *     signal(0-100) TAB security TAB saved TAB connected TAB SSIDHEX
@@ -654,7 +654,7 @@ static void event_cb(void *user, u8 cmd, const u8 *attrs, usize n)
 	}
 }
 
-/* ---- Commands from Settings and the top bar --------------------------------------------------------- */
+/* ---- Commands from Settings and quick settings ----------------------------------------------------- */
 
 static int parse_ssid(const char *hex, u8 *out)
 {

@@ -227,10 +227,14 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 	case MSG_SETTINGS_CHANGED: {
 		char old_wall[128];
 		str_copy(old_wall, S.set.wallpaper, sizeof old_wall);
+		Rect old_area = work_area();
 		settings_load();
 		settings_apply();
 		if (!str_eq(old_wall, S.set.wallpaper))
 			wallpaper_reload();
+		Rect area = work_area();
+		if (memcmp(&old_area, &area, sizeof area))
+			wm_refit();
 		server_broadcast_theme();
 		damage_all();
 		break;

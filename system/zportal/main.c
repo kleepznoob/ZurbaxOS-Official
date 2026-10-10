@@ -1,6 +1,6 @@
 /*
  * zportal: the desktop services standard Linux programs ask the desktop
- * for over D-Bus, answered by ZOS. Flatpak apps can't reach most of the
+ * for over D-Bus, answered by Zurbax. Flatpak apps can't reach most of the
  * system from their sandbox; these are how they open a file the user picks,
  * show a notification, follow the dark style, open a link in the browser,
  * write an email, save a secret, keep the screen on, and so on.

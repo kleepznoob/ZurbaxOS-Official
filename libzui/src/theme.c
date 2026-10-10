@@ -1,17 +1,23 @@
-/* Light and dark themes and the accent color palette. */
+/* Light and dark themes and the accent color palette.
+ *
+ * Zurbax's look is quiet and flat: neutral greys with a trace of warmth, one
+ * accent color for what matters, hairlines instead of bevels and no
+ * gradients on controls. Iris, a blue-violet, is the accent out of the box. */
 #include "zui.h"
 
-const char *const THEME_ACCENT_NAMES[] = { "blue", "teal", "green", "yellow", "orange", "red", "pink", "purple", "graphite" };
+const char *const THEME_ACCENT_NAMES[] = { "iris", "blue", "teal", "green", "gold", "orange", "red", "pink", "purple", "graphite" };
 const u32 THEME_ACCENT_COLORS[] = {
-	0xff3a86e8, 0xff1fa59f, 0xff4aa84a, 0xffd9a521, 0xffef8a2f,
-	0xffdf4b4b, 0xffd9578f, 0xff8b5bd4, 0xff6b7280,
+	0xff5b5fe0, 0xff2f7fe0, 0xff15a199, 0xff3ca34d, 0xffd9a21b,
+	0xffeb7330, 0xffe0443e, 0xffd9508a, 0xff9a5bd4, 0xff6b7280,
 };
 const int THEME_ACCENT_COUNT = (int)ARRAY_LEN(THEME_ACCENT_COLORS);
 
 Color theme_accent_named(const char *name)
 {
+	if (name && str_eq(name, "yellow")) /* the name before Zurbax 2.0's palette */
+		name = "gold";
 	for (int i = 0; i < THEME_ACCENT_COUNT; i++)
-		if (str_eq(name, THEME_ACCENT_NAMES[i]))
+		if (name && str_eq(name, THEME_ACCENT_NAMES[i]))
 			return THEME_ACCENT_COLORS[i];
 	return THEME_ACCENT_COLORS[0];
 }
@@ -24,55 +30,51 @@ void theme_build(Theme *t, const ThemeInfo *info)
 	t->text_scale = (info && info->text_scale > 0.5f) ? info->text_scale : 1.0f;
 	Color accent = (info && info->accent) ? info->accent | 0xff000000u : THEME_ACCENT_COLORS[0];
 	t->accent = accent;
-	t->accent_hover = color_lighten(accent, t->dark ? 0.12f : 0.08f);
-	t->accent_pressed = color_lighten(accent, -0.12f);
-	/* White text on light accents like yellow would be unreadable. */
+	t->accent_hover = color_lighten(accent, t->dark ? 0.1f : 0.06f);
+	t->accent_pressed = color_lighten(accent, -0.1f);
+	/* White text on light accents like gold would be unreadable. */
 	f32 h, s, l;
 	color_to_hsl(accent, &h, &s, &l);
-	t->on_accent = (l > 0.62f || (h > 40 && h < 70 && l > 0.5f)) ? color_hex("#26292e") : COLOR_WHITE;
+	t->on_accent = (l > 0.62f || (h > 38 && h < 70 && l > 0.45f)) ? color_hex("#1d1e22") : COLOR_WHITE;
 
 	if (!t->dark) {
-		t->window = color_hex("#f7f7f8");
+		t->window = color_hex("#f7f7f6");
 		t->view = color_hex("#ffffff");
-		t->sidebar = color_hex("#efeff1");
-		t->header_top = color_hex("#f8f8f9");
-		t->header_bottom = color_hex("#ececee");
+		t->sidebar = color_hex("#efefed");
+		t->header_top = t->header_bottom = color_hex("#efefed");
 		t->card = color_hex("#ffffff");
-		t->border = color_hex("#0000001c");
-		t->border_strong = color_hex("#00000036");
-		t->text = color_hex("#2e3036");
-		t->text_dim = color_hex("#6b6e76");
-		t->text_faint = color_hex("#9a9da4");
+		t->border = color_hex("#00000014");
+		t->border_strong = color_hex("#00000026");
+		t->text = color_hex("#1d1e22");
+		t->text_dim = color_hex("#5d5f66");
+		t->text_faint = color_hex("#9b9da3");
 		t->hover = color_hex("#0000000c");
-		t->press = color_hex("#00000018");
-		t->selection = color_with_alpha(accent, 0x2e);
+		t->press = color_hex("#00000017");
+		t->selection = color_with_alpha(accent, 0x26);
 		t->input = color_hex("#ffffff");
-		t->button_top = color_hex("#fdfdfd");
-		t->button_bottom = color_hex("#f0f0f2");
-		t->button_border = color_hex("#00000030");
-		t->shadow = color_hex("#00000030");
+		t->button_top = t->button_bottom = color_hex("#e9e9e7");
+		t->button_border = color_hex("#00000000");
+		t->shadow = color_hex("#00000026");
 	} else {
-		t->window = color_hex("#2b2c30");
-		t->view = color_hex("#24252a");
-		t->sidebar = color_hex("#26272b");
-		t->header_top = color_hex("#36373c");
-		t->header_bottom = color_hex("#2f3035");
-		t->card = color_hex("#323338");
-		t->border = color_hex("#ffffff17");
-		t->border_strong = color_hex("#ffffff2a");
-		t->text = color_hex("#eeeff1");
-		t->text_dim = color_hex("#a6a8ae");
-		t->text_faint = color_hex("#787a81");
-		t->hover = color_hex("#ffffff10");
-		t->press = color_hex("#ffffff1c");
-		t->selection = color_with_alpha(accent, 0x48);
-		t->input = color_hex("#1f2024");
-		t->button_top = color_hex("#45464c");
-		t->button_bottom = color_hex("#3b3c41");
-		t->button_border = color_hex("#00000060");
+		t->window = color_hex("#1e1f22");
+		t->view = color_hex("#18191b");
+		t->sidebar = color_hex("#232427");
+		t->header_top = t->header_bottom = color_hex("#252629");
+		t->card = color_hex("#28292d");
+		t->border = color_hex("#ffffff12");
+		t->border_strong = color_hex("#ffffff22");
+		t->text = color_hex("#ededef");
+		t->text_dim = color_hex("#a2a4aa");
+		t->text_faint = color_hex("#727479");
+		t->hover = color_hex("#ffffff0e");
+		t->press = color_hex("#ffffff1a");
+		t->selection = color_with_alpha(accent, 0x40);
+		t->input = color_hex("#151618");
+		t->button_top = t->button_bottom = color_hex("#323337");
+		t->button_border = color_hex("#00000000");
 		t->shadow = color_hex("#00000070");
 	}
-	t->danger = color_hex("#d9433f");
-	t->success = color_hex("#3f9e4a");
-	t->warning = color_hex("#e0a223");
+	t->danger = color_hex("#e0443e");
+	t->success = color_hex("#2f9e55");
+	t->warning = color_hex("#e3a21a");
 }

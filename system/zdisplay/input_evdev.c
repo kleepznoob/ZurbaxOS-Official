@@ -558,7 +558,7 @@ static void pad_setup(Device *d, const u8 *absbits, const u8 *keybits)
 	}
 	/* a short buzz to show it's working */
 	input_pad_rumble(slot, 0.25f, 0.35f, 160);
-	shell_mark_dirty(); /* the top bar shows a controller */
+	shell_mark_dirty(); /* the Horizon shows a controller */
 }
 
 void input_pad_rumble(int pad, f32 strong, f32 weak, u32 ms)
