@@ -201,3 +201,145 @@ pkg_gnome_console() { unpack gnome-console; mesonbuild -Dtests=false; }
 pkg_gnome_text_editor() { unpack gnome-text-editor; mesonbuild -Ddevelopment=false -Dspellcheck=disabled; }
 
 ORDER+=(gnome_control_center nautilus gnome_console gnome_text_editor)
+
+# ---- More apps -------------------------------------------------------------------------------------
+# Calculator, Clocks, Weather, Calendar, Characters, Fonts, Disk Usage,
+# Archive Manager, System Monitor, Image Viewer, Document Viewer, Maps,
+# the welcome tour and Software (Flathub's apps).
+
+# GNU's arbitrary precision arithmetic, which the Calculator computes with;
+# fat: the fastest code for whichever processor it runs on
+pkg_gmp() { unpack gmp; autobuild --enable-fat; }
+pkg_mpfr() { unpack mpfr; autobuild; }
+pkg_mpc() { unpack mpc; autobuild; }
+pkg_libgee() { unpack libgee; autobuild --disable-introspection; }
+
+# The Vala apps' view of the libraries they use, made from the libraries'
+# introspection data (those were built before Vala was)
+vapi() {
+	local name=$1 gir=$2 meta=$3 dir=$ROOT/usr/share/vala/vapi
+	shift 3
+	vapigen --library "$name" --girdir "$ROOT/usr/share/gir-1.0" --vapidir "$dir" ${meta:+--metadatadir "$meta"} \
+		$(printf -- '--pkg %s ' "$@") -d "$dir" "$ROOT/usr/share/gir-1.0/$gir.gir" >>"$WORK/vapigen.log" 2>&1 ||
+		{ tail -20 "$WORK/vapigen.log"; exit 1; }
+	printf '%s\n' "$@" >"$dir/$name.deps"
+}
+
+pkg_vala_bindings() {
+	native_env
+	mkdir -p "$ROOT/usr/share/vala/vapi"
+	: >"$WORK/vapigen.log"
+	# libadwaita's adjustments for Vala come with its source
+	unpack libadwaita
+	vapi libadwaita-1 Adw-1 "$PWD/src" gtk4 gio-2.0
+	vapi gnome-desktop-4 GnomeDesktop-4.0 "" gtk4 gio-2.0 gsettings-desktop-schemas
+	vapi gweather4 GWeather-4.0 "" gio-2.0
+	vapi geocode-glib-2.0 GeocodeGlib-2.0 "" gio-2.0 json-glib-1.0
+	vapi libgeoclue-2.0 Geoclue-2.0 "" gio-2.0
+	vapi gsound GSound-1.0 "" gio-2.0
+}
+
+# Vala apps: the build machine's compiler, which finds the bindings above
+vala_env() {
+	printf "[binaries]\nvala = '%s'\n" "$NATIVE/bin/valac" >"$WORK/vala.ini"
+	export XDG_DATA_DIRS=$ROOT/usr/share:$NATIVE/share
+	VALA=(--cross-file "$WORK/vala.ini")
+}
+
+pkg_gnome_calculator() {
+	unpack gnome-calculator
+	vala_env
+	mesonbuild "${VALA[@]}" -Ddoc=false -Dui-tests=false -Ddisable-introspection=true
+}
+
+pkg_gnome_clocks() { unpack gnome-clocks; vala_env; mesonbuild "${VALA[@]}" -Ddocs=false; }
+pkg_baobab() { unpack baobab; vala_env; mesonbuild "${VALA[@]}"; }
+pkg_gnome_weather() { unpack gnome-weather; mesonbuild; }
+pkg_gnome_calendar() { unpack gnome-calendar; mesonbuild; }
+pkg_gnome_characters() { unpack gnome-characters; mesonbuild -Dinstalled_tests=false; }
+pkg_gnome_font_viewer() { unpack gnome-font-viewer; mesonbuild; }
+pkg_file_roller() { unpack file-roller; mesonbuild -Dpackagekit=false -Dnautilus-actions=disabled -Dintrospection=disabled; }
+
+ORDER+=(gmp mpfr mpc libgee vala_bindings gnome_calculator gnome_clocks baobab gnome_weather gnome_calendar gnome_characters
+	gnome_font_viewer file_roller)
+
+# System Monitor is written in C++ with GTK's C++ interface
+pkg_libsigcpp() { unpack libsigcpp; mesonbuild -Dbuild-examples=false -Dbuild-tests=false -Dbuild-documentation=false; }
+pkg_glibmm() { unpack glibmm; mesonbuild -Dbuild-examples=false -Dbuild-documentation=false; }
+pkg_cairomm() { unpack cairomm; mesonbuild -Dbuild-examples=false -Dbuild-tests=false -Dbuild-documentation=false; }
+pkg_pangomm() { unpack pangomm; mesonbuild -Dbuild-documentation=false; }
+pkg_gtkmm() { unpack gtkmm; mesonbuild -Dbuild-demos=false -Dbuild-tests=false -Dbuild-documentation=false; }
+pkg_gnome_system_monitor() { unpack gnome-system-monitor; mesonbuild -Dsystemd=false; }
+
+ORDER+=(libsigcpp glibmm cairomm pangomm gtkmm gnome_system_monitor)
+
+# Rust apps meson builds: cargo compiles them for the layer (its target
+# folder then has them under the target's name), and a wrapper copies the
+# programs to where the apps' build files look for them
+rust_app_env() {
+	rust_env
+	cargo_fetch
+	mkdir -p _build "$WORK/cargo-bin"
+	ln -sfn "$CARGO_HOME" _build/cargo-home
+	cat >"$WORK/cargo-bin/cargo" <<-'EOS'
+		#!/bin/bash
+		"$HOME/.cargo/bin/cargo" "$@" || exit
+		[ "$1" = build ] || exit 0
+		dir=target profile=debug
+		while [ $# -gt 0 ]; do
+			case $1 in
+			--target-dir) dir=$2; shift ;;
+			--target-dir=*) dir=${1#*=} ;;
+			--release) profile=release ;;
+			--profile) profile=$2; shift ;;
+			--profile=*) profile=${1#*=} ;;
+			esac
+			shift
+		done
+		[ "$profile" = dev ] && profile=debug
+		mkdir -p "$dir/$profile"
+		find "$dir/x86_64-unknown-linux-gnu/$profile" -maxdepth 1 -type f -perm -u+x -exec cp -p {} "$dir/$profile/" \;
+	EOS
+	chmod +x "$WORK/cargo-bin/cargo"
+	export PATH="$WORK/cargo-bin:$PATH"
+}
+
+pkg_loupe() { unpack loupe; rust_app_env; mesonbuild; }
+
+# Document Viewer: PDF through Poppler, and the XMP metadata library it reads
+pkg_exempi() { unpack exempi; autobuild --enable-unittest=no --enable-samples=no; }
+
+pkg_poppler() {
+	unpack poppler
+	cmakebuild -DENABLE_QT5=OFF -DENABLE_QT6=OFF -DENABLE_BOOST=OFF -DENABLE_LIBOPENJPEG=none -DENABLE_GPGME=OFF \
+		-DENABLE_NSS3=ON -DENABLE_LCMS=ON -DENABLE_LIBCURL=ON -DENABLE_GLIB=ON -DENABLE_GOBJECT_INTROSPECTION=OFF \
+		-DENABLE_CPP=ON -DENABLE_UTILS=ON -DBUILD_GTK_TESTS=OFF -DBUILD_QT5_TESTS=OFF -DBUILD_QT6_TESTS=OFF \
+		-DBUILD_CPP_TESTS=OFF -DBUILD_MANUAL_TESTS=OFF -DENABLE_GTK_DOC=OFF -DTESTDATADIR=/nonexistent
+}
+
+pkg_papers() {
+	unpack papers
+	rust_app_env
+	mesonbuild -Dtests=false -Ddocumentation=false -Duser_doc=false -Dfile_tests=false -Dsysprof=disabled \
+		-Dspell_check=disabled -Ddjvu=disabled -Dcomics=enabled -Dtiff=enabled -Dkeyring=enabled -Dintrospection=disabled
+}
+
+ORDER+=(loupe exempi poppler papers)
+
+pkg_libshumate() {
+	unpack libshumate
+	mesonbuild -Dgir=true -Dvapi=false -Dgtk_doc=false -Ddemos=false -Dvector_renderer=false
+}
+
+pkg_gnome_maps() { unpack gnome-maps; mesonbuild; }
+pkg_gnome_tour() { unpack gnome-tour; rust_app_env; mesonbuild; }
+
+# Software, for the apps on Flathub (Flatpak); no distribution packages
+pkg_gnome_software() {
+	unpack gnome-software
+	mesonbuild -Dpackagekit=false -Dfwupd=false -Dmalcontent=false -Dwebapps=false -Dhardcoded_foss_webapps=false \
+		-Dhardcoded_proprietary_webapps=false -Dtests=false -Dman=false -Dgtk_doc=false -Dsysprof=disabled -Dpolkit=true \
+		-Dgudev=true -Dflatpak=true -Dexternal_appstream=false
+}
+
+ORDER+=(libshumate gnome_maps gnome_tour gnome_software)

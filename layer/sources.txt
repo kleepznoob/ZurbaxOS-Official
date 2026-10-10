@@ -1,9 +1,9 @@
 glibc https://ftp.gnu.org/gnu/glibc/glibc-2.42.tar.xz d1775e32e4628e64ef930f435b67bb63af7599acb6be2b335b9f19f16509f17f
 gcc https://ftp.gnu.org/gnu/gcc/gcc-15.2.0/gcc-15.2.0.tar.xz 438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e
 zlib https://zlib.net/zlib-1.3.2.tar.xz d7a0654783a4da529d1bb793b7ad9c3318020af77667bcae35f95d0e42a792f3
-expat https://deb.debian.org/debian/pool/main/e/expat/expat_2.9.0.orig.tar.gz 6e8ce7b52ebbaa423c59becc7cf1e6875c42e49228c062ac8123c10e700cec27
-libffi https://deb.debian.org/debian/pool/main/libf/libffi/libffi_3.5.2.orig.tar.gz dd19253d3007f366319a51d248a40c9e5fcace4498cbea990b566291844e4e30
-libxcrypt https://deb.debian.org/debian/pool/main/libx/libxcrypt/libxcrypt_4.4.38.orig.tar.xz 6a275a356622c64ba9f693892215dbb399c003a7a4afeed9c4c74070eaab20f4
+expat https://github.com/libexpat/libexpat/releases/download/R_2_9_0/expat-2.9.0.tar.xz 1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051
+libffi https://github.com/libffi/libffi/releases/download/v3.5.2/libffi-3.5.2.tar.gz f3a3082a23b37c293a4fcd1053147b371f2ff91fa7ea1b2a52e335676bac82dc
+libxcrypt https://github.com/besser82/libxcrypt/releases/download/v4.4.38/libxcrypt-4.4.38.tar.xz 80304b9c306ea799327f01d9a7549bdb28317789182631f1b54f4511b4206dd6
 libudev-zero https://distfiles.alpinelinux.org/distfiles/v3.22/libudev-zero-1.0.3.tar.gz 0bd89b657d62d019598e6c7ed726ff8fed80e8ba092a83b484d66afb80b77da5
 wayland https://gitlab.freedesktop.org/-/project/121/uploads/5f5d2e19a230e8b8250d9a7c2f280846/wayland-1.26.0.tar.xz 64176eaa46e4969903e286f8e5ef8331affc17fdf03ac9b58381d2b23162b7a3
 wayland-protocols https://gitlab.freedesktop.org/-/project/2891/uploads/7ed597f0cad076a17fe36f8860596f8c/wayland-protocols-1.49.tar.xz ec4c8f74942d6dff7ace8b4ce4764f0ef9ff618a935d974ea77edee2ad240b14
@@ -36,17 +36,17 @@ fontconfig https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/f
 dejavu https://downloads.sourceforge.net/project/dejavu/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2 fa9ca4d13871dd122f61258a80d01751d603b4d3ee14095d65453b4e846e17d7
 nettle https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5
 elfutils https://sourceware.org/elfutils/ftp/0.196/elfutils-0.196.tar.bz2 fd5cc6b77ad6773cac93cb3f415f9318ac3b3455eecf801f6b4a742c4f6c7209
-libglvnd https://deb.debian.org/debian/pool/main/libg/libglvnd/libglvnd_1.7.0.orig.tar.gz 073e7292788d4d3eeb45ea6c7bdcce9bfdb3b3eef8d7dbd47f2f30dce046ef98
+libglvnd https://gitlab.freedesktop.org/glvnd/libglvnd/-/archive/v1.7.0/libglvnd-v1.7.0.tar.gz 2b6e15b06aafb4c0b6e2348124808cbd9b291c647299eaaba2e3202f51ff2f3d
 mesa https://archive.mesa3d.org/mesa-26.2.4.tar.xz bce5f7fbebb934373b86c999a064d52fb5065878dc57f287f95346648ec832e9
 libepoxy https://download.gnome.org/sources/libepoxy/1.5/libepoxy-1.5.10.tar.xz 072cda4b59dd098bba8c2363a6247299db1fa89411dc221c8b81b8ee8192e623
 xwayland https://xorg.freedesktop.org/releases/individual/xserver/xwayland-24.1.14.tar.xz 4eb6b98d678299a4b96138d886345b294130695760345ef84596225a8224078a
 xkbcomp https://xorg.freedesktop.org/releases/individual/app/xkbcomp-1.5.0.tar.xz 2ac31f26600776db6d9cd79b3fcd272263faebac7eb85fb2f33c7141b8486060
 xkeyboard-config https://xorg.freedesktop.org/releases/individual/data/xkeyboard-config/xkeyboard-config-2.48.tar.xz b77041324f0109f77161ee43743fe04baa485866af8460d31e476ad3f7648fd5
-vulkan-loader https://deb.debian.org/debian/pool/main/v/vulkan-loader/vulkan-loader_1.4.363.0.orig.tar.xz 2e31548f8328deb7aaf2d4a7f2e1a0a56c394660aeb6665c5dd7dfbab8d67997
+vulkan-loader https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz 941eff558fc74f248745fb7df367640cf89a8457f216dae498a74ae14b6ba6f7 vulkan-loader-1.4.363.0.tar.gz
 alsa-lib https://www.alsa-project.org/files/pub/lib/alsa-lib-1.2.16.1.tar.bz2 f740db7f488255944ffd4428416ee3390a96742856916433df468c281436480e
 libtool https://ftp.gnu.org/gnu/libtool/libtool-2.5.4.tar.xz f81f5860666b0bc7d84baddefa60d1cb9fa6fceb2398cc3baca6afaa60266675
 speexdsp https://downloads.xiph.org/releases/speex/speexdsp-1.2.1.tar.gz 8c777343e4a6399569c72abc38a95b24db56882c83dbdb6c6424a5f4aeb54d3d
-libsndfile https://deb.debian.org/debian/pool/main/libs/libsndfile/libsndfile_1.2.2.orig.tar.gz ffe12ef8add3eaca876f04087734e6e8e029350082f3251f565fa9da55b52121
+libsndfile https://github.com/libsndfile/libsndfile/releases/download/1.2.2/libsndfile-1.2.2.tar.xz 3799ca9924d3125038880367bf1468e53a1b7e3686a934f098b7e1d286cdb80e
 pulseaudio https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-17.0.tar.xz 053794d6671a3e397d849e478a80b82a63cb9d8ca296bd35b73317bb5ceb87b5
 bash https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz 0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba
 coreutils https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210
@@ -57,7 +57,7 @@ findutils https://ftp.gnu.org/gnu/findutils/findutils-4.11.0.tar.xz bfd19cb06cc7
 diffutils https://ftp.gnu.org/gnu/diffutils/diffutils-3.12.tar.xz 7c8b7f9fc8609141fdea9cece85249d308624391ff61dedaf528fcb337727dfd
 tar https://ftp.gnu.org/gnu/tar/tar-1.35.tar.xz 4d62ff37342ec7aed748535323930c7cf94acf71c3591882b26a7ea50f3edc16
 gzip https://ftp.gnu.org/gnu/gzip/gzip-1.15.tar.xz 9aa0cc780dec156b8282844833b342ab7cb08c25d2cd9a1869cdd0df31deff48
-xz https://deb.debian.org/debian/pool/main/x/xz-utils/xz-utils_5.8.4.orig.tar.xz 4ce24038fd4221e0d13bc1a2de7a4db56e90b92b3bf75321f6c14be73f65de4b
+xz https://downloads.sourceforge.net/lzmautils/xz-5.8.4.tar.xz 4ce24038fd4221e0d13bc1a2de7a4db56e90b92b3bf75321f6c14be73f65de4b
 which https://ftp.gnu.org/gnu/which/which-2.25.tar.gz 1cb83e4f702e60b8211ab5ec4c2afbab1b1dec80209456a7d2faf7584ed225ea
 file https://astron.com/pub/file/file-5.48.tar.gz ed14656883b23a364b4057c05595d93252da9bc473d30106519519d0da141283
 util-linux https://cdn.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.xz fbd62a100ab7bb8746ba0661255c3c48185b1e9021507c624da01fbc696330ec
@@ -86,9 +86,9 @@ libseccomp https://distfiles.gentoo.org/distfiles/ee/libseccomp-2.6.1.tar.gz 501
 fuse https://distfiles.gentoo.org/distfiles/5e/fuse-3.18.3.tar.gz bcd19582c5e30f7fe45dd86a5540e998590aa01903afc7ebcbeea6c8ac5421ee
 libfyaml https://deb.debian.org/debian/pool/main/libf/libfyaml/libfyaml_0.9.4.orig.tar.gz e76b79f0e98dc9a143c57bc4b7dfce27e0155deee4c373a86059d0599cbcc29e
 libxmlb https://distfiles.gentoo.org/distfiles/4f/libxmlb-0.3.29.tar.xz 448294be33bfae62f00fa66e506f1cae80237ce71b7ab6530aefa75005eeb08a
-appstream https://deb.debian.org/debian/pool/main/a/appstream/appstream_1.2.1.orig.tar.xz 7df664fd3ad3b1640c6a0ff77fa84f9fabe264111bf1fe8f5df3444d6d4caaca
+appstream https://www.freedesktop.org/software/appstream/releases/AppStream-1.2.1.tar.xz 7df664fd3ad3b1640c6a0ff77fa84f9fabe264111bf1fe8f5df3444d6d4caaca
 e2fsprogs https://cdn.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v1.47.4/e2fsprogs-1.47.4.tar.xz fd5bf388cbdbe006a3d3b318d983b2948382440acc85a87f1e7d108653e8db0b
-ostree https://deb.debian.org/debian/pool/main/o/ostree/ostree_2026.4.orig.tar.xz b26c9016eb03bb4ee52cc00c642d56e00fc79ae7faac6bf4aa317d7451339ef7
+ostree https://github.com/ostreedev/ostree/releases/download/v2026.4/libostree-2026.4.tar.xz b26c9016eb03bb4ee52cc00c642d56e00fc79ae7faac6bf4aa317d7451339ef7
 bubblewrap https://distfiles.gentoo.org/distfiles/ba/bubblewrap-0.13.0.tar.xz 4734237473c0e5d695e4e9034a34e43b2dbf5164655bd13fa59ae376b2b7a765
 xdg-dbus-proxy https://distfiles.gentoo.org/distfiles/dc/xdg-dbus-proxy-0.1.9.tar.xz 5450dda586ec3bb3ca709d311e845487883faa3b09cf562608d7e84f4311dced
 flatpak https://distfiles.gentoo.org/distfiles/06/flatpak-1.18.4.tar.xz b899a7a00c48d2c626cb8ec33fe556720b376c25805d7222430c0fdca4c6ac8d
@@ -118,7 +118,7 @@ p11-kit https://github.com/p11-glue/p11-kit/releases/download/0.26.2/p11-kit-0.2
 libsecret https://download.gnome.org/sources/libsecret/0.21/libsecret-0.21.8.2.tar.xz -
 gcr https://download.gnome.org/sources/gcr/4.4/gcr-4.4.1.tar.xz -
 libgudev https://download.gnome.org/sources/libgudev/238/libgudev-238.tar.xz -
-vulkan-headers https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v1.4.357.tar.gz - vulkan-headers-1.4.357.0.tar.gz
+vulkan-headers https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz 4a078be12bef21cfebc09d878b77a63cff9d68f899254a0b00d0e37ef73e7f7e vulkan-headers-1.4.363.0.tar.gz
 gtk https://download.gnome.org/sources/gtk/4.24/gtk-4.24.1.tar.xz -
 librsvg https://download.gnome.org/sources/librsvg/2.62/librsvg-2.62.4.tar.xz -
 glycin https://download.gnome.org/sources/glycin/2.2/glycin-2.2.2.tar.xz -
@@ -219,3 +219,29 @@ gnome-control-center https://download.gnome.org/sources/gnome-control-center/51/
 nautilus https://download.gnome.org/sources/nautilus/51/nautilus-51.0.1.tar.xz -
 gnome-console https://download.gnome.org/sources/gnome-console/51/gnome-console-51.0.tar.xz -
 gnome-text-editor https://download.gnome.org/sources/gnome-text-editor/51/gnome-text-editor-51.0.tar.xz -
+gmp https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz -
+mpfr https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz -
+mpc https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz -
+libgee https://download.gnome.org/sources/libgee/0.20/libgee-0.20.8.tar.xz -
+gnome-calculator https://download.gnome.org/sources/gnome-calculator/51/gnome-calculator-51.0.tar.xz -
+gnome-clocks https://download.gnome.org/sources/gnome-clocks/51/gnome-clocks-51.0.tar.xz -
+baobab https://download.gnome.org/sources/baobab/50/baobab-50.0.tar.xz -
+gnome-weather https://download.gnome.org/sources/gnome-weather/50/gnome-weather-50.0.tar.xz -
+gnome-calendar https://download.gnome.org/sources/gnome-calendar/51/gnome-calendar-51.0.tar.xz -
+gnome-characters https://download.gnome.org/sources/gnome-characters/51/gnome-characters-51.0.tar.xz -
+gnome-font-viewer https://download.gnome.org/sources/gnome-font-viewer/50/gnome-font-viewer-50.0.tar.xz -
+file-roller https://download.gnome.org/sources/file-roller/44/file-roller-44.7.tar.xz -
+libsigcpp https://download.gnome.org/sources/libsigc++/3.6/libsigc++-3.6.0.tar.xz -
+glibmm https://download.gnome.org/sources/glibmm/2.90/glibmm-2.90.0.tar.xz -
+cairomm https://www.cairographics.org/releases/cairomm-1.18.0.tar.xz -
+pangomm https://download.gnome.org/sources/pangomm/2.58/pangomm-2.58.0.tar.xz -
+gtkmm https://download.gnome.org/sources/gtkmm/4.24/gtkmm-4.24.0.tar.xz -
+gnome-system-monitor https://download.gnome.org/sources/gnome-system-monitor/51/gnome-system-monitor-51.1.tar.xz -
+loupe https://download.gnome.org/sources/loupe/51/loupe-51.0.tar.xz -
+exempi https://libopenraw.freedesktop.org/download/exempi-2.6.6.tar.xz -
+poppler https://poppler.freedesktop.org/poppler-26.10.0.tar.xz -
+papers https://download.gnome.org/sources/papers/51/papers-51.0.tar.xz -
+libshumate https://download.gnome.org/sources/libshumate/1.7/libshumate-1.7.0.tar.xz -
+gnome-maps https://download.gnome.org/sources/gnome-maps/51/gnome-maps-51.1.tar.xz -
+gnome-tour https://download.gnome.org/sources/gnome-tour/50/gnome-tour-50.0.tar.xz -
+gnome-software https://download.gnome.org/sources/gnome-software/51/gnome-software-51.0.tar.xz -

@@ -66,7 +66,6 @@ pkg_zlib() {
 
 pkg_expat() {
 	unpack expat
-	cd expat
 	cmakebuild -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_BUILD_TESTS=OFF -DEXPAT_BUILD_DOCS=OFF \
 		-DEXPAT_SHARED_LIBS=ON
 }
@@ -80,11 +79,14 @@ pkg_libffi() {
 	autobuild --disable-docs --disable-multi-os-directory "${inc[@]}"
 }
 
-# libcrypt: glibc no longer has it, and Steam's client still links to it
+# libcrypt: glibc no longer has it, and Steam's client still links to it.
+# glibc's methods, so the strongest (and the default for new passwords, as
+# GNOME's Settings makes them) is SHA-512 crypt: what Zurbax's account
+# service checks passwords against
 pkg_libxcrypt() {
 	unpack libxcrypt
 	autoreconf -fi >autoreconf.log 2>&1
-	autobuild --disable-werror --enable-hashes=strong,glibc --enable-obsolete-api=glibc --disable-failure-tokens
+	autobuild --disable-werror --enable-hashes=glibc --enable-obsolete-api=glibc --disable-failure-tokens
 }
 
 # libudev for programs that look for devices with it (Steam and SDL find game
@@ -239,14 +241,10 @@ pkg_mesa() {
 
 pkg_vulkan_loader() {
 	unpack vulkan-loader
-	# Debian's copy of the source leaves out the generated code; the loader's
-	# own generator remakes it from the Vulkan registry that comes with it
-	local version=${PWD##*-}
-	mkdir -p loader/generated tests/framework/generated tests/framework/layer/generated
-	python3 scripts/generate_source.py vulkan-headers/registry --generated-version "$version" --incremental >codegen.log 2>&1 ||
-		{ tail -20 codegen.log; exit 1; }
-	# Vulkan's headers come with the loader's source
-	(cd vulkan-headers && cmake -S . -B _build -DCMAKE_INSTALL_PREFIX="$WORK/vkheaders" >cmake.log && cmake --install _build >>cmake.log)
+	# the Vulkan headers of the same release, which the loader is built against
+	mkdir -p "$WORK/vkh" && tar -xf "$(fetch vulkan-headers)" -C "$WORK/vkh"
+	(cd "$WORK"/vkh/*/ && cmake -S . -B _build -DCMAKE_INSTALL_PREFIX="$WORK/vkheaders" -DVULKAN_HEADERS_ENABLE_TESTS=OFF \
+		-DVULKAN_HEADERS_ENABLE_MODULE=OFF >cmake.log && cmake --install _build >>cmake.log)
 	cmakebuild -DVulkanHeaders_DIR="$WORK/vkheaders/share/cmake/VulkanHeaders" -DVULKAN_HEADERS_INSTALL_DIR="$WORK/vkheaders" \
 		-DBUILD_TESTS=OFF -DBUILD_WSI_XCB_SUPPORT=ON -DBUILD_WSI_XLIB_SUPPORT=ON -DBUILD_WSI_WAYLAND_SUPPORT=ON \
 		-DUPDATE_DEPS=OFF -DCMAKE_FIND_ROOT_PATH="$WORK/vkheaders"

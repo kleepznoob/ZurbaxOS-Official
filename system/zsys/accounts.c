@@ -398,23 +398,33 @@ static bool user_method(DBus *bus, DBusMsg *call, void *data)
 	return true;
 }
 
-/* org.zurbax.Accounts.ChangePassword(current, new): for the passwd program */
+/* org.zurbax.Accounts, for the passwd program: CheckPassword(current)
+ * answers whether it's right (an empty one is right only for an account
+ * without a password), ChangePassword(current, new) changes it. */
 static bool zurbax_method(DBus *bus, DBusMsg *call, void *data)
 {
 	(void)data;
-	if (!str_eq(dbus_member(call), "ChangePassword"))
+	const char *mbr = dbus_member(call);
+	bool check = str_eq(mbr, "CheckPassword");
+	if (!check && !str_eq(mbr, "ChangePassword"))
 		return false;
 	if (!allowed(bus, call))
 		return true;
-	/* a pause after a wrong answer keeps guessing slow */
-	if (time_mono_ms() - last_failure_ms < 2000) {
+	const char *cur = dbus_str(dbus_arg(call, 0), ""), *next = dbus_str(dbus_arg(call, 1), "");
+	/* a pause after a wrong answer keeps guessing slow (asking whether
+	 * there is a password at all isn't a guess) */
+	if (cur[0] && time_mono_ms() - last_failure_ms < 2000) {
 		dbus_reply_error(bus, call, "org.zurbax.Accounts.Error.TryLater", "Wait a moment and try again");
 		return true;
 	}
-	const char *cur = dbus_str(dbus_arg(call, 0), ""), *next = dbus_str(dbus_arg(call, 1), "");
 	if (!check_password(cur)) {
-		last_failure_ms = time_mono_ms();
+		if (cur[0])
+			last_failure_ms = time_mono_ms();
 		dbus_reply_error(bus, call, "org.zurbax.Accounts.Error.WrongPassword", "The current password isn't right");
+		return true;
+	}
+	if (check) {
+		dbus_reply_empty(bus, call);
 		return true;
 	}
 	char *rec = next[0] ? password_hash(next) : str_dup("");
@@ -510,6 +520,7 @@ static const char USER_XML[] =
 
 static const char ZURBAX_XML[] =
 	"<interface name=\"org.zurbax.Accounts\">"
+	"<method name=\"CheckPassword\"><arg type=\"s\" direction=\"in\"/></method>"
 	"<method name=\"ChangePassword\"><arg type=\"s\" direction=\"in\"/><arg type=\"s\" direction=\"in\"/></method>"
 	"</interface>";
 

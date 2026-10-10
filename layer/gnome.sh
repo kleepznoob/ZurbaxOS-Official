@@ -480,7 +480,7 @@ pkg_gst_plugins_base() {
 	unpack gst-plugins-base
 	mesonbuild "${gst_common[@]}" -Dintrospection=enabled -Dgl=enabled -Dgl_api=opengl,gles2 -Dgl_platform=egl \
 		-Dgl_winsys=wayland,egl,x11 -Dalsa=enabled -Dogg=enabled -Dvorbis=enabled -Dopus=enabled -Dtheora=disabled \
-		-Dcdparanoia=disabled -Dlibvisual=disabled -Dtremor=disabled -Dqt5=disabled -Dqt6=disabled
+		-Dcdparanoia=disabled -Dlibvisual=disabled -Dtremor=disabled -Dqt5=disabled
 }
 
 pkg_gst_plugins_good() {
@@ -494,7 +494,7 @@ pkg_gst_plugins_good() {
 pkg_gst_plugins_bad() {
 	unpack gst-plugins-bad
 	mesonbuild "${gst_common[@]}" -Dintrospection=enabled -Dgpl=disabled -Dva=enabled -Dvulkan=disabled -Dwayland=enabled \
-		-Ddav1d=disabled -Dopus=enabled -Dsndfile=enabled -Daom=disabled -Dsvtav1=disabled -Dx265=disabled -Dopenh264=disabled \
+		-Dopus=enabled -Dsndfile=enabled -Daom=disabled -Dsvtav1=disabled -Dx265=disabled -Dopenh264=disabled \
 		-Dwebrtc=disabled -Dwebrtcdsp=disabled -Dsrtp=disabled -Dmsdk=disabled -Dqsv=disabled -Dnvcodec=disabled \
 		-Dopencv=disabled -Dopenexr=disabled -Dopenjpeg=disabled -Dlibde265=disabled -Dzbar=disabled -Dzxing=disabled \
 		-Dfluidsynth=disabled -Dmpeg2enc=disabled -Dmplex=disabled -Dsoundtouch=disabled -Dspandsp=disabled \
@@ -752,13 +752,15 @@ pkg_gnome_shell() {
 	zurbax_program zsession /usr/libexec/zurbax/zsession
 }
 
-# Zurbax's touches for GNOME: its wallpaper (rendered by tools/wallpaper)
-# and its defaults (layer/files/90_zurbax.gschema.override)
+# Zurbax's touches for GNOME: its wallpapers (rendered by tools/wallpaper,
+# all of them offered in GNOME's Appearance settings) and its defaults
+# (layer/files/90_zurbax.gschema.override)
 pkg_zurbax_gnome() {
 	env -u CC -u CXX -u CFLAGS -u LDFLAGS make -C "$TOP" --no-print-directory -s build/tools/wallpaper ||
 		{ echo "couldn't build the wallpaper tool" >&2; exit 1; }
-	mkdir -p "$ROOT/usr/share/backgrounds/zurbax"
-	"$TOP/build/tools/wallpaper" silk "$ROOT/usr/share/backgrounds/zurbax/silk.png" 3840 2160
+	mkdir -p "$ROOT/usr/share/backgrounds/zurbax" "$ROOT/usr/share/gnome-background-properties"
+	"$TOP/build/tools/wallpaper" --gnome "$ROOT/usr/share/backgrounds/zurbax" \
+		"$ROOT/usr/share/gnome-background-properties/zurbax.xml" /usr/share/backgrounds/zurbax 3840 2160
 	install -Dm644 "$HERE/files/90_zurbax.gschema.override" "$ROOT/usr/share/glib-2.0/schemas/90_zurbax.gschema.override"
 	# the logo GNOME's About page and os-release name
 	install -Dm644 "$TOP/data/zurbax-logo.svg" "$ROOT/usr/share/pixmaps/zurbax-logo.svg"
