@@ -330,6 +330,74 @@ static void test_json(void)
 	sb_free(&sb);
 }
 
+static void test_dbus(void)
+{
+	DBusMsg *m = dbus_new_call("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
+				   "org.freedesktop.portal.Settings", "Read");
+	dbus_add(m, "ss", "org.freedesktop.appearance", "color-scheme");
+	dbus_add(m, "yb", 7, 1);
+	dbus_add(m, "nqi", -2, 65535, -100000);
+	dbus_add(m, "xtd", (i64)-5000000000LL, (u64)18000000000000000000ULL, 2.5);
+	dbus_open(m, "a{sv}");
+	dbus_dict_add(m, "handle_token", "s", "zos1");
+	dbus_dict_add(m, "modal", "b", 1);
+	dbus_dict_add(m, "count", "u", 42u);
+	dbus_close(m);
+	dbus_open(m, "a(ss)");
+	dbus_close(m);
+	dbus_open(m, "as");
+	dbus_add(m, "s", "one");
+	dbus_add(m, "s", "two");
+	dbus_close(m);
+	dbus_add(m, "og", "/a/b", "a{sv}");
+	CHECK(str_eq(dbus_signature(m), "ssybnqixtda{sv}a(ss)asog"));
+	usize len = 0;
+	u8 *wire = dbus_msg_encode(m, 9, &len);
+	CHECK(wire && len > 16 && wire[0] == 'l');
+	DBusMsg *d = dbus_msg_decode(wire, len);
+	CHECK(d != NULL);
+	if (d) {
+		CHECK(dbus_type(d) == DBUS_CALL && dbus_serial(d) == 9);
+		CHECK(str_eq(dbus_member(d), "Read") && str_eq(dbus_interface(d), "org.freedesktop.portal.Settings"));
+		CHECK(str_eq(dbus_destination(d), "org.freedesktop.portal.Desktop"));
+		CHECK(str_eq(dbus_signature(d), "ssybnqixtda{sv}a(ss)asog"));
+		CHECK(dbus_nargs(d) == 15);
+		CHECK(str_eq(dbus_str(dbus_arg(d, 1), ""), "color-scheme"));
+		CHECK(dbus_int(dbus_arg(d, 2), 0) == 7 && dbus_bool(dbus_arg(d, 3), false));
+		CHECK(dbus_int(dbus_arg(d, 4), 0) == -2 && dbus_uint(dbus_arg(d, 5), 0) == 65535);
+		CHECK(dbus_int(dbus_arg(d, 6), 0) == -100000 && dbus_int(dbus_arg(d, 7), 0) == -5000000000LL);
+		CHECK(dbus_uint(dbus_arg(d, 8), 0) == 18000000000000000000ULL && dbus_double(dbus_arg(d, 9), 0) == 2.5);
+		const DBusVal *opts = dbus_arg(d, 10);
+		CHECK(str_eq(dbus_str(dbus_dict_get(opts, "handle_token"), ""), "zos1"));
+		CHECK(dbus_bool(dbus_dict_get(opts, "modal"), false) && dbus_uint(dbus_dict_get(opts, "count"), 0) == 42);
+		CHECK(dbus_dict_get(opts, "missing") == NULL);
+		CHECK(dbus_arg(d, 11)->type == 'a' && dbus_arg(d, 11)->count == 0);
+		usize n = 0;
+		const char **sv = dbus_strv(dbus_arg(d, 12), &n);
+		CHECK(n == 2 && str_eq(sv[1], "two") && sv[2] == NULL);
+		mem_free(sv);
+		CHECK(str_eq(dbus_str(dbus_arg(d, 13), ""), "/a/b") && str_eq(dbus_str(dbus_arg(d, 14), "?"), "a{sv}"));
+		/* a received value copied into a new message comes out the same */
+		DBusMsg *c = dbus_new_signal("/x", "y.z", "W");
+		dbus_add_val(c, opts);
+		usize clen = 0;
+		u8 *cw = dbus_msg_encode(c, 1, &clen);
+		DBusMsg *cd = dbus_msg_decode(cw, clen);
+		CHECK(cd && str_eq(dbus_signature(cd), "a{sv}") && dbus_uint(dbus_dict_get(dbus_arg(cd, 0), "count"), 0) == 42);
+		dbus_msg_free(cd);
+		mem_free(cw);
+		dbus_msg_free(c);
+		dbus_msg_free(d);
+	}
+	/* truncated or corrupt messages are refused, not crashed on */
+	for (usize cut = 16; cut < len; cut += 7)
+		dbus_msg_free(dbus_msg_decode(wire, cut));
+	wire[len - 20] ^= 0xff;
+	dbus_msg_free(dbus_msg_decode(wire, len));
+	mem_free(wire);
+	dbus_msg_free(m);
+}
+
 static void test_tz(void)
 {
 	/* Built-in rules (no zone files are installed on the build machine's /system). */
@@ -391,6 +459,7 @@ int main(void)
 	test_os();
 	test_files();
 	test_json();
+	test_dbus();
 	test_tz();
 	print("libzr: %d/%d checks passed\n", checks - failures, checks);
 	return failures ? 1 : 0;

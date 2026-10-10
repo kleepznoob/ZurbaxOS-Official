@@ -464,6 +464,220 @@ pkg_pciutils() {
 ORDER+=(bash coreutils sed grep gawk findutils diffutils tar gzip which xz file getopt libcap libcap:32 dbus dbus:32
 	pciutils)
 
+# ---- Flatpak: apps from Flathub ------------------------------------------------------------
+# Flatpak runs apps in sandboxes of their own (bubblewrap), each with the
+# runtime it was built for, so one app works the same on every distribution.
+# Its downloads go through OSTree, whose repositories are signed with GnuPG;
+# AppStream reads the catalogue of apps. ZOS installs apps per user, in the
+# home folder (the layer itself is read-only). ZOS's own portal service
+# (system/zportal) gives the apps file choosers, settings and notifications.
+# All of this is 64-bit only.
+
+# GLib's checks that would run a program, answered for glibc on x86-64
+glib_props() {
+	cat >"$WORK/glib.ini" <<-'EOF'
+		[properties]
+		have_c99_vsnprintf = true
+		have_c99_snprintf = true
+		have_unix98_printf = true
+		va_val_copy = true
+		growing_stack = false
+		have_strlcpy = true
+		have_proc_self_cmdline = true
+	EOF
+}
+
+pkg_pcre2() {
+	unpack pcre2
+	autobuild --enable-pcre2-8 --disable-pcre2-16 --disable-pcre2-32 --enable-jit --disable-pcre2grep-libz \
+		--disable-pcre2grep-libbz2 --disable-pcre2test-libreadline
+}
+
+pkg_glib() {
+	unpack glib
+	glib_props
+	mesonbuild --cross-file "$WORK/glib.ini" -Dselinux=disabled -Dlibmount=disabled -Dman-pages=disabled \
+		-Ddocumentation=false -Dtests=false -Dinstalled_tests=false -Dnls=disabled -Dintrospection=disabled \
+		-Ddtrace=disabled -Dsystemtap=disabled -Dsysprof=disabled -Dlibelf=disabled -Dglib_debug=disabled
+}
+
+pkg_json_glib() {
+	unpack json-glib
+	mesonbuild -Dintrospection=disabled -Ddocumentation=disabled -Dman=false -Dtests=false -Dnls=disabled \
+		-Dconformance=false -Dinstalled_tests=false
+}
+
+pkg_libxml2() {
+	unpack libxml2
+	autobuild --without-python --without-lzma --without-icu --without-readline --without-history --without-debug
+}
+
+pkg_zstd() {
+	unpack zstd
+	# CFLAGS and LDFLAGS come from the environment: on the command line they
+	# would replace the -fPIC and -shared the makefile adds
+	local mk=(CC="$CC" PREFIX=/usr LIBDIR=$LIBDIR HAVE_ZLIB=0 HAVE_LZMA=0 HAVE_LZ4=0)
+	make -C lib -j"$JOBS" "${mk[@]}" libzstd libzstd.pc >make.log 2>&1 || { tail -30 make.log; exit 1; }
+	make -C lib "${mk[@]}" DESTDIR="$DEST" install-shared install-includes install-pc >install.log 2>&1 ||
+		{ tail -30 install.log; exit 1; }
+	finish
+}
+
+# OpenSSL: the TLS of curl, so OSTree's downloads from Flathub are encrypted
+pkg_openssl() {
+	unpack openssl
+	./Configure linux-x86_64 --prefix=/usr --libdir=lib --openssldir=/etc/ssl shared no-tests no-docs no-static-engine \
+		no-ssl3 no-comp no-afalgeng >configure.log 2>&1 || { tail -30 configure.log; exit 1; }
+	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A5 -m5 'error' make.log | head -40; exit 1; }
+	make DESTDIR="$DEST" install_sw install_ssldirs >install.log 2>&1 || { tail -30 install.log; exit 1; }
+	rm -f "$DEST"/usr/lib/libcrypto.a "$DEST"/usr/lib/libssl.a "$DEST"/etc/ssl/*.dist
+	finish
+}
+
+# HTTP/2: OSTree fetches thousands of small files, many at once over one connection
+pkg_nghttp2() {
+	unpack nghttp2
+	autobuild --enable-lib-only --disable-python-bindings
+}
+
+pkg_curl() {
+	unpack curl
+	autobuild --with-openssl --with-nghttp2 --with-zlib --with-zstd --without-libpsl --without-brotli --without-libidn2 \
+		--without-librtmp --without-libssh2 --disable-ldap --disable-ldaps --disable-manual --disable-docs \
+		--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt --with-ca-path=/etc/ssl/certs
+}
+
+pkg_libarchive() {
+	unpack libarchive
+	autobuild --without-xml2 --without-expat --without-openssl --without-lz4 --without-bz2lib --without-libb2 \
+		--without-mbedtls --without-nettle --disable-acl --disable-bsdtar --disable-bsdcpio --disable-bsdcat \
+		--disable-bsdunzip
+}
+
+# GnuPG's libraries find each other with gpgrt-config, which would hand out
+# the build machine's /usr/include; pkg-config, told about the layer, doesn't
+gpgrt_config() {
+	mkdir -p "$WORK/bin"
+	cat >"$WORK/bin/gpgrt-config" <<-'EOF'
+		#!/bin/sh
+		args=
+		for a in "$@"; do case $a in --libdir=*) ;; *) args="$args $a" ;; esac; done
+		exec pkg-config $args
+	EOF
+	chmod +x "$WORK/bin/gpgrt-config"
+	export GPGRT_CONFIG=$WORK/bin/gpgrt-config
+}
+
+gpg_pkg() {
+	unpack "$1"
+	shift
+	gpgrt_config
+	autobuild --disable-doc "$@"
+}
+
+pkg_libgpg_error() { gpg_pkg libgpg-error --disable-nls --disable-languages --disable-tests; }
+pkg_libassuan() { gpg_pkg libassuan; }
+pkg_libgcrypt() { gpg_pkg libgcrypt --disable-padlock-support --disable-jent-support; }
+pkg_libksba() { gpg_pkg libksba; }
+pkg_npth() { gpg_pkg npth --disable-tests; }
+
+# gpg itself: OSTree checks Flathub's signatures with it (through GPGME);
+# only what checking signatures and listing keys takes
+pkg_gnupg() {
+	gpg_pkg gnupg --disable-nls --disable-gpgsm --disable-scdaemon --disable-dirmngr --disable-keyboxd \
+		--disable-tpm2d --disable-g13 --disable-wks-tools --disable-card-support --disable-ccid-driver \
+		--disable-sqlite --disable-gnutls --disable-ldap --disable-libdns --disable-bzip2 --disable-photo-viewers \
+		--disable-ntbtls --disable-tests
+}
+
+pkg_gpgme() {
+	gpg_pkg gpgme --enable-languages= --disable-gpg-test --disable-gpgsm-test --disable-gpgconf-test \
+		--disable-g13-test
+}
+
+pkg_libseccomp() {
+	unpack libseccomp
+	autobuild
+}
+
+# FUSE's library (the document portal and AppImages serve files with it);
+# ZOS has its own fusermount3, which asks layerrun's session to mount
+pkg_fuse() {
+	unpack fuse
+	mesonbuild -Dutils=false -Dexamples=false -Dtests=false -Duseroot=false -Ddisable-mtab=true
+}
+
+# fusermount/zos-fusermount.c: the layer's fusermount3
+pkg_fusermount() {
+	$CC $CFLAGS -Wall -o "$ROOT/usr/bin/fusermount3" "$HERE/fusermount/zos-fusermount.c" $LDFLAGS
+}
+
+pkg_libfyaml() {
+	unpack libfyaml
+	cmakebuild -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DENABLE_NETWORK=OFF -DENABLE_LIBCLANG=OFF
+}
+
+pkg_libxmlb() {
+	unpack libxmlb
+	mesonbuild -Dgtkdoc=false -Dintrospection=false -Dtests=false -Dstemmer=false -Dcli=false -Dlzma=enabled -Dzstd=enabled
+}
+
+pkg_appstream() {
+	unpack appstream
+	# data/ only describes appstreamcli itself, with the build machine's
+	# appstreamcli when cross building; the tests read it
+	sed -i -e "/^subdir('data\/')/d" -e "/^subdir('tests\/')/d" meson.build
+	mesonbuild -Dstemming=false -Dsystemd=false -Dvapi=false -Dqt=false -Dcompose=false -Dapt-support=false \
+		-Dgir=false -Dtools=true -Dzstd-support=true -Dblake3-support=false -Ddisplay-detection=none -Ddocs=false \
+		-Dapidocs=false -Dinstall-docs=false -Dman=false -Dbash-completion=false
+}
+
+# e2fsprogs only for a header OSTree reads the file attribute flags from
+pkg_e2fsprogs() {
+	unpack e2fsprogs
+	autobuild_configure --disable-nls --disable-fsck --disable-uuidd \
+		--disable-debugfs --disable-imager --disable-resizer --disable-defrag --disable-e2initrd-helper --disable-fuse2fs
+	make -C lib/ext2fs ext2_types.h >make.log 2>&1 || { tail -30 make.log; exit 1; }
+	install -Dm644 lib/ext2fs/ext2_fs.h lib/ext2fs/ext2_types.h -t "$ROOT/usr/include/ext2fs/"
+	install -Dm644 lib/e2p/e2p.pc -t "$ROOT/usr/lib/pkgconfig/"
+}
+
+pkg_ostree() {
+	unpack ostree
+	autobuild --with-curl --without-soup --without-soup3 --with-crypto=openssl --with-gpgme --with-libarchive \
+		--without-libsystemd --without-selinux --without-libmount --without-composefs --without-avahi \
+		--without-dracut --without-mkinitcpio --disable-rofiles-fuse --disable-man --disable-gtk-doc \
+		--disable-introspection --without-ed25519-libsodium --disable-glibtest
+}
+
+pkg_bubblewrap() {
+	unpack bubblewrap
+	mesonbuild -Dman=disabled -Dselinux=disabled -Dtests=false -Dbash_completion=disabled -Dzsh_completion=disabled
+}
+
+pkg_xdg_dbus_proxy() {
+	unpack xdg-dbus-proxy
+	mesonbuild -Dman=disabled -Dtests=false
+}
+
+pkg_flatpak() {
+	unpack flatpak
+	# its icon checker only runs when building apps (flatpak build-export),
+	# and is the only part that needs gdk-pixbuf
+	sed -i -e "/^gdk_pixbuf_dep = /d" -e "/subdir('icon-validator')/d" meson.build
+	mesonbuild -Dsystem_helper=disabled -Dsystemd=disabled -Dmalcontent=disabled -Dselinux_module=disabled \
+		-Ddconf=disabled -Dgir=disabled -Dgtkdoc=disabled -Ddocbook_docs=disabled -Dman=disabled -Dtests=false \
+		-Dinstalled_tests=false -Dseccomp=enabled -Dxauth=disabled -Dwayland_security_context=disabled \
+		-Dlibzstd=enabled -Dauto_sideloading=false -Dsystem_bubblewrap=/usr/bin/bwrap \
+		-Dsystem_dbus_proxy=/usr/bin/xdg-dbus-proxy -Dsystem_fusermount=/usr/bin/fusermount3 \
+		-Dsystem_install_dir=/var/lib/flatpak
+	# Flathub, ready to add to a user's installation (layerrun's session does)
+	install -Dm644 "$HERE/files/flathub.flatpakrepo" "$ROOT/usr/share/zos/flathub.flatpakrepo"
+}
+
+ORDER+=(pcre2 glib json_glib libxml2 zstd openssl nghttp2 curl libarchive libgpg_error libassuan libgcrypt libksba
+	npth gnupg gpgme libseccomp fuse fusermount libfyaml libxmlb appstream e2fsprogs ostree bubblewrap xdg_dbus_proxy flatpak)
+
 # ---- System files -------------------------------------------------------------------------
 
 pkg_tzdata() {

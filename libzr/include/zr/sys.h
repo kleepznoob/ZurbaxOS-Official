@@ -381,6 +381,7 @@ static inline long sys_symlink(const char *target, const char *path) { return SC
 static inline long sys_readlink(const char *path, char *buf, usize n) { return SC(4, SYS_readlinkat, AT_FDCWD, (long)path, (long)buf, (long)n); }
 static inline long sys_chmod(const char *path, int mode) { return SC(3, SYS_fchmodat, AT_FDCWD, (long)path, mode); }
 static inline long sys_chown(const char *path, u32 uid, u32 gid) { return SC(5, SYS_fchownat, AT_FDCWD, (long)path, uid, gid, 0); }
+static inline long sys_lchown(const char *path, u32 uid, u32 gid) { return SC(5, SYS_fchownat, AT_FDCWD, (long)path, uid, gid, AT_SYMLINK_NOFOLLOW); }
 static inline long sys_ftruncate(int fd, i64 len) { return SC(2, SYS_ftruncate, fd, len); }
 static inline long sys_fsync(int fd) { return SC(1, SYS_fsync, fd); }
 static inline long sys_sync(void) { return SC(0, SYS_sync); }
@@ -447,6 +448,7 @@ static inline long sys_futex(int *addr, int op, int val, const struct timespec *
 static inline long sys_mount(const char *src, const char *dst, const char *type, unsigned long flags, const void *data) { return SC(5, SYS_mount, (long)src, (long)dst, (long)type, (long)flags, (long)data); }
 static inline long sys_umount(const char *path, int flags) { return SC(2, SYS_umount2, (long)path, flags); }
 static inline long sys_unshare(int flags) { return SC(1, SYS_unshare, flags); }
+static inline long sys_setns(int fd, int nstype) { return SC(2, SYS_setns, fd, nstype); }
 static inline long sys_pivot_root(const char *new_root, const char *put_old) { return SC(2, SYS_pivot_root, (long)new_root, (long)put_old); }
 static inline long sys_chroot(const char *path) { return SC(1, SYS_chroot, (long)path); }
 static inline long sys_reboot(int cmd) { return SC(4, SYS_reboot, REBOOT_MAGIC1, REBOOT_MAGIC2, cmd, 0); }

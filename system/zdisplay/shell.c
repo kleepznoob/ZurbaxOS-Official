@@ -104,6 +104,33 @@ static const AppInfo *app_for_file(const char *path)
 	return NULL;
 }
 
+/* /run/user/UID, the runtime folder of a standard Linux session, made for
+ * the user (private to them) with the Wayland socket under its usual name.
+ * NULL when it can't be made (zdisplay not running as root, in development). */
+char *user_runtime_dir(u32 uid, u32 gid)
+{
+	char *dir = str_fmt("/run/user/%u", uid);
+	struct stat st;
+	if (sys_lstat(dir, &st) < 0) {
+		sys_mkdir("/run/user", 0755);
+		if (sys_mkdir(dir, 0700) == 0)
+			sys_chown(dir, uid, gid);
+	}
+	if (sys_lstat(dir, &st) < 0 || !S_ISDIR(st.st_mode) || st.st_uid != uid) {
+		mem_free(dir);
+		return NULL;
+	}
+	char *link = str_fmt("%s/wayland-0", dir);
+	char cur[200] = { 0 };
+	if (sys_readlink(link, cur, sizeof cur - 1) <= 0 || !str_eq(cur, wl_socket_path())) {
+		sys_unlink(link);
+		if (sys_symlink(wl_socket_path(), link) == 0)
+			sys_lchown(link, uid, gid);
+	}
+	mem_free(link);
+	return dir;
+}
+
 static bool force_new_instance;
 
 /* Starts another copy of an app even if one is already open. */
@@ -175,9 +202,9 @@ void shell_launch(const char *app_id, const char *arg)
 	usize nenv = 0;
 	while (environ[nenv])
 		nenv++;
-	char **envp = NEW_ARRAY(char *, nenv + 8);
+	char **envp = NEW_ARRAY(char *, nenv + 9);
 	int ne = 0;
-	char home[160], user[96], lang[64], tzv[80], wayland[200], screen[48];
+	char home[160], user[96], lang[64], tzv[80], wayland[200], screen[48], runtime[64];
 	fmt(home, sizeof home, "HOME=%s", S.set.home);
 	fmt(user, sizeof user, "USER=%s", S.set.user_name);
 	fmt(lang, sizeof lang, "LANG=%s", "en_US.UTF-8");
@@ -192,9 +219,17 @@ void shell_launch(const char *app_id, const char *arg)
 	envp[ne++] = tzv;
 	envp[ne++] = wayland;
 	envp[ne++] = screen;
+	/* the runtime folder standard Linux programs keep their sockets in */
+	char *rt = user_runtime_dir(o.drop_privileges ? o.uid : (u32)sys_getuid(), o.drop_privileges ? o.gid : (u32)sys_getgid());
+	if (rt) {
+		fmt(runtime, sizeof runtime, "XDG_RUNTIME_DIR=%s", rt);
+		envp[ne++] = runtime;
+		mem_free(rt);
+	}
 	for (char **e = environ; *e; e++)
 		if (!str_starts(*e, "HOME=") && !str_starts(*e, "USER=") && !str_starts(*e, "LANG=") && !str_starts(*e, "TZ=") &&
-		    !str_starts(*e, "WAYLAND_DISPLAY=") && !str_starts(*e, "ZOS_SCREEN="))
+		    !str_starts(*e, "WAYLAND_DISPLAY=") && !str_starts(*e, "ZOS_SCREEN=") &&
+		    !(rt && str_starts(*e, "XDG_RUNTIME_DIR=")))
 			envp[ne++] = *e;
 	envp[ne] = NULL;
 	if (!dir_exists(S.set.home)) {

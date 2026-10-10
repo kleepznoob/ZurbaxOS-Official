@@ -363,6 +363,7 @@ void input_scroll(f32 dx, f32 dy, u32 source, u32 phase);
 /* shell.c */
 void shell_init(void);
 void shell_reload_apps(void);
+char *user_runtime_dir(u32 uid, u32 gid);
 void shell_prepare(void);                 /* re-renders the shell overlay if needed */
 void shell_draw(Canvas *frame);           /* blends the overlay onto the frame */
 void shell_mark_dirty(void);

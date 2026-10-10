@@ -8,3 +8,4 @@
 #include "zr/os.h"
 #include "zr/math.h"
 #include "zr/crypto.h"
+#include "zr/dbus.h"
