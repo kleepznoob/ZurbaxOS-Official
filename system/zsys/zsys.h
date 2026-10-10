@@ -69,6 +69,7 @@ void accounts_start(DBus *bus);
 void hostname_start(DBus *bus);
 void polkit_start(DBus *bus);
 void network_start(DBus *bus);
+void gdm_start(DBus *bus);
 
 /* zinit: "poweroff" or "reboot" */
 void power_action(const char *what);

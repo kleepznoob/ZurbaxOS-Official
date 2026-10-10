@@ -167,3 +167,13 @@ shaderc https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz - sha
 glslang https://github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz - glslang-1.4.357.0.tar.gz
 spirv-tools https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz - spirv-tools-1.4.357.0.tar.gz
 spirv-headers https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz - spirv-headers-1.4.357.0.tar.gz
+accountsservice https://www.freedesktop.org/software/accountsservice/accountsservice-23.13.9.tar.xz -
+upower https://gitlab.freedesktop.org/upower/upower/-/archive/v1.90.10/upower-v1.90.10.tar.bz2 -
+geoclue https://gitlab.freedesktop.org/geoclue/geoclue/-/archive/2.8.0/geoclue-2.8.0.tar.bz2 -
+linux-pam https://github.com/linux-pam/linux-pam/releases/download/v1.7.2/Linux-PAM-1.7.2.tar.xz -
+gdm https://download.gnome.org/sources/gdm/51/gdm-51.0.tar.xz -
+libnotify https://download.gnome.org/sources/libnotify/0.8/libnotify-0.8.8.tar.xz -
+gsound https://download.gnome.org/sources/gsound/1.0/gsound-1.0.3.tar.xz -
+gnome-bluetooth https://download.gnome.org/sources/gnome-bluetooth/47/gnome-bluetooth-47.2.tar.xz -
+libnma https://download.gnome.org/sources/libnma/1.10/libnma-1.10.6.tar.xz -
+ibus https://github.com/ibus/ibus/releases/download/1.5.33/ibus-1.5.33.tar.gz -

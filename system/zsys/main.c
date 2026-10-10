@@ -6,8 +6,9 @@
  * The desktop starts it, as root, when someone signs in to GNOME. It starts
  * the session's system bus (the layer's message bus program, with Zurbax's
  * own configuration), joins it and answers there for logind, UPower and
- * power profiles, AccountsService, hostnamed, localed, timedated, polkit and
- * NetworkManager until the session ends (SIGTERM) or the bus goes away.
+ * power profiles, AccountsService, hostnamed, localed, timedated, polkit,
+ * NetworkManager and the display manager's unlock channel until the
+ * session ends (SIGTERM) or the bus goes away.
  * The account is the one in /data/system/users.conf.
  */
 #include "zsys.h"
@@ -176,6 +177,7 @@ int main(int argc, char **argv)
 	hostname_start(Z.bus);
 	polkit_start(Z.bus);
 	network_start(Z.bus);
+	gdm_start(Z.bus);
 	print("zsys: serving the session of %s (uid %u) on %s\n", Z.user, Z.uid, address);
 
 	while (!stop_requested && !Z.lost)

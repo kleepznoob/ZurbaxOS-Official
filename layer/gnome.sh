@@ -8,6 +8,14 @@
 
 # GLib for the build machine, in the layer's version: GObject Introspection's
 # scanner is built against it
+# A Zurbax program (system/NAME, static, no outside code) installed into the
+# layer at PATH: the pieces of the GNOME session that are Zurbax's own.
+zurbax_program() {
+	env -u CC -u CXX -u CFLAGS -u LDFLAGS make -C "$TOP" --no-print-directory -s "build/bin/$1" ||
+		{ echo "couldn't build $1" >&2; exit 1; }
+	install -Dm755 "$TOP/build/bin/$1" "$ROOT$2"
+}
+
 pkg_native_glib() {
 	unpack glib
 	native_env
@@ -235,6 +243,8 @@ pkg_glycin() {
 	unpack glycin
 	rust_env
 	cargo_fetch
+	# glycin's build keeps a cargo home of its own: the fetched crates' one
+	mkdir -p _build && ln -s "$CARGO_HOME" _build/cargo-home
 	mesonbuild -Dlibglycin=true -Dlibglycin-gtk4=true -Dglycin-loaders=true -Dloaders=glycin-image-rs,glycin-svg \
 		-Dintrospection=true -Dvapi=false -Dtests=false -Dglycin-thumbnailer=true
 }
@@ -328,6 +338,8 @@ pkg_polkit() {
 	unpack polkit
 	mesonbuild -Dlibs-only=true -Dintrospection=true -Dexamples=false -Dtests=false -Dman=false -Dgtk_doc=false \
 		-Djs_engine=duktape -Dsession_tracking=logind -Dsystemdsystemunitdir=/usr/lib/systemd/system
+	# the agent's password check: Zurbax's own (system/polkit-helper), asking zsys
+	zurbax_program polkit-helper /usr/lib/polkit-1/polkit-agent-helper-1
 }
 
 pkg_colord() {
@@ -551,9 +563,78 @@ pkg_networkmanager() {
 		-Dqt=false -Dcrypto=null -Dlibpsl=true -Dnm_cloud_setup=false -Dovs=false -Dteamdctl=false -Dwext=false -Diwd=false \
 		-Dofono=false -Dfirewalld_zone=false -Dreadline=none -Dsystemdsystemunitdir=no -Dudev_dir=/usr/lib/udev \
 		-Dmore_asserts=no -Dconcheck=true
+	# zsys answers for NetworkManager (with znet underneath): the library and
+	# nmcli stay, the daemon goes
+	rm -f "$ROOT"/usr/bin/NetworkManager "$ROOT"/usr/sbin/NetworkManager "$ROOT"/usr/libexec/nm-*
+	rm -f "$ROOT"/usr/share/dbus-1/system-services/org.freedesktop.nm_* "$ROOT"/usr/share/dbus-1/system.d/org.freedesktop.NetworkManager.conf
 }
 
 ORDER+=(libndp networkmanager)
+
+# ---- Client libraries of system services ------------------------------------------------------
+# GNOME's programs reach the system's services through these libraries;
+# on Zurbax zsys is the service behind each of them, so only the libraries
+# (and their type information) stay in the layer.
+
+pkg_accountsservice() {
+	unpack accountsservice
+	mesonbuild -Dintrospection=true -Dvapi=false -Ddocbook=false -Dgtk_doc=false -Dsystemdsystemunitdir=no \
+		-Dadmin_group=wheel
+	rm -f "$ROOT"/usr/libexec/accounts-daemon "$ROOT"/usr/share/dbus-1/system-services/org.freedesktop.Accounts.service
+}
+
+pkg_upower() {
+	unpack upower
+	mesonbuild -Dintrospection=enabled -Dgtk-doc=false -Dman=false -Didevice=disabled -Dsystemdsystemunitdir=no \
+		-Dos_backend=linux -Dpolkit=disabled
+	rm -f "$ROOT"/usr/libexec/upowerd "$ROOT"/usr/share/dbus-1/system-services/org.freedesktop.UPower.service
+}
+
+pkg_geoclue() {
+	unpack geoclue
+	mesonbuild -Denable-backend=false -Dlibgeoclue=true -Dintrospection=true -Dvapi=false -Dgtk-doc=false -Ddemo-agent=false
+}
+
+# PAM: GDM's library needs it to build; Zurbax checks passwords itself
+pkg_linux_pam() {
+	unpack linux-pam
+	mesonbuild -Ddocs=disabled -Dexamples=false -Daudit=disabled -Dselinux=disabled -Dnis=disabled -Deconf=disabled \
+		-Dlogind=disabled -Delogind=disabled -Dxtests=false -Di18n=disabled
+}
+
+# GDM: GNOME Shell's login and unlock code is written against its library
+# (libgdm); zsys answers for the display manager itself
+pkg_gdm() {
+	unpack gdm
+	mesonbuild -Dlogind-provider=systemd -Dsystemdsystemunitdir=no -Dsystemduserunitdir=no -Dx11-support=false \
+		-Dplymouth=disabled -Dselinux=disabled -Dlibaudit=disabled -Dgdm-xsession=false -Ddefault-pam-config=lfs \
+		-Dsystemd-journal=false -Dpam-mod-dir=/usr/lib/security
+	rm -f "$ROOT"/usr/sbin/gdm "$ROOT"/usr/bin/gdm "$ROOT"/usr/libexec/gdm-* "$ROOT"/usr/bin/gdmflexiserver
+	rm -rf "$ROOT"/usr/lib/security/pam_gdm.so "$ROOT"/etc/pam.d/gdm*
+}
+
+pkg_libnotify() { unpack libnotify; mesonbuild -Dtests=false -Dintrospection=enabled -Dman=false -Dgtk_doc=false -Ddocbook_docs=disabled; }
+
+pkg_gsound() { unpack gsound; mesonbuild -Dintrospection=true -Dvapi=false -Dgtk_doc=false; }
+
+pkg_gnome_bluetooth() { unpack gnome-bluetooth; mesonbuild -Dintrospection=true -Dgtk_doc=false; }
+
+pkg_libnma() {
+	unpack libnma
+	mesonbuild -Dlibnma_gtk4=true -Dintrospection=true -Dvapi=false -Dgtk_doc=false -Dmobile_broadband_provider_info=false \
+		-Diso_codes=true -Dgcr=true
+}
+
+# IBus: input methods (Chinese, Japanese, Korean and more), which GNOME Shell drives
+pkg_ibus() {
+	unpack ibus
+	autobuild --disable-gtk2 --disable-gtk3 --enable-gtk4 --disable-xim --enable-wayland --disable-appindicator \
+		--disable-emoji-dict --disable-unicode-dict --disable-python2 --disable-python-library --disable-setup \
+		--disable-ui --disable-tests --enable-introspection --disable-vala --disable-gtk-doc --disable-memconf \
+		--enable-dconf --disable-systemd-services --with-python=python3
+}
+
+ORDER+=(accountsservice upower geoclue linux_pam gdm libnotify gsound gnome_bluetooth libnma ibus)
 
 # ---- GNOME Shell -----------------------------------------------------------------------------
 

@@ -213,7 +213,7 @@ cargo_fetch() {
 
 # The machine files meson and cmake need for these cross builds.
 machine_files() {
-	local cpu=x86_64 family=x86_64 m='' args linkargs gi=''
+	local cpu=x86_64 family=x86_64 m='' args linkargs gi='' props=''
 	if [ "$ARCH" = 32 ]; then cpu=i686 family=x86 m=", '-m32'"; fi
 	args=$(printf "'%s', " $OPT) linkargs=$(printf "'%s', " $LDFLAGS)
 	if [ "$ARCH" = 64 ] && [ -x "$NATIVE/bin/g-ir-scanner" ]; then
@@ -221,7 +221,10 @@ machine_files() {
 		gi="g-ir-scanner = '$L/cross-bin/g-ir-scanner'
 g-ir-compiler = '$L/cross-bin/g-ir-compiler'
 gi-compile-repository = '$L/cross-bin/g-ir-compiler'
-exe_wrapper = '$L/cross-bin/run-target'"
+exe_wrapper = '$L/cross-bin/run-target'
+rust = ['$HOME/.cargo/bin/rustc', '--target', 'x86_64-unknown-linux-gnu']
+rust_ld = '$TC/bin/gcc'"
+		props="rust_target = 'x86_64-unknown-linux-gnu'"
 	fi
 	cat >"$WORK/cross$ARCH.ini" <<-EOF
 		[binaries]
@@ -237,6 +240,7 @@ exe_wrapper = '$L/cross-bin/run-target'"
 		sys_root = '$ROOT'
 		pkg_config_libdir = '$ROOT$LIBDIR/pkgconfig:$ROOT/usr/share/pkgconfig'
 		needs_exe_wrapper = true
+		$props
 		[built-in options]
 		c_args = [${args%, }]
 		cpp_args = [${args%, }]
@@ -253,6 +257,7 @@ exe_wrapper = '$L/cross-bin/run-target'"
 		[binaries]
 		c = 'gcc'
 		cpp = 'g++'
+		rust = '$HOME/.cargo/bin/rustc'
 		pkg-config = 'pkg-config'
 		llvm-config = 'llvm-config-18'
 		[built-in options]
