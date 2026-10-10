@@ -12,7 +12,7 @@
  * (log out, restart, power off) through GNOME Shell's dialog.
  *
  * --headless runs GNOME Shell without a screen, on a virtual monitor of
- * that size (for tests and screenshots).
+ * that size, in unsafe mode (for tests: screenshots and Eval over D-Bus).
  */
 #include "zr.h"
 
@@ -1131,7 +1131,8 @@ int main(int argc, char **argv)
 
 	load_autostart();
 	settings_daemons();
-	char **sh = headless ? argv_of("gnome-shell", "--headless", "--virtual-monitor", headless, NULL)
+	/* a headless session is a test's: unsafe mode lets it take screenshots */
+	char **sh = headless ? argv_of("gnome-shell", "--headless", "--unsafe-mode", "--virtual-monitor", headless, NULL)
 			     : argv_of("gnome-shell", "--display-server", "--wayland", NULL);
 	shell = run("gnome-shell", sh, false);
 	if (!shell || !shell->pid)
