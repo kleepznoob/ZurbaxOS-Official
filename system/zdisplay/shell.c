@@ -24,6 +24,212 @@ static int app_cmp(const void *a, const void *b, void *ctx)
 	return str_cmp_nocase(((const AppInfo *)a)->name, ((const AppInfo *)b)->name);
 }
 
+/* ---- Linux apps: the menu entries Flatpak exports ------------------------------------------ */
+
+/* A menu entry's freedesktop.org categories as one of ZOS's. */
+static const char *category_of(const char *cats)
+{
+	static const struct {
+		const char *fd, *zos;
+	} map[] = {
+		{ "Game", "Games" }, { "WebBrowser", "Internet" }, { "Email", "Internet" }, { "Chat", "Internet" },
+		{ "Network", "Internet" }, { "Graphics", "Graphics" }, { "Photography", "Graphics" }, { "AudioVideo", "Media" },
+		{ "Audio", "Media" }, { "Video", "Media" }, { "Office", "Office" }, { "Education", "Office" },
+		{ "Science", "Office" }, { "Development", "Utilities" }, { "Settings", "System" }, { "System", "System" },
+		{ "Utility", "Utilities" },
+	};
+	for (usize i = 0; i < ARRAY_LEN(map); i++) {
+		usize n = 0;
+		char **parts = str_split(cats, ';', &n);
+		bool hit = false;
+		for (usize k = 0; k < n && !hit; k++)
+			hit = str_eq(parts[k], map[i].fd);
+		str_split_free(parts, n);
+		if (hit)
+			return map[i].zos;
+	}
+	return "Other";
+}
+
+/* File types Linux apps declare (MIME), as the extensions ZOS opens files by. */
+static void mime_to_exts(const char *mimes, char *out, usize cap)
+{
+	static const struct {
+		const char *mime, *exts;
+	} map[] = {
+		{ "text/html", "html,htm" }, { "text/plain", "txt" }, { "text/markdown", "md" }, { "text/csv", "csv" },
+		{ "application/pdf", "pdf" }, { "application/epub+zip", "epub" }, { "application/zip", "zip" },
+		{ "image/png", "png" }, { "image/jpeg", "jpg,jpeg" }, { "image/gif", "gif" }, { "image/webp", "webp" },
+		{ "image/svg+xml", "svg" }, { "image/bmp", "bmp" }, { "image/tiff", "tif,tiff" }, { "audio/mpeg", "mp3" },
+		{ "audio/flac", "flac" }, { "audio/ogg", "ogg,oga" }, { "audio/x-wav", "wav" }, { "audio/mp4", "m4a" },
+		{ "video/mp4", "mp4" }, { "video/x-matroska", "mkv" }, { "video/webm", "webm" }, { "video/quicktime", "mov" },
+		{ "video/x-msvideo", "avi" }, { "application/msword", "doc" }, { "application/vnd.ms-excel", "xls" },
+		{ "application/vnd.oasis.opendocument.text", "odt" }, { "application/vnd.oasis.opendocument.spreadsheet", "ods" },
+		{ "application/vnd.oasis.opendocument.presentation", "odp" },
+		{ "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx" },
+		{ "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx" },
+		{ "application/vnd.openxmlformats-officedocument.presentationml.presentation", "pptx" },
+	};
+	out[0] = 0;
+	usize n = 0;
+	char **parts = str_split(mimes, ';', &n);
+	for (usize k = 0; k < n; k++)
+		for (usize i = 0; i < ARRAY_LEN(map); i++)
+			if (str_eq(parts[k], map[i].mime) && strlen(out) + strlen(map[i].exts) + 2 < cap) {
+				if (out[0])
+					str_copy(out + strlen(out), ",", cap - strlen(out));
+				str_copy(out + strlen(out), map[i].exts, cap - strlen(out));
+			}
+	str_split_free(parts, n);
+}
+
+/* The picture for a menu entry's Icon in a share folder's icon theme:
+ * the larger pictures first (ZOS draws them down to size). */
+static bool find_icon(const char *share, const char *name, char *out, usize cap)
+{
+	if (name[0] == '/') {
+		str_copy(out, name, cap);
+		return file_exists(name);
+	}
+	static const char *const sizes[] = { "512x512", "256x256", "192x192", "128x128", "scalable", "96x96", "64x64", "48x48" };
+	for (usize i = 0; i < ARRAY_LEN(sizes); i++) {
+		fmt(out, cap, "%s/icons/hicolor/%s/apps/%s.%s", share, sizes[i], name, str_eq(sizes[i], "scalable") ? "svg" : "png");
+		if (file_exists(out))
+			return true;
+	}
+	fmt(out, cap, "%s/pixmaps/%s.png", share, name);
+	return file_exists(out);
+}
+
+/* The menu entries in share/applications: what they're called, their icon,
+ * their command and the files they open. */
+static void load_desktop_entries(const char *share)
+{
+	char *dir = str_fmt("%s/applications", share);
+	DirList l = { 0 };
+	if (!dir_list(dir, &l, false)) {
+		mem_free(dir);
+		return;
+	}
+	vec_each(&l, e)
+	{
+		if (S.napps >= (int)ARRAY_LEN(S.apps))
+			break;
+		if (!str_ends(e->name, ".desktop"))
+			continue;
+		char *path = str_fmt("%s/%s", dir, e->name);
+		char *text = file_read(path, NULL);
+		mem_free(path);
+		if (!text)
+			continue;
+		const char *keys[] = { "Type", "Name", "GenericName", "Comment", "Exec", "Icon", "NoDisplay", "Hidden", "Categories",
+				       "Keywords", "MimeType" };
+		const char *vals[ARRAY_LEN(keys)] = { 0 };
+		bool entry = false;
+		usize n = 0;
+		char **lines = str_split(text, '\n', &n);
+		for (usize i = 0; i < n; i++) {
+			char *line = str_trim(lines[i]);
+			if (line[0] == '[') {
+				entry = str_eq(line, "[Desktop Entry]");
+				continue;
+			}
+			char *eq = (char *)str_chr(line, '=');
+			if (!entry || !eq)
+				continue;
+			*eq = 0;
+			char *key = str_trim(line), *val = str_trim(eq + 1);
+			for (usize k = 0; k < ARRAY_LEN(keys); k++)
+				if (str_eq(key, keys[k]) && !vals[k])
+					vals[k] = val;
+		}
+		bool show = vals[0] && str_eq(vals[0], "Application") && vals[1] && vals[4] &&
+			    !(vals[6] && str_eq(vals[6], "true")) && !(vals[7] && str_eq(vals[7], "true"));
+		if (show) {
+			AppInfo *a = &S.apps[S.napps];
+			memset(a, 0, sizeof *a);
+			str_copy(a->id, e->name, sizeof a->id);
+			a->id[strlen(a->id) - 8] = 0; /* without ".desktop" */
+			str_copy(a->name, vals[1], sizeof a->name);
+			if (!vals[5] || !find_icon(share, vals[5], a->icon, sizeof a->icon))
+				str_copy(a->icon, "zurbax", sizeof a->icon);
+			str_copy(a->exec, vals[4], sizeof a->exec);
+			str_copy(a->category, category_of(vals[8] ? vals[8] : ""), sizeof a->category);
+			fmt(a->keywords, sizeof a->keywords, "%s;%s;%s", vals[2] ? vals[2] : "", vals[9] ? vals[9] : "",
+			    vals[3] ? vals[3] : "");
+			mime_to_exts(vals[10] ? vals[10] : "", a->opens, sizeof a->opens);
+			a->is_linux = true;
+			/* a ZOS app of the same id stays */
+			if (!shell_app(a->id))
+				S.napps++;
+		}
+		str_split_free(lines, n);
+		mem_free(text);
+	}
+	dir_list_free(&l);
+	mem_free(dir);
+}
+
+/* A Linux app's command line: its menu entry's command (the desktop entry
+ * specification's quoting, with the file or address in place of its field
+ * codes), started in the Linux session by layerrun. */
+static int linux_argv(const AppInfo *a, const char *arg, char *buf, usize cap, char **argv, int max)
+{
+	int n = 0;
+	char *layerrun = zurbax_path("bin/layerrun");
+	usize used = 0;
+#define PUT(s)                                                              \
+	do {                                                                    \
+		usize l_ = strlen(s);                                               \
+		if (n < max - 1 && used + l_ + 1 <= cap) {                          \
+			memcpy(buf + used, s, l_ + 1);                              \
+			argv[n++] = buf + used;                                     \
+			used += l_ + 1;                                             \
+		}                                                                   \
+	} while (0)
+	PUT(layerrun);
+	PUT("--app");
+	PUT(a->id);
+	mem_free(layerrun);
+	bool placed = false;
+	for (const char *p = a->exec; *p;) {
+		while (*p == ' ')
+			p++;
+		if (!*p)
+			break;
+		char tok[512];
+		usize t = 0;
+		bool quoted = false;
+		while (*p && (quoted || *p != ' ') && t + 1 < sizeof tok) {
+			if (*p == '"') {
+				quoted = !quoted;
+				p++;
+			} else if (*p == '\\' && p[1]) {
+				tok[t++] = p[1];
+				p += 2;
+			} else {
+				tok[t++] = *p++;
+			}
+		}
+		tok[t] = 0;
+		/* Flatpak's file forwarding needs the document portal; the file goes as it is */
+		if (str_eq(tok, "--file-forwarding") || str_eq(tok, "@@") || str_eq(tok, "@@u") || str_eq(tok, "@@f"))
+			continue;
+		if (str_eq(tok, "%u") || str_eq(tok, "%U") || str_eq(tok, "%f") || str_eq(tok, "%F")) {
+			if (arg && *arg && !placed)
+				PUT(arg);
+			placed = true;
+			continue;
+		}
+		if (tok[0] == '%' && tok[1] && !tok[2])
+			continue; /* %i %c %k and the like */
+		PUT(tok);
+	}
+#undef PUT
+	argv[n] = NULL;
+	return n;
+}
+
 void shell_reload_apps(void)
 {
 	S.napps = 0;
@@ -68,6 +274,10 @@ void shell_reload_apps(void)
 	}
 	mem_free(sys);
 	mem_free(usr);
+	/* Flatpak apps the user installed */
+	char *share = str_fmt("%s/.local/share/flatpak/exports/share", S.set.home);
+	load_desktop_entries(share);
+	mem_free(share);
 	sort(S.apps, (usize)S.napps, sizeof(AppInfo), app_cmp, NULL);
 }
 
@@ -91,7 +301,11 @@ static const AppInfo *app_for_file(const char *path)
 	const char *ext = path_ext(path);
 	if (!*ext)
 		return shell_app("writer");
+	/* ZOS's own apps first, then Linux apps */
+	for (int pass = 0; pass < 2; pass++)
 	for (int i = 0; i < S.napps; i++) {
+		if (S.apps[i].is_linux != (pass == 1))
+			continue;
 		usize n;
 		char **parts = str_split(S.apps[i].opens, ',', &n);
 		bool hit = false;
@@ -183,12 +397,18 @@ void shell_launch(const char *app_id, const char *arg)
 			}
 		}
 	}
-	char *argv[4];
+	char *argv[64];
+	char argbuf[2048];
 	int n = 0;
-	argv[n++] = path;
-	if (arg && *arg)
-		argv[n++] = (char *)arg;
-	argv[n] = NULL;
+	if (a && a->is_linux) {
+		n = linux_argv(a, arg, argbuf, sizeof argbuf, argv, (int)ARRAY_LEN(argv));
+		str_copy(path, argv[0], sizeof path);
+	} else {
+		argv[n++] = path;
+		if (arg && *arg)
+			argv[n++] = (char *)arg;
+		argv[n] = NULL;
+	}
 	SpawnOpts o = { .stdin_fd = -1, .stdout_fd = -1, .stderr_fd = -1, .new_session = true };
 	static const u32 groups[] = { GID_AUDIO, GID_VIDEO, GID_INPUT };
 	if (S.set.uid && sys_getuid() == 0) {

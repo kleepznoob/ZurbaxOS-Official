@@ -516,13 +516,41 @@ static SvgDoc *load_icon_doc(const char *name, bool app)
 	return NULL;
 }
 
+/* An icon given as a picture's path (Linux apps' PNG and SVG icons). */
+static Canvas *icon_from_file(const char *path, int size)
+{
+	if (str_ends(path, ".svg")) {
+		SvgDoc *doc = svg_load(path);
+		if (!doc)
+			return NULL;
+		Canvas *img = svg_rasterize(doc, size, size, COLOR_WHITE);
+		svg_free(doc);
+		return img;
+	}
+	Canvas *pic = image_load(path);
+	if (!pic)
+		return NULL;
+	Canvas *img = canvas_new(size, size);
+	f32 k = minf((f32)size / (f32)pic->width, (f32)size / (f32)pic->height);
+	f32 w = (f32)pic->width * k, h = (f32)pic->height * k;
+	blit_scaled(img, pic, rect(0, 0, (f32)pic->width, (f32)pic->height), rect(((f32)size - w) / 2, ((f32)size - h) / 2, w, h), 1);
+	canvas_free(pic);
+	return img;
+}
+
 static const Canvas *icon_image(const char *name, int size, bool app)
 {
-	char key[160];
+	char key[320];
 	fmt(key, sizeof key, "%c:%s@%d", app ? 'a' : 's', name, size);
 	Canvas *img = map_get(&icon_cache, key);
 	if (img)
 		return img;
+	if (name[0] == '/') {
+		img = icon_from_file(name, size);
+		if (img)
+			map_set(&icon_cache, key, img);
+		return img;
+	}
 	SvgDoc *doc = load_icon_doc(name, app);
 	if (!doc && !app)
 		doc = load_icon_doc("help", false);

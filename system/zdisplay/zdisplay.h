@@ -67,7 +67,7 @@ typedef struct Window {
 	u32 client_win;
 	Client *client;
 	char title[128];
-	char app_id[48];
+	char app_id[96];
 	u32 flags;
 	struct Window *parent;
 	Rect rect;                  /* logical, content area */
@@ -113,20 +113,21 @@ struct Client {
 /* ---- Shell state --------------------------------------------------------------------- */
 
 typedef struct {
-	char id[48];
+	char id[96];
 	char name[64];
-	char icon[48];
-	char exec[256];
+	char icon[256];             /* an icon name, or a picture's path */
+	char exec[256];             /* the program; for Linux apps, the menu entry's command */
 	char category[32];
-	char keywords[128];
+	char keywords[192];
 	char opens[160];            /* file extensions this app opens, comma-separated */
 	bool hidden;
+	bool is_linux;              /* a Linux app (Flatpak), started through layerrun */
 } AppInfo;
 
 typedef struct {
 	u32 id;
-	char app[48];
-	char icon[48];
+	char app[96];
+	char icon[256];
 	char title[128];
 	char body[512];
 	i64 time;
@@ -220,7 +221,7 @@ typedef struct {
 	Canvas *cursor_img[16];
 
 	/* shell */
-	AppInfo apps[96];
+	AppInfo apps[256];
 	int napps;
 	Notice notices[64];
 	int nnotices;

@@ -67,7 +67,7 @@ struct WlClient {
 	int fd;
 	bool dead;
 	int pid;
-	char app_id[48];     /* from ZOS_APP_ID in its environment, when ZOS started it */
+	char app_id[96];     /* from ZOS_APP_ID in its environment, when ZOS started it */
 	u8 in[WL_BUF];
 	usize in_len;
 	int in_fds[WL_MAX_FDS];
@@ -172,7 +172,7 @@ struct WlToplevel {
 	WlResource *res;
 	WlXdgSurface *xs;
 	WlToplevel *parent;
-	char title[128], app_id[48];
+	char title[128], app_id[96];
 	i32 min_w, min_h, max_w, max_h;
 	bool want_fullscreen, want_maximized;
 	/* the last configure sent, to skip repeats */
