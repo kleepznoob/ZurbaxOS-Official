@@ -85,7 +85,7 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: media-prep system-efi iso iso-mini downloads apps firmware all test clean devroot devroot-links image run
+.PHONY: media-prep system-efi iso iso-mini downloads downloads-files apps firmware all test clean devroot devroot-links image run
 .SECONDARY:
 all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(if $(STORE),$(OUT)/repo/index)
 
@@ -152,9 +152,10 @@ $(OUT)/preload/apps.sfs: tools/preload-apps.sh
 	@tools/preload-apps.sh $(OUT)/preload
 
 # The mini install image: the system alone (69 MB, for any USB stick). Its
-# installer downloads the rest from DOWNLOADS, the place `make downloads`
-# fills; when that can't be reached, it installs the stick's own system.
-DOWNLOADS ?= https://downloads.zurbax.com/2.0/
+# installer downloads the rest from DOWNLOADS, which zurbax.com sends on to
+# where `make downloads` files are kept; when that can't be reached, it
+# installs the stick's own system.
+DOWNLOADS ?= https://zurbax.com/download/2.0/
 iso-mini: system-efi
 	@mkdir -p $(OUT)/mini && printf '%s\n' '$(DOWNLOADS)' >$(OUT)/mini/NETINST.TXT
 	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-mini.iso $(EFI_FILE) $(OUT)/mini/NETINST.TXT
@@ -162,8 +163,10 @@ iso-mini: system-efi
 # What the download place serves: the full image, the mini one, and the
 # pieces the mini installer downloads, with a manifest of their sizes and
 # SHA-256 sums (linked, not copied: the full image alone is over 6 GB).
-downloads: iso iso-mini
-	@ln -f $(LAYER) $(OUT)/zurbax.iso $(OUT)/zurbax-mini.iso $(OUT)/downloads/
+downloads: iso iso-mini downloads-files
+downloads-files:
+	@mkdir -p $(OUT)/downloads && ln -f $(LAYER) $(OUT)/zurbax.iso $(OUT)/zurbax-mini.iso $(OUT)/downloads/
+	@[ -f $(OUT)/downloads/zurbax.efi ] || ln -f $(OUT)/zurbax.efi $(OUT)/downloads/zurbax.efi
 	@cd $(OUT)/downloads && for f in *.efi *.sfs; do printf '%s %s %s\n' "$$f" "$$(stat -c %s "$$f")" "$$(sha256sum "$$f" | cut -d' ' -f1)"; done >manifest
 	@cd $(OUT)/downloads && sha256sum zurbax.iso zurbax-mini.iso >SHA256SUMS
 	@cat $(OUT)/downloads/manifest

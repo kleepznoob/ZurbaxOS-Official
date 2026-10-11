@@ -170,7 +170,7 @@ pkg_vte() {
 	mesonbuild -Dgtk3=false -Dgtk4=true -Dgir=true -Dvapi=false -Ddocs=false -D_systemd=false -Dgnutls=true -Dicu=true -Dglade=false
 }
 
-ORDER+=(libunistring libtasn1 nettle gnutls cracklib libpwquality libgtop colord_gtk udisks_client modemmanager gcr3 tinysparql
+ORDER+=(libunistring libtasn1 gmp nettle gnutls cracklib libpwquality libgtop colord_gtk udisks_client modemmanager gcr3 tinysparql
 	localsearch gnome_autoar libportal gtksourceview lz4 vte)
 
 # ---- The session's services ----------------------------------------------------------------------
@@ -245,7 +245,8 @@ ORDER+=(gnome_control_center nautilus gnome_console hunspell enchant hunspell_en
 
 # GNU's arbitrary precision arithmetic, which the Calculator computes with;
 # fat: the fastest code for whichever processor it runs on
-pkg_gmp() { unpack gmp; autobuild --enable-fat; }
+# GMP 6.3's configure tests are older C than GCC 15 assumes
+pkg_gmp() { unpack gmp; CFLAGS="${CFLAGS:-} -std=gnu17" autobuild --enable-fat; }
 pkg_mpfr() { unpack mpfr; autobuild; }
 pkg_mpc() { unpack mpc; autobuild; }
 pkg_libgee() { unpack libgee; autobuild --disable-introspection; }
@@ -296,7 +297,7 @@ pkg_gnome_characters() { unpack gnome-characters; mesonbuild -Dinstalled_tests=f
 pkg_gnome_font_viewer() { unpack gnome-font-viewer; mesonbuild; }
 pkg_file_roller() { unpack file-roller; mesonbuild -Dpackagekit=false -Dnautilus-actions=disabled -Dintrospection=disabled; }
 
-ORDER+=(gmp mpfr mpc libgee vala_bindings gnome_calculator gnome_clocks baobab gnome_weather gnome_calendar gnome_characters
+ORDER+=(mpfr mpc libgee vala_bindings gnome_calculator gnome_clocks baobab gnome_weather gnome_calendar gnome_characters
 	gnome_font_viewer file_roller)
 
 # System Monitor is written in C++ with GTK's C++ interface
