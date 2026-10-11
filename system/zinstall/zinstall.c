@@ -11,7 +11,7 @@
  * "error TEXT". It is setuid root but works only in the live session (booted
  * from the install stick), where the person at the keyboard owns the machine.
  *
- * From the mini install image (LAYERS/NETINSTALL.TXT names a download
+ * From the mini install image (LAYERS/NETINST.TXT names a download
  * place), the system and the Linux layer's images come over the network
  * instead: the edition for this computer's graphics (kernel/gpu-variants),
  * each file checked against the place's manifest.
@@ -756,10 +756,10 @@ static void copy_layers(const char *disk)
 
 static char net_base[256];
 
-/* The mini install image: LAYERS/NETINSTALL.TXT holds the download place. */
+/* The mini install image: LAYERS/NETINST.TXT holds the download place. */
 static bool net_medium(void)
 {
-	static const char *const names[] = { "/run/zurbax/medium/LAYERS/NETINSTALL.TXT", "/run/zurbax/medium/layers/netinstall.txt" };
+	static const char *const names[] = { "/run/zurbax/medium/LAYERS/NETINST.TXT", "/run/zurbax/medium/layers/netinst.txt" };
 	for (usize i = 0; i < ARRAY_LEN(names); i++) {
 		char *t = file_read(names[i], NULL);
 		if (!t)

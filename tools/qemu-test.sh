@@ -1,5 +1,5 @@
 #!/bin/bash
-# Boots build/zurbax.img under UEFI firmware with no window and saves
+# Boots build/zurbax.img (or IMAGE, e.g. build/zurbax-mini.iso) under UEFI firmware with no window and saves
 # screenshots of the boot, for checking the splash, setup and desktop.
 #
 #   tools/qemu-test.sh OUTDIR [SECONDS...]     screenshots at those times
@@ -25,7 +25,7 @@ direct=()
 qemu-system-x86_64 -machine q35,accel=$accel -cpu max -m 2G -smp 2 \
 	-drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE:-/usr/share/OVMF/OVMF_CODE_4M.fd}" \
 	-drive if=pflash,format=raw,file="$OUT/vars.fd" \
-	-drive file="$ROOT/build/zurbax.img",format=raw,if=virtio,snapshot=on \
+	-drive file="${IMAGE:-$ROOT/build/zurbax.img}",format=raw,if=virtio,snapshot=on \
 	-device "${QEMU_VGA:-virtio-vga}" -device qemu-xhci -device usb-tablet -device usb-kbd \
 	-display none -serial file:"$OUT/serial.log" -monitor unix:"$MON",server,nowait \
 	${QEMU_EXTRA:-} "${direct[@]}" &

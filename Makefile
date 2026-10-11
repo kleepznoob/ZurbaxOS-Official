@@ -168,8 +168,8 @@ DOWNLOADS ?= https://downloads.zurbax.com/2.0/
 iso-mini: media-prep
 	@echo ">> the mini edition"
 	@ZURBAX_CMDLINE_EXTRA= kernel/build.sh $(OUT)/system.cpio
-	@mkdir -p $(OUT)/mini && printf '%s\n' '$(DOWNLOADS)' >$(OUT)/mini/NETINSTALL.TXT
-	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-mini.iso $(EFI_FILE) $(OUT)/mini/NETINSTALL.TXT
+	@mkdir -p $(OUT)/mini && printf '%s\n' '$(DOWNLOADS)' >$(OUT)/mini/NETINST.TXT
+	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-mini.iso $(EFI_FILE) $(OUT)/mini/NETINST.TXT
 
 # What the download place serves: each edition's system, the layer, the
 # apps and both firmware images, with a manifest of sizes and checksums.

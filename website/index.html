@@ -1,132 +1,154 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zurbax 2.0</title>
-<meta name="description" content="Zurbax is a desktop operating system written from scratch on the Linux kernel: its own desktop, apps and services, Steam with Proton, and GNOME as a second desktop.">
+<meta name="description" content="Zurbax is a desktop operating system made from scratch: a desktop of its own, Steam and Proton, thousands of apps, and drivers for every graphics card.">
 <meta property="og:title" content="Zurbax 2.0">
-<meta property="og:description" content="A desktop operating system written from scratch. Steam, Flathub and GNOME included.">
+<meta property="og:description" content="A desktop operating system made from scratch. Steam, Flathub and every graphics card.">
 <meta property="og:image" content="https://zurbax.com/images/desktop.jpg">
 <meta property="og:url" content="https://zurbax.com/">
-<meta name="theme-color" content="#1a0d17">
+<meta name="theme-color" content="#12080f">
 <link rel="icon" href="/images/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<script src="/site.js" defer></script>
 </head>
 <body>
 
 <header class="bar">
   <a class="brand" href="/"><img src="/images/logo.svg" alt="" width="26" height="26">Zurbax</a>
   <nav>
-    <a href="#scratch">Inside</a>
+    <a href="#inside">Inside</a>
     <a href="#play">Gaming</a>
-    <a href="#desktops">Desktops</a>
-    <a href="#download" class="pill">Download</a>
+    <a href="#install">Install</a>
+    <a href="#download" class="pill" data-download>Download</a>
   </nav>
 </header>
 
 <main>
 
 <section class="hero">
+  <div class="hero-bg" aria-hidden="true"></div>
   <div class="hero-text">
-    <p class="kicker">Version 2.0 · Free download</p>
-    <h1>A computer that feels like it was made for you.</h1>
-    <p class="lede">Zurbax is a desktop operating system written from scratch. The Linux kernel runs underneath; the desktop, the apps and every service above it are Zurbax's own.</p>
-    <div class="actions">
-      <a class="button primary" href="#download">Download Zurbax 2.0</a>
-      <a class="button" href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY">Read the source</a>
+    <p class="kicker reveal">Version 2.0 · Free</p>
+    <h1 class="reveal">A computer that feels like it was made for you.</h1>
+    <p class="lede reveal">Zurbax is a desktop operating system made from scratch. Its own desktop, its own apps, Steam for your games and thousands more apps a click away.</p>
+    <div class="actions reveal">
+      <a class="button primary" href="#download" data-download>Download Zurbax 2.0</a>
+      <a class="button ghost" href="#inside">Take the tour</a>
     </div>
   </div>
-  <figure class="shot hero-shot">
-    <img src="/images/desktop.jpg" alt="The Zurbax desktop with the Silk wallpaper, a top bar and a taskbar" width="1280" height="720">
+  <figure class="hero-shot reveal">
+    <img src="/images/desktop.jpg" alt="The Zurbax desktop" width="1280" height="720">
   </figure>
 </section>
 
-<section class="facts" aria-label="At a glance">
-  <div><strong>0</strong><span>lines of glibc, GTK, Qt or X</span></div>
-  <div><strong>30+</strong><span>apps of its own</span></div>
-  <div><strong>2</strong><span>desktops: Zurbax and GNOME 51</span></div>
-  <div><strong>1 click</strong><span>for anything on Flathub</span></div>
+<section class="facts">
+  <div class="reveal"><strong data-count="30">0</strong><span>apps of its own</span></div>
+  <div class="reveal"><strong data-count="13">0</strong><span>more apps ready offline</span></div>
+  <div class="reveal"><strong data-count="6">0</strong><span>editions, one per graphics card</span></div>
+  <div class="reveal"><strong>0</strong><span>accounts, ads or tracking</span></div>
 </section>
 
-<section id="scratch" class="chapter">
-  <div class="chapter-head">
+<section id="inside" class="chapter">
+  <div class="chapter-head reveal">
     <p class="num">01</p>
-    <h2>Written from the first line.</h2>
-    <p>Most systems are assembled. Zurbax was written: a C runtime, a graphics engine with its own typeface, a display server, a toolkit, an init system, a network stack with TLS, a sound server and an installer, all in one codebase that reads like one person wrote it.</p>
+    <h2>Made from the first line.</h2>
+    <p>Most systems are assembled from parts. Zurbax was written: the desktop, the graphics, the window system, the network, the sound and every app above them, all designed together.</p>
   </div>
-  <div class="split">
-    <figure class="shot"><img src="/images/launcher.jpg" alt="The full-screen launcher with every app" loading="lazy" width="1280" height="720"></figure>
-    <ul class="ledger">
-      <li><span>Boot</span>Your PC's own logo stays on screen from power-on to desktop. No text, no flicker.</li>
+  <div class="stack">
+    <figure class="card-shot reveal tilt"><img src="/images/launcher.jpg" alt="The launcher with every app" loading="lazy" width="1280" height="720"></figure>
+    <ul class="ledger reveal">
+      <li><span>Quiet start</span>Your computer's own logo stays on screen from power-on to desktop. No text, no flicker.</li>
       <li><span>Desktop</span>A top bar, a taskbar with live previews, and a launcher that fills the screen.</li>
-      <li><span>Apps</span>Files, a web browser, Mail, Music, Photos, Calendar, Notes, Writer, a terminal and more.</li>
-      <li><span>Settings</span>Light or dark, ten accent colours, ten wallpapers painted in code.</li>
+      <li><span>Apps</span>Files, Web, Mail, Music, Photos, Calendar, Notes, Writer, and a dashboard for your day.</li>
     </ul>
   </div>
+</section>
+
+<section class="reel" aria-label="Apps">
+  <div class="reel-track">
+    <figure><img src="/images/dashboard.jpg" alt="Dashboard" loading="lazy"><figcaption>Dashboard</figcaption></figure>
+    <figure><img src="/images/music.jpg" alt="Music" loading="lazy"><figcaption>Music</figcaption></figure>
+    <figure><img src="/images/photos.jpg" alt="Photos" loading="lazy"><figcaption>Photos</figcaption></figure>
+    <figure><img src="/images/mail.jpg" alt="Mail" loading="lazy"><figcaption>Mail</figcaption></figure>
+    <figure><img src="/images/vault.jpg" alt="Files" loading="lazy"><figcaption>Files</figcaption></figure>
+    <figure><img src="/images/dashboard.jpg" alt="" loading="lazy" aria-hidden="true"><figcaption>Dashboard</figcaption></figure>
+    <figure><img src="/images/music.jpg" alt="" loading="lazy" aria-hidden="true"><figcaption>Music</figcaption></figure>
+    <figure><img src="/images/photos.jpg" alt="" loading="lazy" aria-hidden="true"><figcaption>Photos</figcaption></figure>
+    <figure><img src="/images/mail.jpg" alt="" loading="lazy" aria-hidden="true"><figcaption>Mail</figcaption></figure>
+    <figure><img src="/images/vault.jpg" alt="" loading="lazy" aria-hidden="true"><figcaption>Files</figcaption></figure>
+  </div>
+</section>
+
+<section class="chapter">
+  <div class="chapter-head reveal">
+    <p class="num">02</p>
+    <h2>Yours, down to the colour.</h2>
+    <p>Light or dark, ten accents or one taken from your wallpaper, ten wallpapers painted in code or your own picture. Change the taskbar's size, colour and position until it feels right.</p>
+  </div>
+  <figure class="card-shot wide reveal tilt"><img src="/images/settings.jpg" alt="Appearance settings with accent colours and wallpapers" loading="lazy"></figure>
 </section>
 
 <section id="play" class="chapter dark">
-  <div class="chapter-head">
-    <p class="num">02</p>
+  <div class="chapter-head reveal">
+    <p class="num">03</p>
     <h2>Built to play.</h2>
-    <p>Steam runs with Proton for your Windows library. Controllers work everywhere, with vibration. Harbor puts Heroic, Lutris, Bottles, RetroArch and the rest one click away, and Zurbax ships its own 3D game, Glide.</p>
+    <p>Steam runs with Proton for your Windows library. Controllers work everywhere, with vibration. Heroic, Lutris, Bottles and RetroArch come ready, and Harbor brings thousands more apps from Flathub.</p>
   </div>
-  <div class="grid3">
-    <figure class="shot"><img src="/images/steam.jpg" alt="Steam starting in Big Picture" loading="lazy" width="1120" height="720"><figcaption>Steam, straight into Big Picture</figcaption></figure>
-    <figure class="shot"><img src="/images/arcade.jpg" alt="Arcade with Glide and classic games" loading="lazy" width="1280" height="720"><figcaption>Arcade, with Glide in 3D</figcaption></figure>
-    <figure class="shot"><img src="/images/harbor.jpg" alt="Harbor showing Flathub apps" loading="lazy" width="1280" height="720"><figcaption>Every store's launcher, in Harbor</figcaption></figure>
+  <div class="duo">
+    <figure class="card-shot reveal tilt"><img src="/images/harbor.jpg" alt="Harbor's Flathub section" loading="lazy" width="1280" height="720"></figure>
+    <figure class="card-shot reveal tilt"><img src="/images/harbor-app.jpg" alt="An app's page in Harbor" loading="lazy"></figure>
   </div>
   <ul class="gpu">
-    <li><strong>AMD</strong> RADV and radeonsi</li>
-    <li><strong>Intel</strong> ANV and iris</li>
-    <li><strong>NVIDIA</strong> NVK on GeForce RTX 20 and newer</li>
-    <li><strong>Firmware</strong> for every device, included</li>
+    <li class="reveal"><strong>AMD</strong> Radeon, from HD 2000 to the newest RX</li>
+    <li class="reveal"><strong>Intel</strong> HD, UHD, Iris, Arc and Core Ultra</li>
+    <li class="reveal"><strong>NVIDIA</strong> GeForce RTX and GTX</li>
+    <li class="reveal"><strong>Firmware</strong> for every device, built in</li>
   </ul>
 </section>
 
-<section id="desktops" class="chapter">
-  <div class="chapter-head">
-    <p class="num">03</p>
+<section class="chapter">
+  <div class="chapter-head reveal">
+    <p class="num">04</p>
     <h2>Two desktops, one machine.</h2>
-    <p>The lock screen asks which one you want today. Zurbax's own desktop, or GNOME 51 built from GNOME's sources, with the Zurbax taskbar, the same wallpapers and your same files. Both run on Zurbax's own system services.</p>
+    <p>The lock screen asks which one you want today: Zurbax's own desktop, or GNOME with the Zurbax taskbar and the same wallpapers. Your files are the same in both.</p>
   </div>
-  <div class="split reverse">
-    <figure class="shot"><img src="/images/lock.jpg" alt="The Zurbax lock screen" loading="lazy" width="1280" height="720"></figure>
-    <ul class="ledger">
-      <li><span>GNOME</span>Files, Settings, Software, Calendar, Maps, Weather, Clocks, Text Editor, Console and the rest of GNOME's core apps.</li>
-      <li><span>Flathub</span>Thousands of Linux apps, each in its own sandbox, from Harbor or GNOME Software.</li>
-      <li><span>Private</span>No account to sign in, no telemetry, no ads. Your files stay on your disk.</li>
-    </ul>
-  </div>
+  <figure class="card-shot wide reveal tilt"><img src="/images/lock.jpg" alt="The Zurbax lock screen" loading="lazy" width="1280" height="720"></figure>
 </section>
 
-<section class="gallery" aria-label="More screenshots">
-  <figure class="shot"><img src="/images/harbor-app.jpg" alt="An app's page in Harbor" loading="lazy"></figure>
-  <figure class="shot"><img src="/images/dashboard.jpg" alt="Dashboard with weather and events" loading="lazy" width="1280" height="720"></figure>
-  <figure class="shot"><img src="/images/settings.jpg" alt="Settings with accent colours" loading="lazy" width="1280" height="720"></figure>
-  <figure class="shot"><img src="/images/music.jpg" alt="Music app" loading="lazy" width="1280" height="720"></figure>
-  <figure class="shot"><img src="/images/vault.jpg" alt="Vault, the file manager" loading="lazy" width="1280" height="720"></figure>
+<section id="install" class="install">
+  <div class="chapter-head reveal">
+    <p class="num">05</p>
+    <h2>Installed in four calm steps.</h2>
+    <p>No commands, no settings to look up. Zurbax picks the right drivers and does the rest.</p>
+  </div>
+  <ol class="steps">
+    <li class="reveal"><i>1</i><h3>Download</h3><p>Pick your graphics card and get the edition made for it, or the mini installer for small sticks.</p></li>
+    <li class="reveal"><i>2</i><h3>Make the stick</h3><p>Open balenaEtcher or Rufus, choose the file and your USB stick, and press Flash.</p></li>
+    <li class="reveal"><i>3</i><h3>Start from it</h3><p>Restart and choose the stick in the boot menu. Zurbax opens straight to a desktop you can try.</p></li>
+    <li class="reveal"><i>4</i><h3>Install</h3><p>Open the Installer, choose a disk, and in a few minutes Zurbax is yours. Your apps install themselves.</p></li>
+  </ol>
 </section>
 
 <section id="download" class="download">
-  <div class="dl-card">
+  <div class="dl-card reveal">
     <h2>Get Zurbax 2.0</h2>
-    <p>One file works as a DVD and as a USB stick. Try it from the stick first; install it when you're ready.</p>
+    <p>Each edition carries the drivers for one kind of graphics card. Tell us yours and we'll hand you the right one.</p>
     <div class="actions">
-      <a class="button primary" href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest">Download the ISO</a>
-      <a class="button" href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest">Checksums and USB image</a>
+      <button class="button primary" data-download>Choose my edition</button>
+      <a class="button" href="https://downloads.zurbax.com/2.0/zurbax-mini.iso" data-mini>Mini installer · 2 GB stick</a>
     </div>
     <dl class="specs">
       <div><dt>Computer</dt><dd>64-bit PC with UEFI</dd></div>
       <div><dt>Memory</dt><dd>4 GB, 8 GB for games</dd></div>
-      <div><dt>Disk</dt><dd>32 GB or more</dd></div>
-      <div><dt>Write it with</dt><dd>balenaEtcher, Rufus or dd</dd></div>
+      <div><dt>Disk</dt><dd>40 GB or more</dd></div>
+      <div><dt>USB stick</dt><dd>8 GB, or 2 GB for the mini installer</dd></div>
     </dl>
-    <p class="fine">On ASUS machines press F8 or Esc at power-on for the boot menu. Large downloads come in parts; the release notes say how to join them.</p>
   </div>
 </section>
 
@@ -134,8 +156,58 @@
 
 <footer>
   <p><img src="/images/logo.svg" alt="" width="18" height="18"> Zurbax · Made with care, line by line.</p>
-  <p><a href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY">Source</a> · <a href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases">Releases</a> · © 2026</p>
+  <p>© 2026 Zurbax</p>
 </footer>
+
+<div class="chooser" id="chooser" role="dialog" aria-modal="true" aria-labelledby="chooser-title" hidden>
+  <div class="sheet">
+    <button class="close" data-close aria-label="Close">×</button>
+    <div class="pane" data-step="vendor">
+      <p class="kicker">Download</p>
+      <h2 id="chooser-title">Which graphics does your computer have?</h2>
+      <p class="hint">It's on the box, in the shop's description, or on a sticker by the keyboard.</p>
+      <div class="choices three">
+        <button data-go="amd"><b class="logo amd">AMD</b><span>Radeon</span></button>
+        <button data-go="intel"><b class="logo intel">Intel</b><span>HD, UHD, Iris, Arc</span></button>
+        <button data-go="nvidia"><b class="logo nvidia">NVIDIA</b><span>GeForce</span></button>
+      </div>
+      <button class="link" data-edition="mini">Not sure? Get the mini installer: it finds out by itself.</button>
+    </div>
+    <div class="pane" data-step="nvidia" hidden>
+      <button class="back" data-go="vendor">‹ Back</button>
+      <h2>Which GeForce?</h2>
+      <div class="choices">
+        <button data-edition="nvidia-rtx"><b>RTX</b><span>RTX 20, 30, 40, 50 series and GTX 16 series</span></button>
+        <button data-edition="nvidia-gtx"><b>GTX</b><span>GTX 10 series and older</span></button>
+      </div>
+    </div>
+    <div class="pane" data-step="amd" hidden>
+      <button class="back" data-go="vendor">‹ Back</button>
+      <h2>Which Radeon?</h2>
+      <div class="choices">
+        <button data-edition="amd"><b>Radeon RX</b><span>RX 400 and newer, and Ryzen graphics</span></button>
+        <button data-edition="amd-legacy"><b>Older Radeon</b><span>HD 2000 to HD 7000, R7 and R9</span></button>
+      </div>
+    </div>
+    <div class="pane" data-step="intel" hidden>
+      <button class="back" data-go="vendor">‹ Back</button>
+      <h2>Which Intel graphics?</h2>
+      <div class="choices">
+        <button data-edition="intel-arc"><b>Arc or Core Ultra</b><span>Arc graphics cards and Core Ultra laptops</span></button>
+        <button data-edition="intel"><b>HD, UHD or Iris</b><span>Core i3, i5, i7, i9 (2nd to 14th generation)</span></button>
+      </div>
+    </div>
+    <div class="pane" data-step="done" hidden>
+      <button class="back" data-go="vendor">‹ Start over</button>
+      <div class="check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <p class="kicker">Your edition</p>
+      <h2 data-name>Zurbax 2.0</h2>
+      <p class="hint" data-note></p>
+      <a class="button primary big" data-file href="#">Download</a>
+      <p class="fine">Next: make a USB stick with balenaEtcher or Rufus, then start your computer from it.</p>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
