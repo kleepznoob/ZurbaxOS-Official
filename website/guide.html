@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zurbax 2.0 · Guide</title>
+<meta name="description" content="Everything about Zurbax 2.0: making the USB stick, starting and installing it, getting around, apps, games, settings and fixing problems.">
+<meta property="og:title" content="Zurbax 2.0 · Guide">
+<meta property="og:description" content="Making the USB stick, installing, getting around, apps, games and fixing problems.">
+<meta property="og:image" content="https://zurbax.com/images/desktop.jpg">
+<meta name="theme-color" content="#ff5a1f">
+<link rel="icon" href="/favicon.ico?v=3" sizes="48x48">
+<link rel="icon" href="/images/favicon-32.png?v=3" type="image/png" sizes="32x32">
+<link rel="icon" href="/images/tab-icon.svg?v=3" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<script src="/guide.js" defer></script>
+</head>
+<body class="guide-page">
+
+<header class="top">
+  <a class="mark" href="/"><img src="/images/logo.svg" alt="" width="28" height="28"><span>Zurbax</span></a>
+  <nav>
+    <a href="/#tour">Tour</a>
+    <a href="/#play">Games</a>
+    <a href="/guide" aria-current="page">Guide</a>
+    <a class="get" href="/#download">Download</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="g-hero">
+  <p class="version">Zurbax 2.0 · Guide</p>
+  <h1 class="g-title">Everything, step by step.</h1>
+  <p class="intro">From an empty USB stick to your first game: making the stick, trying and installing Zurbax, finding your way around, and what to do when something doesn't work.</p>
+</section>
+
+<div class="g-wrap">
+  <nav class="g-toc" aria-label="On this page">
+    <p>On this page</p>
+    <ol>
+      <li><a href="#before">Before you start</a></li>
+      <li><a href="#download">Download</a></li>
+      <li><a href="#stick">Make the USB stick</a></li>
+      <li><a href="#start">Start from the stick</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#first">The first start</a></li>
+      <li><a href="#which">Zurbax or Windows</a></li>
+      <li><a href="#around">Getting around</a></li>
+      <li><a href="#keys">Keyboard shortcuts</a></li>
+      <li><a href="#apps">Apps</a></li>
+      <li><a href="#games">Games</a></li>
+      <li><a href="#desktops">Two desktops</a></li>
+      <li><a href="#settings">Settings</a></li>
+      <li><a href="#trouble">When something's wrong</a></li>
+      <li><a href="#remove">Removing Zurbax</a></li>
+      <li><a href="#faq">Questions</a></li>
+    </ol>
+  </nav>
+
+  <article class="g-body">
+
+    <section id="before" class="g-sec">
+      <h2>Before you start</h2>
+      <p>You'll need:</p>
+      <ul class="g-list">
+        <li><b>A 64-bit PC with UEFI.</b> Almost every PC from the last twelve years. Macs with an Intel chip work too; Macs with Apple chips don't.</li>
+        <li><b>4 GB of memory</b>, 8 GB for games.</li>
+        <li><b>40 GB of free disk space.</b> Zurbax needs at least 16 GB; the rest is for your files and games.</li>
+        <li><b>A USB stick of 16 GB</b> for the full image, or any size for the mini installer. Everything on the stick is erased.</li>
+        <li><b>About 30 minutes.</b></li>
+      </ul>
+      <div class="g-note"><b>Back up first.</b> Installing next to Windows keeps it as it is, but copying your important files somewhere safe before changing a disk is always wise.</div>
+    </section>
+
+    <section id="download" class="g-sec">
+      <h2>Download</h2>
+      <p>There are two ways in. Both give you the same Zurbax.</p>
+      <div class="g-cards">
+        <div class="g-card">
+          <h3>The full image</h3>
+          <p class="g-meta">About 7 GB · 16 GB stick</p>
+          <p>Everything on the stick: the system, GNOME, Steam and Proton, eight apps, and the drivers for every graphics card, Wi-Fi chip and controller. Installs without the internet.</p>
+          <a class="btn" href="/download/2.0/zurbax.iso">Download the full image <span class="arrow" aria-hidden="true">→</span></a>
+        </div>
+        <div class="g-card">
+          <h3>The mini installer</h3>
+          <p class="g-meta">69 MB · any stick</p>
+          <p>Starts Zurbax from a small stick and downloads the rest while it installs. Keep the computer online, with a cable or Wi-Fi.</p>
+          <a class="btn line" href="/download/zurbax-mini.iso" download>Download the mini installer</a>
+        </div>
+      </div>
+      <p class="g-small">Each file's SHA-256 checksum is in <a href="/download/2.0/SHA256SUMS">SHA256SUMS</a>, if you'd like to check that the download arrived whole.</p>
+    </section>
+
+    <section id="stick" class="g-sec">
+      <h2>Make the USB stick</h2>
+      <p>The file has to be written onto the stick, not just copied. Use one of these free tools:</p>
+      <ol class="g-steps">
+        <li><b>1</b><div><h3>Get a tool</h3><p><a href="https://etcher.balena.io" target="_blank" rel="noopener">balenaEtcher</a> works on Windows, Mac and Linux. On Windows, <a href="https://rufus.ie" target="_blank" rel="noopener">Rufus</a> is quick too.</p></div></li>
+        <li><b>2</b><div><h3>Choose the file</h3><p>In balenaEtcher, press <em>Flash from file</em>. In Rufus, press <em>Select</em>. Pick the Zurbax file you downloaded.</p></div></li>
+        <li><b>3</b><div><h3>Choose the stick</h3><p>Pick your USB stick. Check it's the right one: everything on it is erased.</p></div></li>
+        <li><b>4</b><div><h3>Flash</h3><p>Press <em>Flash</em> (or <em>Start</em> in Rufus). If Rufus asks how to write the image, choose <em>DD image mode</em>. It takes a few minutes.</p></div></li>
+      </ol>
+    </section>
+
+    <section id="start" class="g-sec">
+      <h2>Start from the stick</h2>
+      <p>Plug the stick in, restart the computer, and press the boot menu key straight after it powers on, a few times. Pick the stick in the menu (it's often listed as <em>UEFI: </em> and the stick's name).</p>
+      <table class="g-table">
+        <thead><tr><th>Computer</th><th>Boot menu key</th></tr></thead>
+        <tbody>
+          <tr><td>ASUS</td><td><kbd>F8</kbd> or <kbd>Esc</kbd></td></tr>
+          <tr><td>Acer</td><td><kbd>F12</kbd></td></tr>
+          <tr><td>Dell</td><td><kbd>F12</kbd></td></tr>
+          <tr><td>HP</td><td><kbd>F9</kbd>, or <kbd>Esc</kbd> then <kbd>F9</kbd></td></tr>
+          <tr><td>Lenovo</td><td><kbd>F12</kbd>, or the small Novo button</td></tr>
+          <tr><td>MSI</td><td><kbd>F11</kbd></td></tr>
+          <tr><td>Gigabyte, ASRock</td><td><kbd>F12</kbd> or <kbd>F11</kbd></td></tr>
+          <tr><td>Microsoft Surface</td><td>Hold <kbd>Volume down</kbd> while pressing power</td></tr>
+          <tr><td>Mac with an Intel chip</td><td>Hold <kbd>Option</kbd></td></tr>
+        </tbody>
+      </table>
+      <div class="g-note"><b>Nothing happens, or "Secure Boot violation"?</b> Turn off Secure Boot: open the computer's setup (usually <kbd>Del</kbd> or <kbd>F2</kbd> at power-on), find <em>Secure Boot</em> under Security or Boot, set it to <em>Disabled</em>, save and restart. You can turn it back on if you remove Zurbax later.</div>
+      <p>Zurbax starts with your computer's own logo and a spinner, then opens the Welcome window. Choose <b>Try Zurbax</b> to look around first. Nothing on the computer changes while you try it.</p>
+    </section>
+
+    <section id="install" class="g-sec">
+      <h2>Install</h2>
+      <p>In the Welcome window, choose <b>Install Zurbax</b>. The installer has four steps down its side:</p>
+      <ol class="g-steps">
+        <li><b>1</b><div><h3>Disk</h3><p>Pick the disk for Zurbax. Each one is shown as a bar of what's on it now. The stick you started from can't be picked.</p></div></li>
+        <li><b>2</b><div><h3>Install type</h3><p><b>Erase disk and install</b> uses the whole disk; everything on it is deleted. <b>Install alongside Windows</b> uses the disk's free space and keeps Windows and its files. The bars show the disk now and after.</p></div></li>
+        <li><b>3</b><div><h3>Summary</h3><p>Check the disk and the type. Nothing has changed yet; press <em>Install</em>, or <em>Erase and Install</em>.</p></div></li>
+        <li><b>4</b><div><h3>Installing</h3><p>A few minutes, with a slideshow and the time left. Keep the computer plugged in. When it's done, remove the stick and press <em>Restart Now</em>.</p></div></li>
+      </ol>
+      <div class="g-note"><b>Alongside Windows, but no free space?</b> Zurbax needs 16 GB free on the disk. In Windows, right-click Start, open <em>Disk Management</em>, right-click your big Windows partition (usually C:), choose <em>Shrink Volume</em> and shrink it by at least 40000 MB. Then start the installer again.</div>
+      <p>With the mini installer, the installer finds the download on its own and checks every file it gets. If it can't reach it, it installs the system from the stick, and you can add apps later from Harbor.</p>
+    </section>
+
+    <section id="first" class="g-sec">
+      <h2>The first start</h2>
+      <p>After the restart, Welcome sets Zurbax up in a few steps. Each can be skipped and changed later in Settings.</p>
+      <ul class="g-list">
+        <li><b>Keyboard:</b> the layout printed on your keys. Type in the box to see each key light up.</li>
+        <li><b>Wi-Fi:</b> only shown when there's no cable. Pick your network and type its password.</li>
+        <li><b>Time zone:</b> search for your city. The clock swings to its time.</li>
+        <li><b>Account:</b> your name, and a password if you want one. Zurbax asks for it at start-up and before big changes.</li>
+        <li><b>Look:</b> light or dark, an accent colour and a wallpaper.</li>
+      </ul>
+      <p>The apps that come with Zurbax install themselves in the background the first time you use one of Zurbax's Linux apps, Steam or GNOME, so they may take a few minutes to appear.</p>
+    </section>
+
+    <section id="which" class="g-sec">
+      <h2>Starting Zurbax or Windows</h2>
+      <p>Zurbax adds itself to the computer's start-up and starts on its own, with no menu in between. To start Windows instead, press the boot menu key (see <a href="#start">the table above</a>) while the computer powers on and choose <em>Windows Boot Manager</em>.</p>
+      <p>Want Windows to start by default again? In the computer's setup (<kbd>Del</kbd> or <kbd>F2</kbd>), move <em>Windows Boot Manager</em> above <em>Zurbax</em> in the boot order.</p>
+    </section>
+
+    <section id="around" class="g-sec">
+      <h2>Getting around</h2>
+      <div class="g-figure"><img src="/images/desktop.jpg?v=3" alt="The Zurbax desktop" loading="lazy" width="1280" height="720"></div>
+      <ul class="g-list">
+        <li><b>The top bar</b> shows the app in front on the left, the date and time in the middle, and Wi-Fi, sound and power on the right. Click the right side for quick settings: Wi-Fi, volume, brightness, dark style, night light and do not disturb.</li>
+        <li><b>The taskbar</b> along the bottom has the grid (every app), a search box, and your apps. Open apps are marked; hover one to see its windows.</li>
+        <li><b>Applications:</b> press the grid or tap <kbd>Super</kbd> (the Windows key). Apps are sorted into Internet, Office, Media, Games and more; just start typing to search apps and settings.</li>
+        <li><b>Notifications</b> collect behind the bell at the right of the taskbar.</li>
+        <li><b>Windows</b> snap to halves of the screen when dragged to its edges, and maximise when double-clicked or dragged to the top.</li>
+      </ul>
+    </section>
+
+    <section id="keys" class="g-sec">
+      <h2>Keyboard shortcuts</h2>
+      <table class="g-table">
+        <tbody>
+          <tr><td><kbd>Super</kbd></td><td>Open Applications</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>Space</kbd></td><td>Open or close Applications</td></tr>
+          <tr><td><kbd>Alt</kbd> + <kbd>Tab</kbd></td><td>Switch between windows</td></tr>
+          <tr><td><kbd>Alt</kbd> + <kbd>F4</kbd></td><td>Close the window in front</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>D</kbd></td><td>Show the desktop</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>L</kbd></td><td>Lock the screen</td></tr>
+          <tr><td><kbd>Print Screen</kbd></td><td>Take a screenshot (saved in Pictures › Screenshots)</td></tr>
+          <tr><td><kbd>F11</kbd></td><td>Full screen, which also turns on game mode</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + arrows</td><td>Maximise, restore, or snap to a side</td></tr>
+          <tr><td><kbd>Super</kbd> + drag</td><td>Move a window from anywhere inside it</td></tr>
+          <tr><td><kbd>AltGr</kbd> + <kbd>S</kbd>, <kbd>T</kbd>, <kbd>A</kbd>, <kbd>I</kbd></td><td>ș ț ă î, on every keyboard layout</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="apps" class="g-sec">
+      <h2>Apps</h2>
+      <p>Zurbax has its own apps for the everyday: Files, Web, Mail, Music, Photos, Calendar, Notes, Writer, Dashboard, Weather, Clock, Calculator and more, all in Applications.</p>
+      <p><b>Harbor</b> is the app store. Its Flathub section brings thousands more: Firefox, Discord, Spotify, GIMP, OBS, VLC and the rest. Press <em>Install</em> on an app's page; it appears in Applications when it's ready. Remove an app from Harbor's <em>Installed</em> tab.</p>
+      <p>Already installed: Firefox, LibreOffice, VLC, GIMP, Celluloid, Boxes, Heroic and ProtonPlus.</p>
+    </section>
+
+    <section id="games" class="g-sec">
+      <h2>Games</h2>
+      <ol class="g-steps">
+        <li><b>1</b><div><h3>Open Steam</h3><p>It's in Applications under Games. Sign in with your Steam account; Steam starts in Big Picture, made for the couch and a controller.</p></div></li>
+        <li><b>2</b><div><h3>Turn on Proton for Windows games</h3><p>In Steam, open <em>Settings › Compatibility</em> and turn on <em>Enable Steam Play for all other titles</em>. Most Windows games then install and play like any other.</p></div></li>
+        <li><b>3</b><div><h3>Plug in a controller</h3><p>Xbox, PlayStation, Switch Pro and Steam controllers work as soon as they're connected, by cable or Bluetooth, with rumble.</p></div></li>
+      </ol>
+      <p><b>Epic, GOG and Amazon games:</b> open Heroic, sign in, and install from there. <b>Newer Proton versions</b> (Proton-GE and others) come from ProtonPlus. Lutris, Bottles and RetroArch are in Harbor.</p>
+      <p>Press <kbd>F11</kbd> in any game window for full screen and game mode, which keeps notifications quiet.</p>
+    </section>
+
+    <section id="desktops" class="g-sec">
+      <h2>Two desktops</h2>
+      <p>Zurbax has its own desktop, and GNOME too. On the lock screen, choose which one you want before signing in. Both use the same files, wallpapers and taskbar. GNOME is a preview in 2.0: its own Settings and Files apps arrive in a later version, so use Zurbax's for now.</p>
+    </section>
+
+    <section id="settings" class="g-sec">
+      <h2>Settings</h2>
+      <p>Open Settings from Applications.</p>
+      <ul class="g-list">
+        <li><b>Appearance:</b> light or dark, the accent colour (or the one your wallpaper suggests), the wallpaper, and the taskbar's size, colour and position.</li>
+        <li><b>Network and Bluetooth:</b> Wi-Fi networks, wired connections, and pairing headphones, mice and controllers.</li>
+        <li><b>Display and Sound:</b> resolution and scale, night light, outputs and volume.</li>
+        <li><b>Users:</b> your name, picture and password.</li>
+        <li><b>Date &amp; Time, Keyboard, Mouse &amp; Touchpad, Screen Time</b> and <b>About</b>, which shows the version and your computer's parts.</li>
+      </ul>
+    </section>
+
+    <section id="trouble" class="g-sec">
+      <h2>When something's wrong</h2>
+      <details class="g-q"><summary>The stick doesn't show up in the boot menu</summary><p>Make the stick again with balenaEtcher, and try another USB port (on desktops, one on the back). Turn off Secure Boot, and make sure the computer is set to start in UEFI mode, not "Legacy" or "CSM".</p></details>
+      <details class="g-q"><summary>The screen stays black</summary><p>Give it a minute on the first start. Then try another video output (HDMI or DisplayPort) on the graphics card itself, not the motherboard. On laptops with two graphics chips, the built-in one drives the screen.</p></details>
+      <details class="g-q"><summary>The installer says no disks were found</summary><p>Some computers hide their disks behind Intel RST or RAID. In the computer's setup, set the storage mode (SATA mode) to AHCI. If Windows is installed, switch Windows to AHCI first, or it won't start afterwards. Disks with 4K sectors aren't supported yet.</p></details>
+      <details class="g-q"><summary>There's no Wi-Fi</summary><p>Zurbax has the firmware for nearly every Wi-Fi chip. Check that Wi-Fi is on in the quick settings and that the computer has no Wi-Fi switch turned off. Networks that need a company login (WPA-Enterprise) aren't supported yet; a cable always works.</p></details>
+      <details class="g-q"><summary>There's no sound</summary><p>Open the quick settings and check the volume and the output (speakers, headphones or HDMI). In Settings › Sound, choose the right output.</p></details>
+      <details class="g-q"><summary>A Windows game won't start</summary><p>Check that Steam Play is on (see <a href="#games">Games</a>). In the game's Properties › Compatibility, try a different Proton version, or a Proton-GE from ProtonPlus. Games with anti-cheat that blocks Linux won't run.</p></details>
+      <details class="g-q"><summary>I forgot my password</summary><p>Start from the Zurbax stick, choose Install, and reinstall Zurbax on its disk. This replaces Zurbax's storage, so keep copies of your files elsewhere.</p></details>
+    </section>
+
+    <section id="remove" class="g-sec">
+      <h2>Removing Zurbax</h2>
+      <p>If Zurbax is next to Windows and you want the space back:</p>
+      <ol class="g-steps">
+        <li><b>1</b><div><h3>Start Windows</h3><p>Use the boot menu key and choose <em>Windows Boot Manager</em>.</p></div></li>
+        <li><b>2</b><div><h3>Delete Zurbax's partition</h3><p>Right-click Start, open <em>Disk Management</em>, right-click the partition called <em>ZURBAX-DATA</em> and choose <em>Delete Volume</em>.</p></div></li>
+        <li><b>3</b><div><h3>Give the space back</h3><p>Right-click your Windows partition (C:) and choose <em>Extend Volume</em>.</p></div></li>
+        <li><b>4</b><div><h3>Start Windows by default</h3><p>In the computer's setup, put <em>Windows Boot Manager</em> first in the boot order. You can turn Secure Boot back on now.</p></div></li>
+      </ol>
+      <p>If Zurbax has the whole disk, install another system over it.</p>
+    </section>
+
+    <section id="faq" class="g-sec">
+      <h2>Questions</h2>
+      <details class="g-q"><summary>Is Zurbax free?</summary><p>Yes. No accounts, no ads, no tracking.</p></details>
+      <details class="g-q"><summary>Is it Linux?</summary><p>It runs on the Linux kernel, which is how it supports so much hardware. Everything above the kernel, from the desktop to the apps, is Zurbax's own. Linux apps from Flathub and Windows games through Proton run on it too.</p></details>
+      <details class="g-q"><summary>Can I keep Windows?</summary><p>Yes. Choose <em>Install alongside Windows</em> and both stay on the computer. Pick one in the boot menu each time it starts.</p></details>
+      <details class="g-q"><summary>Do I need an NVIDIA, AMD or Intel version?</summary><p>No. The one image has the drivers for every graphics card.</p></details>
+      <details class="g-q"><summary>Does it work on a Mac?</summary><p>On Macs with Intel chips, yes: hold Option at start-up to choose the stick. Macs with Apple chips (M1 and later) aren't supported.</p></details>
+    </section>
+
+    <div class="g-end">
+      <p>Ready?</p>
+      <a class="btn big" href="/#download">Download Zurbax 2.0 <span class="arrow" aria-hidden="true">→</span></a>
+    </div>
+
+  </article>
+</div>
+
+</main>
+
+<footer>
+  <span class="mark small"><img src="/images/logo.svg" alt="" width="18" height="18">Zurbax</span>
+  <span>Written line by line. © 2026</span>
+</footer>
+
+</body>
+</html>
