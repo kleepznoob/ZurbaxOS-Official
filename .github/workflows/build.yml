@@ -14,6 +14,12 @@ on:
         required: false
         default: ""
 
+# a newer push replaces the build of the one before (the layer keeps what it
+# finished either way)
+concurrency:
+  group: build-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   # The Linux layer (layer/build.sh): glibc, GCC, Mesa, GNOME and the rest,
   # built from source. That takes longer than one job may run, so the build
