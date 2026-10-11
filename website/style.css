@@ -258,3 +258,25 @@ footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12
   .steps li + li { margin-top: 28px; border-top: 1px solid var(--rule); }
   .btn.big { font-size: 18px; padding: 18px 22px; }
 }
+
+/* purple and red, from the Silk wallpaper, alongside the orange */
+:root { --plum: #2b0b2a; --plum-2: #4a1238; --berry: #8a2652; --red: #d8362f; }
+.ticker { background: linear-gradient(90deg, var(--plum) 0%, var(--berry) 45%, var(--red) 100%); color: var(--cream); }
+.ticker span::after { color: var(--paper); }
+.play { background: linear-gradient(180deg, var(--plum) 0%, var(--plum-2) 100%); }
+.play .lede { color: #e2c9d6; }
+.drivers th { color: #c9a3b8; border-bottom-color: rgba(255, 255, 255, .18); }
+.drivers td { color: #f0dde6; border-bottom-color: rgba(255, 255, 255, .1); }
+.drivers tbody tr:hover { background: rgba(255, 255, 255, .05); }
+.play-shot img { box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .7); }
+.install { background: var(--red); padding-bottom: 120px; margin-top: 0; padding-top: 120px; }
+.install .section-title { color: var(--ink); }
+.steps { border-top-color: var(--ink); }
+.steps b { color: var(--cream); }
+.steps p { color: #2a0d0b; }
+.download { margin-top: 0; }
+footer { background: var(--plum); color: #e2c9d6; border-top: 0; }
+.top { background: var(--paper); }
+@media (max-width: 960px) {
+  .install { padding-top: 96px; padding-bottom: 96px; }
+}
