@@ -105,7 +105,14 @@ pkg_modemmanager() {
 }
 
 # gcr 3: the keyring still speaks its older interface
-pkg_gcr3() { unpack gcr3; mesonbuild -Dgtk=false -Dintrospection=true -Dgtk_doc=false -Dssh_agent=false -Dsystemd=disabled; }
+# gcr 3 asks for the paths of ssh-add and ssh-agent even with its SSH agent
+# off (they're only written into that agent)
+pkg_gcr3() {
+	unpack gcr3
+	sed -i -e "s|^ssh_add_path = find_program('ssh-add'.*|ssh_add_path = '/usr/bin/ssh-add'|" \
+		-e "s|^ssh_agent_path = find_program('ssh-agent'.*|ssh_agent_path = '/usr/bin/ssh-agent'|" meson.build
+	mesonbuild -Dgtk=false -Dintrospection=true -Dgtk_doc=false -Dssh_agent=false -Dsystemd=disabled
+}
 
 # ICU, the Unicode library: first for the build machine (its data tools), then for the layer
 pkg_icu() {
