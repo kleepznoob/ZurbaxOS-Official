@@ -502,15 +502,15 @@ pkg_gst_plugins_bad() {
 		-Ddtls=disabled -Dhls-crypto=openssl -Dsctp=disabled -Daja=disabled -Ddecklink=disabled -Dwpe=disabled
 }
 
-pkg_gst_plugins_ugly() { unpack gst-plugins-ugly; mesonbuild "${gst_common[@]}" -Dgpl=disabled; }
+pkg_gst_plugins_ugly() { unpack gst-plugins-ugly; mesonbuild -Dtests=disabled -Ddoc=disabled -Dnls=disabled -Dgpl=disabled; }
 
-pkg_gst_libav() { unpack gst-libav; mesonbuild "${gst_common[@]}"; }
+pkg_gst_libav() { unpack gst-libav; mesonbuild -Dtests=disabled -Ddoc=disabled; }
 
 ORDER+=(native_nasm opus flac dav1d libvpx libva ffmpeg gstreamer gst_plugins_base gst_plugins_good gst_plugins_bad gst_plugins_ugly gst_libav)
 
 pkg_pipewire() {
 	unpack pipewire
-	mesonbuild -Dsession-managers=[] -Dsystemd=disabled -Dsystemd-user-service=disabled -Dlogind=disabled -Dselinux=disabled \
+	mesonbuild -Dsession-managers=[] -Dlibsystemd=disabled -Dsystemd-user-service=disabled -Dlogind=disabled -Dselinux=disabled \
 		-Ddocs=disabled -Dman=disabled -Dtests=disabled -Dexamples=disabled -Dinstalled_tests=disabled -Dpipewire-alsa=disabled \
 		-Dpipewire-jack=disabled -Djack=disabled -Dpipewire-v4l2=enabled -Dv4l2=enabled -Dlibcamera=disabled -Dvulkan=disabled \
 		-Dbluez5=disabled -Dgstreamer=enabled -Decho-cancel-webrtc=disabled -Droc=disabled -Draop=disabled -Davahi=disabled \
@@ -665,7 +665,7 @@ pkg_networkmanager() {
 	unpack NetworkManager
 	mesonbuild -Dsystemd_journal=false -Dsession_tracking=systemd -Dsuspend_resume=auto -Dlibaudit=no -Dselinux=false \
 		-Dpolkit=false -Dmodem_manager=false -Dppp=false -Dnmcli=true -Dnmtui=false -Dbluez5_dun=false -Debpf=false \
-		-Dconfig_dhcp_default=internal -Ddhcpcd=no -Ddhclient=no -Dintrospection=true -Dvapi=false -Ddocs=false -Dtests=no \
+		-Dconfig_dhcp_default=internal -Ddhcpcd=no -Dintrospection=true -Dvapi=false -Ddocs=false -Dtests=no \
 		-Dqt=false -Dcrypto=null -Dlibpsl=true -Dnm_cloud_setup=false -Dovs=false -Dteamdctl=false -Dwext=false -Diwd=false \
 		-Dofono=false -Dfirewalld_zone=false -Dreadline=none -Dsystemdsystemunitdir=no -Dudev_dir=/usr/lib/udev \
 		-Dmore_asserts=no -Dconcheck=true
@@ -721,7 +721,7 @@ pkg_gdm() {
 
 pkg_libnotify() { unpack libnotify; mesonbuild -Dtests=false -Dintrospection=enabled -Dman=false -Dgtk_doc=false -Ddocbook_docs=disabled; }
 
-pkg_gsound() { unpack gsound; mesonbuild -Dintrospection=true -Dvapi=false -Dgtk_doc=false; }
+pkg_gsound() { unpack gsound; mesonbuild -Dintrospection=true -Denable_vala=false -Dgtk_doc=false; }
 
 pkg_gnome_bluetooth() { unpack gnome-bluetooth; mesonbuild -Dintrospection=true -Dgtk_doc=false; }
 

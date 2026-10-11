@@ -101,7 +101,7 @@ pkg_modemmanager() {
 }
 
 # gcr 3: the keyring still speaks its older interface
-pkg_gcr3() { unpack gcr3; mesonbuild -Dgtk=false -Dintrospection=true -Dvapi=false -Dgtk_doc=false -Dssh_agent=false -Dsystemd=disabled; }
+pkg_gcr3() { unpack gcr3; mesonbuild -Dgtk=false -Dintrospection=true -Dgtk_doc=false -Dssh_agent=false -Dsystemd=disabled; }
 
 # ICU, the Unicode library: first for the build machine (its data tools), then for the layer
 pkg_icu() {
@@ -121,15 +121,15 @@ pkg_icu() {
 pkg_tinysparql() {
 	unpack tinysparql
 	mesonbuild -Dintrospection=enabled -Dvapi=disabled -Ddocs=false -Dman=false -Dtests=false -Dsystemd_user_services=false \
-		-Dbash_completion=false -Dsoup=soup3 -Davahi=disabled -Dstemmer=disabled
+		-Dbash_completion=false -Davahi=disabled -Dstemmer=disabled
 }
 
 pkg_localsearch() {
 	unpack localsearch
-	mesonbuild -Dman=false -Dtests=false -Dsystemd_user_services=false -Dminer_rss=false -Dlandlock=enabled -Dseccomp=true \
-		-Dbattery_detection=upower -Dcharset_detection=icu -Dgeneric_media_extractor=gstreamer -Dxml=libxml2 \
+	mesonbuild -Dman=false -Dfunctional_tests=false -Dsystemd_user_services=false -Dlandlock=enabled -Dseccomp=true \
+		-Dbattery_detection=upower -Dcharset_detection=icu -Dlibav=enabled -Dlibmediainfo=disabled -Dxml=enabled \
 		-Dexif=disabled -Dgif=disabled -Diptc=disabled -Djpeg=enabled -Dpng=enabled -Dtiff=enabled -Dpdf=disabled \
-		-Dxps=disabled -Draw=disabled -Dicon=enabled -Dplaylist=disabled -Dabiword=false -Dhtml=disabled -Dunzip_ps_gz_files=false \
+		-Dxps=disabled -Draw=disabled -Dicon=true -Dplaylist=disabled -Dabiword=false -Dunzip_ps_gz_files=false \
 		-Dwriteback=false
 }
 
@@ -141,12 +141,11 @@ pkg_libportal() {
 		-Dintrospection=true -Dvapi=false -Ddocs=false -Dtests=false
 }
 
-pkg_gtksourceview() { unpack gtksourceview; mesonbuild -Dintrospection=enabled -Dvapi=false -Dgtk_doc=false -Dinstall_tests=false -Dsysprof=false; }
+pkg_gtksourceview() { unpack gtksourceview; mesonbuild -Dintrospection=enabled -Dvapi=false -Ddocumentation=false -Dbuild-testsuite=false -Dinstall-tests=false -Dsysprof=false; }
 
 pkg_vte() {
 	unpack vte
-	mesonbuild -Dgtk3=false -Dgtk4=true -Dgir=true -Dvapi=false -Ddocs=false -D_systemd=false -Dgnutls=true -Dicu=true -Dglade=false \
-		-Dsixel=true
+	mesonbuild -Dgtk3=false -Dgtk4=true -Dgir=true -Dvapi=false -Ddocs=false -D_systemd=false -Dgnutls=true -Dicu=true -Dglade=false
 }
 
 ORDER+=(libunistring libtasn1 nettle gnutls cracklib libpwquality libgtop colord_gtk udisks_client modemmanager gcr3 icu tinysparql
@@ -157,7 +156,7 @@ ORDER+=(libunistring libtasn1 nettle gnutls cracklib libpwquality libgtop colord
 pkg_xdg_desktop_portal() {
 	unpack xdg-desktop-portal
 	mesonbuild -Dsystemd=disabled -Ddocumentation=disabled -Dtests=disabled -Dgeoclue=enabled -Dflatpak-interfaces=enabled \
-		-Dlibportal=enabled -Dsandboxed-image-validation=disabled -Dsandboxed-sound-validation=disabled -Dinstalled-tests=false
+		-Dsandboxed-image-validation=disabled -Dsandboxed-sound-validation=disabled -Dinstalled-tests=false
 }
 
 pkg_xdg_desktop_portal_gnome() { unpack xdg-desktop-portal-gnome; mesonbuild -Dsystemduserunitdir=no; }
@@ -172,7 +171,7 @@ pkg_gvfs() {
 	mesonbuild -Dsystemduserunitdir=no -Dtmpfilesdir=no -Dadmin=false -Dafc=false -Dafp=false -Darchive=true -Dcdda=false \
 		-Ddnssd=false -Dgoa=true -Dgoogle=false -Dgphoto2=false -Dhttp=true -Dmtp=false -Dnfs=false -Dsftp=true -Dsmb=false \
 		-Dudisks2=true -Dbluray=false -Dfuse=true -Dgcr=true -Dgcrypt=true -Dgudev=true -Dkeyring=true -Dlogind=false \
-		-Dlibusb=true -Dman=false -Donedrive=false -Dwsdd=false -Ddeprecated_apis=false
+		-Dlibusb=true -Dman=false -Donedrive=false -Dwsdd=false
 }
 
 pkg_gnome_settings_daemon() {
@@ -198,9 +197,24 @@ pkg_nautilus() {
 
 pkg_gnome_console() { unpack gnome-console; mesonbuild -Dtests=false; }
 
-pkg_gnome_text_editor() { unpack gnome-text-editor; mesonbuild -Ddevelopment=false -Dspellcheck=disabled; }
+# Spell checking (Text Editor's, and any app's through libspelling): Hunspell
+# with English (US) words, behind Enchant
+pkg_hunspell() { unpack hunspell; autoreconf -fi >autoreconf.log 2>&1; autobuild --disable-nls --without-ui --without-readline; }
+pkg_enchant() { unpack enchant; autobuild --with-hunspell --without-aspell --without-nuspell --without-voikko --without-hspell --without-applespell --disable-relocatable; }
 
-ORDER+=(gnome_control_center nautilus gnome_console gnome_text_editor)
+pkg_hunspell_en_us() {
+	local zip
+	zip=$(fetch hunspell-en-us)
+	mkdir -p "$ROOT/usr/share/hunspell"
+	python3 -c 'import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); [z.extract(n, sys.argv[2]) for n in ("en_US.aff", "en_US.dic")]' \
+		"$zip" "$ROOT/usr/share/hunspell"
+}
+
+pkg_libspelling() { unpack libspelling; mesonbuild -Denchant=enabled -Dintrospection=enabled -Dvapi=false -Ddocs=false -Dsysprof=false; }
+
+pkg_gnome_text_editor() { unpack gnome-text-editor; mesonbuild -Ddevelopment=false; }
+
+ORDER+=(gnome_control_center nautilus gnome_console hunspell enchant hunspell_en_us libspelling gnome_text_editor)
 
 # ---- More apps -------------------------------------------------------------------------------------
 # Calculator, Clocks, Weather, Calendar, Characters, Fonts, Disk Usage,

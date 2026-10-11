@@ -245,3 +245,7 @@ libshumate https://download.gnome.org/sources/libshumate/1.7/libshumate-1.7.0.ta
 gnome-maps https://download.gnome.org/sources/gnome-maps/51/gnome-maps-51.1.tar.xz -
 gnome-tour https://download.gnome.org/sources/gnome-tour/50/gnome-tour-50.0.tar.xz -
 gnome-software https://download.gnome.org/sources/gnome-software/51/gnome-software-51.0.tar.xz -
+hunspell https://github.com/hunspell/hunspell/releases/download/v1.7.2/hunspell-1.7.2.tar.gz -
+enchant https://github.com/rrthomas/enchant/releases/download/v2.8.14/enchant-2.8.14.tar.gz -
+hunspell-en-us https://downloads.sourceforge.net/wordlist/hunspell-en_US-2020.12.07.zip -
+libspelling https://download.gnome.org/sources/libspelling/0.4/libspelling-0.4.10.tar.xz -
