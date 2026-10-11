@@ -457,7 +457,7 @@ image() {
 	find "$ROOT/usr/lib" "$ROOT/usr/lib32" -name '*.la' -delete 2>/dev/null || true
 	# and scripts that name it (curl-config's prefix) are put right
 	grep -rlIF --exclude-dir=include --exclude-dir=pkgconfig --exclude='*.pc' "$ROOT" "$ROOT/usr/bin" 2>/dev/null |
-		xargs -r sed -i "s#$ROOT##g"
+		xargs -r sed -i "s#$ROOT##g" || true
 	# nothing else in the layer may point back into this build (it would only
 	# work here); a binary's own strings (its configure line) don't count
 	local leaks
