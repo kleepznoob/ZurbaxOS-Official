@@ -198,7 +198,7 @@ pkg_xdg_desktop_portal_gnome() { unpack xdg-desktop-portal-gnome; mesonbuild -Ds
 
 pkg_gnome_keyring() {
 	unpack gnome-keyring
-	mesonbuild -Dsystemd=disabled -Dpam=false -Dmanpage=false -Dssh-agent=true -Dselinux=disabled
+	mesonbuild -Dsystemd=disabled -Dpam=false -Dmanpage=false -Dssh-agent=false -Dselinux=disabled
 }
 
 pkg_gvfs() {
