@@ -71,13 +71,14 @@ pkg_udisks_client() {
 	"$NATIVE/bin/gdbus-codegen" --interface-prefix org.freedesktop.UDisks2. --c-namespace UDisks --generate-c-code udisks-generated \
 		--c-generate-object-manager --c-generate-autocleanup all ../data/org.freedesktop.UDisks2.xml
 	sed -e 's/@UD_MAJOR_VERSION@/2/; s/@UD_MINOR_VERSION@/11/; s/@UD_MICRO_VERSION@/1/' udisksversion.h.in >udisksversion.h
+	printf '#define GETTEXT_PACKAGE "udisks2"\n' >../config.h
 	"$NATIVE/bin/glib-mkenums" --template udisksenumtypes.h.template udisksenums.h >udisksenumtypes.h
 	"$NATIVE/bin/glib-mkenums" --template udisksenumtypes.c.template udisksenums.h >udisksenumtypes.c
 	local cflags
 	cflags=$($PKG_CONFIG --cflags gio-2.0 gio-unix-2.0)
 	$CC $CFLAGS -fPIC -shared -Wl,-soname,libudisks2.so.0 $LDFLAGS -I. -I.. -DUDISKS_COMPILATION -D_GNU_SOURCE $cflags \
 		-o "$DEST$LIBDIR/libudisks2.so.0" udisks-generated.c udisksenumtypes.c udisksclient.c udiskserror.c udisksobjectinfo.c \
-		udisksversion.c $($PKG_CONFIG --libs gio-2.0 gio-unix-2.0) || exit 1
+		$($PKG_CONFIG --libs gio-2.0 gio-unix-2.0) || exit 1
 	ln -sf libudisks2.so.0 "$DEST$LIBDIR/libudisks2.so"
 	install -m644 udisks.h udisksclient.h udiskserror.h udisksenums.h udisksenumtypes.h udisks-generated.h udisksobjectinfo.h \
 		udisksversion.h udiskstypes.h "$inc/"
