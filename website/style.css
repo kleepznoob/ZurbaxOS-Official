@@ -280,3 +280,10 @@ footer { background: var(--plum); color: #e2c9d6; border-top: 0; }
 @media (max-width: 960px) {
   .install { padding-top: 96px; padding-bottom: 96px; }
 }
+
+/* the screen's 16:9 is the picture's, inside the bezel, so the taskbar at
+ * the bottom of each screenshot isn't cut off */
+.screen { box-sizing: content-box; }
+.stop::after { box-sizing: content-box; }
+/* the tour's heading fits its column beside the monitor */
+.tour-copy .section-title { font-size: clamp(44px, 5.4vw, 88px); }
