@@ -146,7 +146,7 @@ pkg_localsearch() {
 	unpack localsearch
 	mesonbuild -Dman=false -Dfunctional_tests=false -Dsystemd_user_services=false -Dlandlock=enabled -Dseccomp=true \
 		-Dbattery_detection=upower -Dcharset_detection=icu -Dlibav=enabled -Dlibmediainfo=disabled -Dxml=enabled \
-		-Dexif=disabled -Dgif=disabled -Diptc=disabled -Djpeg=enabled -Dpng=enabled -Dtiff=enabled -Dpdf=disabled \
+		-Dexif=disabled -Dgif=disabled -Diptc=disabled -Djpeg=enabled -Dpng=enabled -Dtiff=disabled -Dpdf=disabled \
 		-Dxps=disabled -Draw=disabled -Dicon=true -Dplaylist=disabled -Dabiword=false -Dunzip_ps_gz_files=false \
 		-Dwriteback=false
 }
