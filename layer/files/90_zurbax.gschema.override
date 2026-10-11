@@ -1,5 +1,6 @@
 # Zurbax's defaults for GNOME: the same picture as the Zurbax desktop, warm
-# accents to match it, window buttons on the right, and the apps that ship.
+# accents to match it, window buttons on the right, the Zurbax Taskbar
+# (layer/files/taskbar@zurbax.org) and the apps that ship.
 
 [org.gnome.desktop.background]
 picture-uri='file:///usr/share/backgrounds/zurbax/silk.png'
@@ -28,4 +29,5 @@ center-new-windows=true
 tap-to-click=true
 
 [org.gnome.shell]
-favorite-apps=['com.google.Chrome.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Console.desktop', 'org.gnome.Settings.desktop']
+enabled-extensions=['taskbar@zurbax.org']
+favorite-apps=['org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Console.desktop', 'org.gnome.Calendar.desktop', 'org.gnome.Loupe.desktop', 'org.gnome.Settings.desktop']

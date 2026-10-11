@@ -1,0 +1,61 @@
+/* Zurbax Taskbar: dark glass along the bottom, like the Zurbax desktop's */
+
+.zurbax-taskbar {
+  background-color: rgba(22, 20, 24, 0.94);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 4px 10px;
+  spacing: 4px;
+}
+
+.zurbax-taskbar-apps {
+  spacing: 4px;
+}
+
+.zurbax-taskbar-button {
+  border-radius: 10px;
+  padding: 4px 6px 1px 6px;
+  color: #f2f2f2;
+  transition-duration: 120ms;
+}
+
+.zurbax-taskbar-button:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.zurbax-taskbar-button:active,
+.zurbax-taskbar-button.front {
+  background-color: rgba(255, 255, 255, 0.13);
+}
+
+.zurbax-taskbar-grid {
+  padding: 9px 11px;
+}
+
+.zurbax-taskbar-separator {
+  width: 1px;
+  height: 26px;
+  margin: 0 6px;
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.zurbax-taskbar-mark {
+  width: 6px;
+  height: 3px;
+  margin-top: 3px;
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+.zurbax-taskbar-mark.front {
+  width: 16px;
+  background-color: -st-accent-color;
+}
+
+.zurbax-taskbar-tooltip {
+  background-color: rgba(30, 28, 32, 0.96);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 10pt;
+  font-weight: 600;
+}

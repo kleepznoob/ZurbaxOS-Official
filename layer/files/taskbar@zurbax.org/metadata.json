@@ -1,0 +1,8 @@
+{
+  "uuid": "taskbar@zurbax.org",
+  "name": "Zurbax Taskbar",
+  "description": "The Zurbax desktop's taskbar in GNOME: the app grid button, your favorite apps and the open ones along the bottom of the screen.",
+  "shell-version": ["51"],
+  "session-modes": ["user"],
+  "url": "https://zurbax.org"
+}

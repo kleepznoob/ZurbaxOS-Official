@@ -22,6 +22,10 @@ make -C "$TOP" --no-print-directory -s build/bin/zsys build/bin/zsession build/b
 install -Dm755 "$TOP/build/bin/zsession" "$LAYER/usr/libexec/zurbax/zsession"
 install -Dm755 "$TOP/build/bin/polkit-helper" "$LAYER/usr/lib/polkit-1/polkit-agent-helper-1"
 install -Dm644 "$TOP/layer/files/system-bus.conf" "$LAYER/usr/share/zurbax/system-bus.conf"
+# Zurbax's touches as they are in the tree now
+install -Dm644 -t "$LAYER/usr/share/gnome-shell/extensions/taskbar@zurbax.org" "$TOP"/layer/files/taskbar@zurbax.org/*
+install -Dm644 "$TOP/layer/files/90_zurbax.gschema.override" "$LAYER/usr/share/glib-2.0/schemas/90_zurbax.gschema.override"
+"$TOP/build/layer/native/bin/glib-compile-schemas" "$LAYER/usr/share/glib-2.0/schemas"
 
 mkdir -p /data/layers/steam
 mountpoint -q /data/layers/steam || mount --bind "$LAYER" /data/layers/steam

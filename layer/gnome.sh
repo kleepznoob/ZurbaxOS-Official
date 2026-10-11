@@ -793,6 +793,8 @@ pkg_zurbax_gnome() {
 	"$TOP/build/tools/wallpaper" --gnome "$ROOT/usr/share/backgrounds/zurbax" \
 		"$ROOT/usr/share/gnome-background-properties/zurbax.xml" /usr/share/backgrounds/zurbax 3840 2160
 	install -Dm644 "$HERE/files/90_zurbax.gschema.override" "$ROOT/usr/share/glib-2.0/schemas/90_zurbax.gschema.override"
+	# the Zurbax Taskbar, GNOME Shell's side of the Zurbax desktop's layout
+	install -Dm644 -t "$ROOT/usr/share/gnome-shell/extensions/taskbar@zurbax.org" "$HERE"/files/taskbar@zurbax.org/*
 	# the logo GNOME's About page and os-release name
 	install -Dm644 "$TOP/data/zurbax-logo.svg" "$ROOT/usr/share/pixmaps/zurbax-logo.svg"
 	install -Dm644 "$TOP/data/zurbax-logo.svg" "$ROOT/usr/share/icons/hicolor/scalable/apps/zurbax-logo.svg"
