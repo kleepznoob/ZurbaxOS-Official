@@ -5,8 +5,9 @@ the only outside code.
 
 **Zurbax 2.0 is the release for playing:** game
 controllers everywhere, Glide (a 3D game drawn by Zurbax's own renderer),
-controller vibration, F11 full screen, and the Golden Rain wallpaper. It
-also brings Wi-Fi and Mail. (Inside the source, programs, paths and
+controller vibration, F11 full screen, and the Silk wallpaper. It also
+brings Wi-Fi, Mail, Flathub's apps in Harbor, and a full GNOME desktop
+built from GNOME's own sources as a second desktop. (Inside the source, programs, paths and
 settings carry the name in lower case, `zurbax`.)
 
 There's no glibc, no X server or libwayland, no GTK or Qt, no GRUB and no
@@ -51,7 +52,7 @@ want to.
 | ![Launcher](docs/screenshots/launcher.jpg) **Launcher**: every app, with search | ![Lock screen](docs/screenshots/lock.jpg) **Lock screen**: the date over a large clock |
 | ![Dashboard](docs/screenshots/dashboard.jpg) **Dashboard**: weather, today's events, recent files and screen time | ![Settings](docs/screenshots/settings.jpg) **Settings**: light or dark style, accent colours and wallpapers |
 | ![Arcade](docs/screenshots/arcade.jpg) **Arcade**: Glide in 3D, plus Blocks, Snake, 2048, Mines and Breakout | ![Steam](docs/screenshots/steam.jpg) **Steam**: checks the Linux layer and GPU, then starts Big Picture |
-| ![Harbor](docs/screenshots/harbor.jpg) **Harbor**: the app store | ![Music](docs/screenshots/music.jpg) **Music**: albums, songs and artists |
+| ![Harbor](docs/screenshots/harbor.jpg) **Harbor**: the app store, with Flathub's apps | ![Music](docs/screenshots/music.jpg) **Music**: albums, songs and artists |
 | ![Vault](docs/screenshots/vault.jpg) **Vault**: files | |
 
 ## What it does
@@ -154,7 +155,7 @@ boot menu. It takes about a minute.
 | App | What it is |
 |-----|------------|
 | Drift | Web browser with its own HTML and CSS engine: tabs, bookmarks, history, search, forms, find, zoom |
-| Harbor | App store: install, update and remove apps from the built-in source or signed web sources |
+| Harbor | App store: install, update and remove apps from the built-in source, signed web sources and Flathub (Linux apps, through Flatpak) |
 | Mail | Email for Gmail, Outlook, iCloud, Yahoo or any IMAP account: HTML mail, attachments, search, drafts, undo |
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
