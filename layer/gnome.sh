@@ -775,6 +775,11 @@ pkg_linux_pam() {
 # (libgdm); zsys answers for the display manager itself
 pkg_gdm() {
 	unpack gdm
+	# only libgdm (GNOME Shell's lock screen uses it) is wanted: Zurbax has its
+	# own greeter, so the daemon (which wants systemd's varlink) and the
+	# greeter's dconf database (which needs dconf on the build machine) go
+	sed -i "/subdir('dconf')/d" data/meson.build
+	sed -i "/^subdir('daemon')/d" meson.build
 	mesonbuild -Dlogind-provider=systemd -Dsystemdsystemunitdir=no -Dsystemduserunitdir=no -Dx11-support=false \
 		-Dplymouth=disabled -Dselinux=disabled -Dlibaudit=disabled -Dgdm-xsession=false -Ddefault-pam-config=lfs \
 		-Dsystemd-journal=false -Dpam-mod-dir=/usr/lib/security
@@ -788,6 +793,15 @@ pkg_gsound() { unpack gsound; mesonbuild -Dintrospection=true -Denable_vala=fals
 
 pkg_gnome_bluetooth() { unpack gnome-bluetooth; mesonbuild -Dintrospection=true -Dgtk_doc=false; }
 
+# GTK 3, which libnma (the network dialogs Settings and the Shell use) still
+# builds its first library against
+pkg_gtk3() {
+	unpack gtk3
+	mesonbuild -Dx11_backend=true -Dwayland_backend=true -Dbroadway_backend=false -Dxinerama=no -Dcloudproviders=false \
+		-Dtracker3=false -Dprint_backends=file -Dcolord=no -Dgtk_doc=false -Dman=false -Dintrospection=true -Ddemos=false \
+		-Dexamples=false -Dtests=false -Dinstalled_tests=false
+}
+
 pkg_libnma() {
 	unpack libnma
 	mesonbuild -Dlibnma_gtk4=true -Dintrospection=true -Dvapi=false -Dgtk_doc=false -Dmobile_broadband_provider_info=false \
@@ -797,20 +811,38 @@ pkg_libnma() {
 # IBus: input methods (Chinese, Japanese, Korean and more), which GNOME Shell drives
 pkg_ibus() {
 	unpack ibus
-	autobuild --disable-gtk2 --disable-gtk3 --enable-gtk4 --disable-xim --enable-wayland --disable-appindicator \
+	# wayland-scanner runs on the build machine: the layer's wayland has none
+	sed -i "s|wayland_scanner=\`\$PKG_CONFIG --variable=wayland_scanner wayland-scanner\`|wayland_scanner=$NATIVE/bin/wayland-scanner|" configure
+	# the compose tables come ready in the tarball; the program that remakes
+	# them would have to run on the build machine
+	sed -i 's/^noinst_PROGRAMS = gen-internal-compose-table$(EXEEXT)/noinst_PROGRAMS =/; s/^compose\/sequences-$(ENDIAN)-endian: gen-internal-compose-table$/compose\/sequences-$(ENDIAN)-endian:/' src/Makefile.in
+	touch src/compose/sequences-*-endian
+	# introspection: the cross scanner and compiler, and the layer's rules
+	sed -i -e "s|INTROSPECTION_SCANNER=\$PKG_CONFIG_SYSROOT_DIR\`.*\`|INTROSPECTION_SCANNER=$L/cross-bin/g-ir-scanner|" \
+		-e "s|INTROSPECTION_COMPILER=\$PKG_CONFIG_SYSROOT_DIR\`.*\`|INTROSPECTION_COMPILER=$L/cross-bin/g-ir-compiler|" \
+		-e "s|INTROSPECTION_MAKEFILE=\$PKG_CONFIG_SYSROOT_DIR\`.*\`/gobject-introspection-1.0/Makefile.introspection|INTROSPECTION_MAKEFILE=$ROOT/usr/share/gobject-introspection-1.0/Makefile.introspection|" configure
+	# and GLib's generators too: the layer's own would run against the build
+	# machine's GLib
+	GLIB_COMPILE_RESOURCES=$NATIVE/bin/glib-compile-resources GLIB_GENMARSHAL=$NATIVE/bin/glib-genmarshal \
+	GLIB_MKENUMS=$NATIVE/bin/glib-mkenums WAYLAND_SCANNER_CFLAGS=" " WAYLAND_SCANNER_LIBS=" " autobuild --disable-gtk2 --disable-gtk3 --enable-gtk4 --disable-xim --enable-wayland --disable-appindicator \
 		--disable-emoji-dict --disable-unicode-dict --disable-python2 --disable-python-library --disable-setup \
 		--disable-ui --disable-tests --enable-introspection --disable-vala --disable-gtk-doc --disable-memconf \
 		--enable-dconf --disable-systemd-services --with-python=python3
 }
 
-ORDER+=(accountsservice upower geoclue linux_pam gdm libnotify gsound gnome_bluetooth libnma ibus)
+ORDER+=(accountsservice upower geoclue linux_pam gdm libnotify gsound gnome_bluetooth gtk3 libnma ibus)
 
 # ---- GNOME Shell -----------------------------------------------------------------------------
 
 pkg_gnome_shell() {
 	unpack gnome-shell
+	# gjs is only named in the D-Bus services it writes: give the layer's, and
+	# put back the path it has on the installed system afterwards
+	sed -i "s|^gjs = find_program('gjs')|gjs = find_program('$ROOT/usr/bin/gjs')|" meson.build
 	mesonbuild -Dcamera_monitor=true -Dextensions_tool=true -Dgtk_doc=false -Dman=false -Dtests=false -Dnetworkmanager=true \
 		-Dportal_helper=false -Dsystemd=false
+	grep -rlI "$ROOT/usr/bin/gjs" "$ROOT/usr/share/dbus-1" "$ROOT/usr/libexec" "$ROOT/usr/bin" "$ROOT/usr/share/gnome-shell" 2>/dev/null |
+		xargs -r sed -i "s|$ROOT/usr/bin/gjs|/usr/bin/gjs|g"
 	# Zurbax's session manager for GNOME (system/zsession)
 	zurbax_program zsession /usr/libexec/zurbax/zsession
 }
@@ -833,7 +865,18 @@ pkg_zurbax_gnome() {
 	"$NATIVE/bin/glib-compile-schemas" "$ROOT/usr/share/glib-2.0/schemas"
 }
 
-ORDER+=(gnome_shell zurbax_gnome)
+# PulseAudio's client again, now with its GLib main loop, which GNOME
+# Shell's volume control uses (the first build comes before GLib)
+pkg_pulseaudio_glib() {
+	unpack pulseaudio
+	local off=(asyncns avahi bluez5 dbus elogind fftw gsettings gstreamer gtk jack lirc openssl orc samplerate soxr systemd
+		tcpwrap udev valgrind x11 consolekit alsa)
+	local opts=() o
+	for o in "${off[@]}"; do opts+=("-D$o=disabled"); done
+	mesonbuild -Ddaemon=false -Dclient=true -Dglib=enabled -Ddoxygen=false -Dman=false -Dtests=false "${opts[@]}"
+}
+
+ORDER+=(pulseaudio_glib gnome_shell zurbax_gnome)
 
 # ---- Zurbax's libsystemd ---------------------------------------------------------------
 # The session questions GNOME asks systemd's library, answered by Zurbax's own

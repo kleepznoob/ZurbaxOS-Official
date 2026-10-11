@@ -345,6 +345,27 @@ extern const char *const WALLPAPER_TITLES[];
 extern const int WALLPAPER_COUNT;
 Canvas *wallpaper_render(const char *name, int w, int h);
 
+/* ---- Setup assistants (setup.c): Welcome and the Installer share this look ---- */
+
+typedef struct {
+	const char *title;              /* under the name: "Setup", "Installer" */
+	const char *const *steps;
+	int count;
+	int current;                    /* count when every step is done */
+	f64 changed_at;                 /* when the page changed, for its entrance */
+	int dir;                        /* 1 forward, -1 back */
+	const char *wallpaper;          /* behind the steps; NULL for the default */
+} SetupSteps;
+
+/* Draws the window: the steps on the left, and returns the page's area. */
+Rect setup_frame(Ui *ui, const SetupSteps *s);
+f32 setup_title(Ui *ui, Rect *r, f64 changed_at, const char *title, const char *about);
+Rect setup_rise(Ui *ui, f64 changed_at, int index, Rect r);
+bool setup_choice(Ui *ui, Rect r, const char *id, const char *icon, const char *title, const char *text, bool selected, bool enabled,
+		  Color tint);
+void setup_tick(Ui *ui, Rect r, f64 since, bool ok);
+f32 setup_ease(f32 t);
+
 /* ---- App runtime -------------------------------------------------------------------- */
 
 typedef struct {

@@ -2,9 +2,8 @@
 # Builds the images of apps that come with Zurbax, ready to use without an
 # internet connection: Flathub's apps and the runtimes they run on, as
 # offline Flatpak repositories (flatpak create-usb), one squashfs image per
-# group. Each stays under 2 GiB, the most a GitHub release file may be (the
-# mini installer downloads them from there), which is also well under
-# FAT32's 4 GiB.
+# group. Each stays under the 4 GiB a file may have on the install stick's
+# FAT32.
 #
 #     tools/preload-apps.sh OUTDIR        OUTDIR/apps.sfs, apps2.sfs ...
 #
@@ -13,13 +12,12 @@
 # from these images the first time the Linux session starts.
 set -eu
 OUT=$1
-LIMIT=2000000000
+LIMIT=4000000000
 # one line per image; a group shares its runtimes
+# (Lutris, Bottles, OBS, RetroArch and the rest are a click away in Harbor)
 GROUPS="org.mozilla.firefox io.github.celluloid_player.Celluloid org.gnome.Boxes
 org.gimp.GIMP com.heroicgameslauncher.hgl com.vysp3r.ProtonPlus
-net.lutris.Lutris com.usebottles.bottles
-org.libreoffice.LibreOffice org.videolan.VLC
-com.obsproject.Studio org.libretro.RetroArch org.kde.kdenlive"
+org.libreoffice.LibreOffice org.videolan.VLC"
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/zurbax-apps.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$OUT"
@@ -47,7 +45,7 @@ printf '%s\n' "$GROUPS" | while read -r group; do
 	rm -rf "$WORK/usb"
 	size=$(stat -c %s "$OUT/$name.sfs")
 	if [ "$size" -ge "$LIMIT" ]; then
-		echo "$name.sfs is $size bytes, over the 2 GiB a release file may be: split its group" >&2
+		echo "$name.sfs is $size bytes, too big for FAT32: split its group" >&2
 		exit 1
 	fi
 	printf '%s\n' "$group" >"$OUT/$name.list"

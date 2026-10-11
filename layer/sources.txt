@@ -175,6 +175,7 @@ gdm https://download.gnome.org/sources/gdm/51/gdm-51.0.tar.xz -
 libnotify https://download.gnome.org/sources/libnotify/0.8/libnotify-0.8.8.tar.xz -
 gsound https://download.gnome.org/sources/gsound/1.0/gsound-1.0.3.tar.xz -
 gnome-bluetooth https://download.gnome.org/sources/gnome-bluetooth/47/gnome-bluetooth-47.2.tar.xz -
+gtk3 https://download.gnome.org/sources/gtk/3.24/gtk-3.24.52.tar.xz 80931fa472a77b9a164f6740e3c0b444fac6770054632d35a7ff9d679e5e7b9f
 libnma https://download.gnome.org/sources/libnma/1.10/libnma-1.10.6.tar.xz -
 ibus https://github.com/ibus/ibus/releases/download/1.5.33/ibus-1.5.33.tar.gz -
 opus https://downloads.xiph.org/releases/opus/opus-1.6.tar.gz -
