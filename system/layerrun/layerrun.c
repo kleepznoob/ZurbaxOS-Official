@@ -637,6 +637,52 @@ static int add_flathub(const char *home)
 	return spawn(argv);
 }
 
+/* The apps that come with Zurbax (tools/preload-apps.sh): offline Flatpak
+ * repositories in /data/layers/apps*, installed into the person's Flatpak
+ * installation the first time, in the background, with no internet needed.
+ * A marker says it's done; if it fails, the apps are in Harbor anyway. */
+static void preload_apps(const char *home)
+{
+	char *marker = str_fmt("%s/.local/share/zurbax/apps-preloaded", home);
+	bool done = file_exists(marker);
+	if (done || !file_exists("/usr/bin/flatpak")) {
+		mem_free(marker);
+		return;
+	}
+	StrBuf repos = { 0 }, ids = { 0 };
+	DirList l = { 0 };
+	dir_list("/data/layers", &l, false);
+	for (usize i = 0; i < l.len; i++) {
+		if (!str_starts(l.data[i].name, "apps") || str_ends(l.data[i].name, ".sfs"))
+			continue;
+		char *list = str_fmt("/data/layers/%s/apps.list", l.data[i].name);
+		char *text = file_read(list, NULL);
+		if (text) {
+			sb_fmt(&repos, " --sideload-repo=/data/layers/%s/.ostree/repo", l.data[i].name);
+			for (char *t = text; *t; t++)
+				if (*t == '\n')
+					*t = ' ';
+			sb_fmt(&ids, " %s", text);
+			mem_free(text);
+		}
+		mem_free(list);
+	}
+	dir_list_free(&l);
+	if (ids.len) {
+		char *dir = path_dir(marker);
+		char *script = str_fmt("mkdir -p '%s' && flatpak remote-add --user --if-not-exists flathub /usr/share/zos/flathub.flatpakrepo && "
+				       "flatpak install --user --noninteractive -y%s flathub%s && touch '%s'", dir,
+				       sb_str(&repos), sb_str(&ids), marker);
+		char *argv[] = { "sh", "-c", script, NULL };
+		spawn(argv);
+		mem_free(script);
+		mem_free(dir);
+	}
+	sb_free(&repos);
+	sb_free(&ids);
+	mem_free(marker);
+}
+
 /* The session itself: makes the namespace, starts the bus and the sound
  * server, and serves FUSE mounts until it is told to stop. */
 static int session_main(const char *user, const char *home)
@@ -676,6 +722,8 @@ static int session_main(const char *user, const char *home)
 	bool gnome = desktop && str_eq(desktop, "gnome");
 	int sound = gnome ? 0 : start_sound();
 	int flathub = add_flathub(home);
+	if (flathub >= 0)
+		preload_apps(home);
 	/* the desktop's zportal answers the portals: the first program should
 	 * find them, so wait a moment for it to come onto the new bus */
 	const char *display = env_get("ZUI_SOCKET");

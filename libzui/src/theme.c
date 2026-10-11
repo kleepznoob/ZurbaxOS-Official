@@ -16,6 +16,9 @@ Color theme_accent_named(const char *name)
 {
 	if (name && str_eq(name, "yellow")) /* the name before Zurbax 2.0's palette */
 		name = "gold";
+	/* a colour of the person's own (or taken from their wallpaper) */
+	if (name && name[0] == '#')
+		return color_hex(name);
 	for (int i = 0; i < THEME_ACCENT_COUNT; i++)
 		if (name && str_eq(name, THEME_ACCENT_NAMES[i]))
 			return THEME_ACCENT_COLORS[i];

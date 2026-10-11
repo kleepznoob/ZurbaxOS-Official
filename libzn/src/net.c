@@ -472,8 +472,16 @@ const char *http_header(const HttpResponse *r, const char *name, char *out, usiz
 	return NULL;
 }
 
-static bool append_body(HttpResponse *r, usize *cap, const u8 *data, usize n, usize max)
+static bool append_body(HttpResponse *r, usize *cap, const u8 *data, usize n, usize max, const HttpOptions *o)
 {
+	if (o->sink) {
+		r->body_len += n;
+		if (!o->sink(o->user, data, n)) {
+			str_copy(r->error, "the download was stopped", sizeof r->error);
+			return false;
+		}
+		return true;
+	}
 	if (r->body_len + n > max) {
 		str_copy(r->error, "the download is too large", sizeof r->error);
 		return false;
@@ -582,7 +590,8 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 		sb_fmt(&req, "%s %s HTTP/1.1\r\nHost: %s", o.method, u.path, u.host);
 		if (!default_port)
 			sb_fmt(&req, ":%u", u.port);
-		sb_fmt(&req, "\r\nUser-Agent: %s\r\nAccept: %s\r\nAccept-Encoding: gzip\r\nConnection: close\r\n",
+		sb_fmt(&req, o.sink ? "\r\nUser-Agent: %s\r\nAccept: %s\r\nAccept-Encoding: identity\r\nConnection: close\r\n"
+				    : "\r\nUser-Agent: %s\r\nAccept: %s\r\nAccept-Encoding: gzip\r\nConnection: close\r\n",
 		       o.user_agent ? o.user_agent : "Zurbax/1.0", o.accept ? o.accept : "*/*");
 		if (o.hop_headers) {
 			char *extra = o.hop_headers(o.user, r->final_url);
@@ -651,7 +660,7 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 					break;
 				while (size) {
 					long k = conn_read(&c, buf, MIN(size, sizeof buf));
-					if (k <= 0 || !append_body(r, &cap, buf, (usize)k, o.max_body)) {
+					if (k <= 0 || !append_body(r, &cap, buf, (usize)k, o.max_body, &o)) {
 						good = false;
 						break;
 					}
@@ -674,7 +683,7 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 					good = r->body_len > 0 && !total;
 					break;
 				}
-				if (!append_body(r, &cap, buf, (usize)k, o.max_body)) {
+				if (!append_body(r, &cap, buf, (usize)k, o.max_body, &o)) {
 					good = false;
 					break;
 				}
@@ -688,7 +697,7 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 				str_copy(r->error, "the download was interrupted", sizeof r->error);
 			return r;
 		}
-		if (http_header(r, "Content-Encoding", value, sizeof value) && str_find_nocase(value, "gzip")) {
+		if (!o.sink && http_header(r, "Content-Encoding", value, sizeof value) && str_find_nocase(value, "gzip")) {
 			usize n;
 			u8 *plain = gunzip(r->body, r->body_len, &n);
 			if (!plain) {

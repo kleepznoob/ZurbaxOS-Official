@@ -11,12 +11,18 @@
  * "error TEXT". It is setuid root but works only in the live session (booted
  * from the install stick), where the person at the keyboard owns the machine.
  *
+ * From the mini install image (LAYERS/NETINSTALL.TXT names a download
+ * place), the system and the Linux layer's images come over the network
+ * instead: the edition for this computer's graphics (kernel/gpu-variants),
+ * each file checked against the place's manifest.
+ *
  * Layout: an EFI system partition holding \EFI\ZURBAX\ZURBAX.EFI (the kernel
  * with the whole system inside) and an ext4 partition named ZURBAX-DATA for
  * accounts, settings and files. A firmware boot entry points at the EFI file,
  * so there is no boot loader.
  */
 #include "zd.h"
+#include "zn.h"
 
 #define BLKRRPART 0x125f
 #define BLKSSZGET 0x1268
@@ -685,6 +691,27 @@ static bool copy_file(const char *src, const char *dst, u64 *done, u64 total)
 	return ok;
 }
 
+/* Mounts the new data partition at WORK/data (its device appears once the
+ * kernel has reread the table). */
+static bool mount_data(const char *disk)
+{
+	char dev[48] = { 0 };
+	for (int tries = 0; tries < 50 && !dev[0]; tries++) {
+		Disk d;
+		if (load_disk(disk, &d))
+			for (int i = 0; i < d.nparts; i++)
+				if (str_eq(d.parts[i].partname, "ZURBAX-DATA"))
+					fmt(dev, sizeof dev, "/dev/%s", d.parts[i].name);
+		if (!dev[0] || !file_exists(dev))
+			dev[0] = 0, sleep_ms(100);
+	}
+	dir_make(WORK "/data", 0700);
+	if (!dev[0] || sys_mount(dev, WORK "/data", "ext4", MS_NOSUID | MS_NODEV, NULL) < 0)
+		return false;
+	dir_make(WORK "/data/layers", 0755);
+	return true;
+}
+
 static void copy_layers(const char *disk)
 {
 	static const char *const dirs[] = { "/run/zurbax/medium/LAYERS", "/run/zurbax/medium/layers" };
@@ -699,24 +726,11 @@ static void copy_layers(const char *disk)
 	for (usize i = 0; i < l.len; i++)
 		total += (u64)l.data[i].size;
 	step(0.88f, "Copying the Linux layer");
-	/* the new partition's device appears once the kernel has reread the table */
-	char dev[48] = { 0 };
-	for (int tries = 0; tries < 50 && !dev[0]; tries++) {
-		Disk d;
-		if (load_disk(disk, &d))
-			for (int i = 0; i < d.nparts; i++)
-				if (str_eq(d.parts[i].partname, "ZURBAX-DATA"))
-					fmt(dev, sizeof dev, "/dev/%s", d.parts[i].name);
-		if (!dev[0] || !file_exists(dev))
-			dev[0] = 0, sleep_ms(100);
-	}
-	dir_make(WORK "/data", 0700);
-	if (!dev[0] || sys_mount(dev, WORK "/data", "ext4", MS_NOSUID | MS_NODEV, NULL) < 0) {
+	if (!mount_data(disk)) {
 		say("note the Linux layer wasn't copied: the new storage partition couldn't be opened");
 		dir_list_free(&l);
 		return;
 	}
-	dir_make(WORK "/data/layers", 0755);
 	u64 done = 0;
 	bool ok = true;
 	for (usize i = 0; i < l.len; i++) {
@@ -738,6 +752,258 @@ static void copy_layers(const char *disk)
 		say("note part of the Linux layer couldn't be copied; Zurbax works without it");
 }
 
+/* ---- Installing over the network ---------------------------------------------------------- */
+
+static char net_base[256];
+
+/* The mini install image: LAYERS/NETINSTALL.TXT holds the download place. */
+static bool net_medium(void)
+{
+	static const char *const names[] = { "/run/zurbax/medium/LAYERS/NETINSTALL.TXT", "/run/zurbax/medium/layers/netinstall.txt" };
+	for (usize i = 0; i < ARRAY_LEN(names); i++) {
+		char *t = file_read(names[i], NULL);
+		if (!t)
+			continue;
+		char *line = str_trim(t), *nl = (char *)str_chr(line, '\n');
+		if (nl)
+			*nl = 0;
+		fmt(net_base, sizeof net_base, "%s%s", str_trim(line), str_ends(str_trim(line), "/") ? "" : "/");
+		mem_free(t);
+		return str_starts(net_base, "https://");
+	}
+	return false;
+}
+
+static u32 sys_hex(const char *path)
+{
+	char *t = sys_str(path);
+	u32 v = 0;
+	const char *q = t ? t : "";
+	if (q[0] == '0' && (q[1] == 'x' || q[1] == 'X'))
+		q += 2;
+	for (; is_xdigit(*q); q++)
+		v = v * 16 + (u32)(is_digit(*q) ? *q - '0' : to_lower(*q) - 'a' + 10);
+	mem_free(t);
+	return v;
+}
+
+/* The edition for this computer's graphics. With an NVIDIA card next to
+ * another, NVIDIA's (those editions keep every firmware). */
+static const char *detect_edition(void)
+{
+	bool nv_new = false, nv_old = false, amd = false, amd_old = false, xe = false;
+	DirList l = { 0 };
+	dir_list("/sys/bus/pci/devices", &l, false);
+	for (usize i = 0; i < l.len; i++) {
+		char *base = str_fmt("/sys/bus/pci/devices/%s", l.data[i].name), *p;
+		p = str_fmt("%s/class", base);
+		u32 cls = sys_hex(p);
+		mem_free(p);
+		p = str_fmt("%s/vendor", base);
+		u32 vendor = sys_hex(p);
+		mem_free(p);
+		p = str_fmt("%s/device", base);
+		u32 device = sys_hex(p);
+		mem_free(p);
+		if ((cls >> 16) == 0x03) {
+			if (vendor == 0x10de) {
+				/* Turing (RTX 20, GTX 16) and newer start at 0x1e00 */
+				if (device >= 0x1e00)
+					nv_new = true;
+				else
+					nv_old = true;
+			} else if (vendor == 0x1002) {
+				/* GCN 1 and 2 cards start on the radeon driver */
+				char link[256] = "";
+				p = str_fmt("%s/driver", base);
+				long n = sys_readlink(p, link, sizeof link - 1);
+				mem_free(p);
+				if (n > 0 && str_ends((link[n] = 0, link), "/radeon"))
+					amd_old = true;
+				else
+					amd = true;
+			} else if (vendor == 0x8086) {
+				u32 g = device >> 8;
+				/* Arc (Alchemist, Battlemage) and Core Ultra graphics */
+				if (g == 0x56 || g == 0xe2 || g == 0x7d || g == 0x64 || g == 0xb0 || g == 0xb6)
+					xe = true;
+			}
+		}
+		mem_free(base);
+	}
+	dir_list_free(&l);
+	return nv_new ? "nvidia-rtx" : nv_old ? "nvidia-gtx" : amd_old ? "amd-legacy" : amd ? "amd" : xe ? "intel-arc" : "intel";
+}
+
+typedef struct {
+	char name[64];
+	u64 size;
+	u8 sha[32];
+} NetFile;
+
+static NetFile net_files[32];
+static int net_nfiles;
+
+/* NAME SIZE SHA256 lines */
+static bool net_manifest(void)
+{
+	char *url = str_fmt("%smanifest", net_base);
+	HttpResponse *r = http_get(url);
+	mem_free(url);
+	bool ok = r->status == 200 && r->body;
+	for (char *line = ok ? (char *)r->body : NULL; line && *line && net_nfiles < (int)ARRAY_LEN(net_files);) {
+		char *nl = (char *)str_chr(line, '\n');
+		if (nl)
+			*nl = 0;
+		char name[64] = "", hex[80] = "";
+		const char *q = line;
+		usize i = 0;
+		while (*q == ' ')
+			q++;
+		while (*q && *q != ' ' && i + 1 < sizeof name)
+			name[i++] = *q++;
+		name[i] = 0;
+		u64 size = (u64)str_to_int(q, &q);
+		while (*q == ' ')
+			q++;
+		str_copy(hex, q, sizeof hex);
+		NetFile *f = &net_files[net_nfiles];
+		if (name[0] && size && hex_decode(str_trim(hex), f->sha, 32)) {
+			str_copy(f->name, name, sizeof f->name);
+			f->size = size;
+			net_nfiles++;
+		}
+		line = nl ? nl + 1 : NULL;
+	}
+	http_response_free(r);
+	return net_nfiles > 0;
+}
+
+static const NetFile *net_file(const char *name)
+{
+	for (int i = 0; i < net_nfiles; i++)
+		if (str_eq(net_files[i].name, name))
+			return &net_files[i];
+	return NULL;
+}
+
+typedef struct {
+	int fd;
+	StrBuf *mem;
+	Sha256 sha;
+	u64 got, done, all;
+	f32 from, to, shown;
+	const char *what;
+} Dl;
+
+static bool dl_sink(void *user, const u8 *data, usize n)
+{
+	Dl *d = user;
+	sha256_update(&d->sha, data, n);
+	if (d->mem)
+		sb_add(d->mem, data, n);
+	else if (!write_all(d->fd, data, n))
+		return false;
+	d->got += n;
+	f32 f = d->from + (d->to - d->from) * (f32)((f64)(d->done + d->got) / (f64)MAX(d->all, 1));
+	if (f - d->shown >= 0.005f) {
+		char text[120];
+		fmt(text, sizeof text, "%s (%.1f of %.1f GB)", d->what, (f64)(d->done + d->got) / 1e9, (f64)d->all / 1e9);
+		step(f, text);
+		d->shown = f;
+	}
+	return true;
+}
+
+/* One file from the download place, into fd or memory, checked; tries three times. */
+static bool net_get(const NetFile *f, Dl *d, const char *dest)
+{
+	for (int attempt = 0; attempt < 3; attempt++) {
+		char *part = dest ? str_fmt("%s.part", dest) : NULL;
+		d->fd = dest ? (int)sys_open(part, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644) : -1;
+		if (dest && d->fd < 0) {
+			mem_free(part);
+			return false;
+		}
+		if (d->mem)
+			sb_clear(d->mem);
+		sha256_init(&d->sha);
+		d->got = 0;
+		char *url = str_fmt("%s%s", net_base, f->name);
+		HttpOptions o = { .timeout_ms = 60000, .sink = dl_sink, .user = d };
+		HttpResponse *r = http_request(url, &o);
+		mem_free(url);
+		u8 sum[32];
+		sha256_final(&d->sha, sum);
+		bool ok = r->status == 200 && d->got == f->size && memcmp(sum, f->sha, 32) == 0;
+		http_response_free(r);
+		if (dest) {
+			ok = ok && sys_fsync(d->fd) == 0;
+			sys_close(d->fd);
+			if (ok)
+				ok = sys_rename(part, dest) == 0;
+			else
+				sys_unlink(part);
+		}
+		mem_free(part);
+		if (ok) {
+			d->done += f->size;
+			return true;
+		}
+	}
+	return false;
+}
+
+/* The system for this computer's graphics, before the disk is touched. */
+static u8 *net_system(const char *edition, usize *len)
+{
+	step(0.01f, "Connecting to the download place");
+	if (!net_manifest())
+		fail("Zurbax couldn't reach its download place. Connect to the internet (Wi-Fi is in the top bar) and try again.");
+	char name[64];
+	fmt(name, sizeof name, "zurbax-%s.efi", edition);
+	const NetFile *f = net_file(name);
+	if (!f)
+		fail("The download place doesn't have this computer's edition yet.");
+	StrBuf mem = { 0 };
+	Dl d = { .mem = &mem, .all = f->size, .from = 0.02f, .to = 0.1f, .what = "Downloading Zurbax" };
+	if (!net_get(f, &d, NULL))
+		fail("The download didn't finish. Check the connection and try again.");
+	*len = mem.len;
+	return (u8 *)sb_take(&mem);
+}
+
+/* The Linux layer's images onto the new data partition: every image the
+ * place has, with the firmware this edition uses saved as firmware.sfs. */
+static void net_layers(const char *disk, const char *edition)
+{
+	const char *fw = str_starts(edition, "nvidia") ? "firmware.sfs" : "firmware-nonvidia.sfs";
+	u64 all = 0;
+	for (int i = 0; i < net_nfiles; i++) {
+		const char *n = net_files[i].name;
+		if (str_ends(n, ".sfs") && (!str_starts(n, "firmware") || str_eq(n, fw)))
+			all += net_files[i].size;
+	}
+	if (!mount_data(disk)) {
+		say("note the Linux layer wasn't downloaded: the new storage partition couldn't be opened");
+		return;
+	}
+	Dl d = { .all = all, .from = 0.88f, .to = 0.99f, .what = "Downloading apps, games and drivers" };
+	bool ok = true;
+	for (int i = 0; i < net_nfiles; i++) {
+		const char *n = net_files[i].name;
+		if (!str_ends(n, ".sfs") || (str_starts(n, "firmware") && !str_eq(n, fw)))
+			continue;
+		char *to = str_fmt(WORK "/data/layers/%s", str_starts(n, "firmware") ? "firmware.sfs" : n);
+		ok &= net_get(&net_files[i], &d, to);
+		mem_free(to);
+	}
+	sys_sync();
+	sys_umount(WORK "/data", 0);
+	if (!ok)
+		say("note part of the Linux layer didn't download; Zurbax works without it, and Harbor can get the rest");
+}
+
 static int cmd_install(const char *name, const char *mode)
 {
 	bool erase = str_eq(mode, "erase");
@@ -748,9 +1014,17 @@ static int cmd_install(const char *name, const char *mode)
 		fail("That disk isn't connected any more.");
 	if (d.boot_medium)
 		fail("Zurbax can't be installed on the stick it's running from.");
-	step(0.02f, "Reading the install media");
-	usize sys_len;
-	u8 *sys = read_system(&sys_len);
+	bool net = net_medium();
+	const char *edition = net ? detect_edition() : NULL;
+	usize sys_len = 0;
+	u8 *sys;
+	if (net) {
+		say("edition %s", edition);
+		sys = net_system(edition, &sys_len);
+	} else {
+		step(0.02f, "Reading the install media");
+		sys = read_system(&sys_len);
+	}
 	if (!sys || sys_len < (1u << 20))
 		fail("The USB stick or disc " OS_NAME " started from couldn't be read. Make sure it's still there.");
 	/* Exclusive: fails if anything on the disk is in use. */
@@ -771,7 +1045,10 @@ static int cmd_install(const char *name, const char *mode)
 	sys_close(fd);
 	sys_sync();
 	mem_free(sys);
-	copy_layers(name);
+	if (net)
+		net_layers(name, edition);
+	else
+		copy_layers(name);
 	step(1, "Finished");
 	say("done");
 	return 0;

@@ -187,6 +187,9 @@ typedef struct {
 	 * cookies with these. */
 	char *(*hop_headers)(void *user, const char *url);
 	void (*hop_response)(void *user, const char *url, int status, const char *headers);
+	/* when set, the body goes here as it arrives instead of into the
+	 * response (for downloads too large to hold); false stops it */
+	bool (*sink)(void *user, const u8 *data, usize n);
 	const char *user_agent;  /* default "Zurbax/1.0" */
 	const char *accept;      /* default any type */
 } HttpOptions;

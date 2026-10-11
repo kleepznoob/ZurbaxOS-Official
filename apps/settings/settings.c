@@ -197,6 +197,42 @@ static void style_card(Ui *ui, Rect r, bool dark, bool selected)
 		set_bool(ui, "dark", dark);
 }
 
+/* An accent colour from a wallpaper: the average of its colourful pixels,
+ * kept bright and saturated enough to read on buttons. */
+static void accent_from_wallpaper(Ui *ui)
+{
+	Canvas *c = wallpaper_render(get("wallpaper", WALLPAPER_DEFAULT), 96, 54);
+	if (!c)
+		return;
+	f64 r = 0, g = 0, bl = 0, wsum = 0;
+	for (int y = 0; y < c->height; y++)
+		for (int x = 0; x < c->width; x++) {
+			u32 p = canvas_row(c, y)[x];
+			f32 h, sat, l;
+			color_to_hsl(p | 0xff000000u, &h, &sat, &l);
+			f64 w = (f64)sat * (1.0 - fabs((f64)l - 0.5) * 1.6);
+			if (w <= 0)
+				continue;
+			r += ((p >> 16) & 0xff) * w, g += ((p >> 8) & 0xff) * w, bl += (p & 0xff) * w, wsum += w;
+		}
+	canvas_free(c);
+	Color avg = wsum > 0 ? RGB((u8)(r / wsum), (u8)(g / wsum), (u8)(bl / wsum)) : THEME_ACCENT_COLORS[0];
+	f32 h, sat, l;
+	color_to_hsl(avg, &h, &sat, &l);
+	Color acc = color_hsl(h, clampf(sat, 0.55f, 0.85f), clampf(l, 0.45f, 0.58f), 255);
+	char hex[16];
+	fmt(hex, sizeof hex, "#%02x%02x%02x", (acc >> 16) & 0xff, (acc >> 8) & 0xff, acc & 0xff);
+	conf_set(st.conf, "accent_follow", "true");
+	set_str(ui, "accent", hex);
+}
+
+/* A new wallpaper brings its colour along when the accent follows it. */
+static void wallpaper_changed(Ui *ui)
+{
+	if (get_bool("accent_follow", false))
+		accent_from_wallpaper(ui);
+}
+
 static void page_appearance(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
@@ -230,14 +266,35 @@ static void page_appearance(Ui *ui, Rect r)
 			ui_ring(ui, cx, cy, 20, 2, c);
 			ui_icon(ui, rect(cx - 8, cy - 8, 16, 16), "check", COLOR_WHITE);
 		}
-		if (it.clicked)
+		if (it.clicked) {
+			conf_set(st.conf, "accent_follow", "false");
 			set_str(ui, "accent", THEME_ACCENT_NAMES[i]);
+		}
 		ui_push_id(ui, i);
 		if (it.hovered) {
 			ui->last_rect = sw;
 			ui_tooltip(ui, THEME_ACCENT_NAMES[i]);
 		}
 		ui_pop_id(ui);
+	}
+	{
+		/* the accent taken from the wallpaper, and kept in step with it */
+		Rect sw = rect(acc.x + (f32)THEME_ACCENT_COUNT * 52, acc.y, 44, 44);
+		UiInteract it = ui_interact(ui, ui_id(ui, "accent-wall"), sw);
+		f32 cx = sw.x + 22, cy = sw.y + 22;
+		bool sel = get_bool("accent_follow", false);
+		Color c = theme_accent_named(cur);
+		ui_circle(ui, cx, cy, it.hovered ? 16 : 15, sel ? c : t->card);
+		ui_ring(ui, cx, cy, 15, 2, sel ? c : t->border_strong);
+		ui_icon(ui, rect(cx - 8, cy - 8, 16, 16), sel ? "check" : "image", sel ? COLOR_WHITE : t->text_dim);
+		if (sel)
+			ui_ring(ui, cx, cy, 20, 2, c);
+		if (it.clicked)
+			accent_from_wallpaper(ui);
+		if (it.hovered) {
+			ui->last_rect = sw;
+			ui_tooltip(ui, "From your wallpaper");
+		}
 	}
 	cut_top(&b, 14);
 
@@ -281,6 +338,7 @@ static void page_appearance(Ui *ui, Rect r)
 				mem_free(pics);
 			} else {
 				set_str(ui, "wallpaper", WALLPAPER_NAMES[i]);
+				wallpaper_changed(ui);
 			}
 		}
 	}
@@ -303,6 +361,7 @@ static void page_appearance(Ui *ui, Rect r)
 		set_str(ui, "wallpaper", path);
 		canvas_free(st.custom_thumb);
 		st.custom_thumb = image_load_thumb(path, 320);
+		wallpaper_changed(ui);
 	}
 }
 

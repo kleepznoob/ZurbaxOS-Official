@@ -123,9 +123,11 @@ $(OUT)/firmware.sfs: tools/fetch-firmware.py
 	@mv $@.part $@
 	@ls -l $@
 
-# The same images without NVIDIA's firmware, for the AMD and Intel editions.
-$(OUT)/firmware-nonvidia.sfs: $(OUT)/firmware.sfs
-	@rm -rf $(OUT)/fw-nonvidia $@.part
+# The same image without NVIDIA's firmware, for the AMD and Intel editions
+# (named firmware.sfs on the media, the name zinit mounts).
+NONVIDIA_FW := $(OUT)/nonvidia/firmware.sfs
+$(NONVIDIA_FW): $(OUT)/firmware.sfs
+	@rm -rf $(OUT)/fw-nonvidia $@.part && mkdir -p $(dir $@)
 	@unsquashfs -q -d $(OUT)/fw-nonvidia $< >/dev/null
 	@rm -rf $(OUT)/fw-nonvidia/nvidia
 	@mksquashfs $(OUT)/fw-nonvidia $@.part -comp zstd -Xcompression-level 19 -b 1M -all-root -noappend -quiet
@@ -148,10 +150,34 @@ gpu_field = $(shell sed -n 's/^$(1)|\([^|]*\)|\([^|]*\)$$/\$(2)/p' kernel/gpu-va
 iso-%: media-prep
 	@echo ">> the $* edition"
 	@ZURBAX_CMDLINE_EXTRA='$(call gpu_field,$*,1)' kernel/build.sh $(OUT)/system.cpio
-	@$(MAKE) --no-print-directory $(if $(filter nonvidia,$(call gpu_field,$*,2)),$(OUT)/firmware-nonvidia.sfs,$(OUT)/firmware.sfs)
-	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-$*.iso $(EFI_FILE) $(wildcard $(OUT)/layer/steam.sfs) \
-		$(if $(filter nonvidia,$(call gpu_field,$*,2)),$(OUT)/firmware-nonvidia.sfs,$(OUT)/firmware.sfs)
+	@$(MAKE) --no-print-directory $(if $(filter nonvidia,$(call gpu_field,$*,2)),$(NONVIDIA_FW),$(OUT)/firmware.sfs)
+	@mkdir -p $(OUT)/downloads && cp $(EFI_FILE) $(OUT)/downloads/zurbax-$*.efi
+	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-$*.iso $(EFI_FILE) $(wildcard $(OUT)/layer/steam.sfs $(OUT)/apps/apps*.sfs) \
+		$(if $(filter nonvidia,$(call gpu_field,$*,2)),$(NONVIDIA_FW),$(OUT)/firmware.sfs)
 isos: $(addprefix iso-,$(GPUS))
+
+# The apps that come ready to use (tools/preload-apps.sh needs flatpak).
+apps: $(OUT)/apps/apps.sfs
+$(OUT)/apps/apps.sfs: tools/preload-apps.sh
+	@tools/preload-apps.sh $(OUT)/apps
+
+# The mini install image: the system alone (well under 1 GB, for small USB
+# sticks); its installer downloads the edition for the computer's graphics
+# and the rest from DOWNLOADS, the place `make downloads` fills.
+DOWNLOADS ?= https://downloads.zurbax.com/2.0/
+iso-mini: media-prep
+	@echo ">> the mini edition"
+	@ZURBAX_CMDLINE_EXTRA= kernel/build.sh $(OUT)/system.cpio
+	@mkdir -p $(OUT)/mini && printf '%s\n' '$(DOWNLOADS)' >$(OUT)/mini/NETINSTALL.TXT
+	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-mini.iso $(EFI_FILE) $(OUT)/mini/NETINSTALL.TXT
+
+# What the download place serves: each edition's system, the layer, the
+# apps and both firmware images, with a manifest of sizes and checksums.
+downloads: isos
+	@cp $(wildcard $(OUT)/layer/steam.sfs $(OUT)/apps/apps*.sfs) $(OUT)/firmware.sfs $(OUT)/downloads/
+	@cp $(NONVIDIA_FW) $(OUT)/downloads/firmware-nonvidia.sfs
+	@cd $(OUT)/downloads && for f in *.efi *.sfs; do printf '%s %s %s\n' "$$f" "$$(stat -c %s "$$f")" "$$(sha256sum "$$f" | cut -d' ' -f1)"; done >manifest
+	@cat $(OUT)/downloads/manifest
 
 OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd
 OVMF_VARS ?= /usr/share/OVMF/OVMF_VARS_4M.fd

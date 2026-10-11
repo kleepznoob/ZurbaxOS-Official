@@ -111,16 +111,35 @@ jobs:
           compression-level: 0
           retention-days: 3
 
-  # one edition per kind of graphics card (kernel/gpu-variants)
+  # the apps that come ready to use, offline (tools/preload-apps.sh)
+  apps:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make room
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Install Flatpak
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends flatpak squashfs-tools
+      - name: Build the app images
+        run: tools/preload-apps.sh build/apps
+      - name: Hand them to the image jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: preloaded-apps
+          path: build/apps/*.sfs
+          compression-level: 0
+          retention-days: 2
+
+  # the mini installer and one edition per kind of graphics card (kernel/gpu-variants)
   image:
-    needs: layer
+    needs: [layer, apps]
     # without a layer (its build failed) the images are still made, just without it
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        edition: [amd, amd-legacy, intel, intel-arc, nvidia-rtx, nvidia-gtx]
+        edition: [mini, amd, amd-legacy, intel, intel-arc, nvidia-rtx, nvidia-gtx]
     steps:
       - uses: actions/checkout@v4
 
@@ -163,11 +182,11 @@ jobs:
         with:
           path: |
             build/firmware.sfs
-            build/firmware-nonvidia.sfs
+            build/nonvidia/firmware.sfs
           key: firmware-all-${{ hashFiles('tools/fetch-firmware.py', 'Makefile') }}-${{ steps.month.outputs.month }}
 
       - name: Build the firmware images
-        run: make firmware build/firmware-nonvidia.sfs
+        run: make firmware build/nonvidia/firmware.sfs
 
       - name: Build
         run: make -j"$(nproc)"
@@ -181,6 +200,14 @@ jobs:
         with:
           name: steam-layer
           path: build/layer
+
+      - name: Get the apps that come with Zurbax
+        if: matrix.edition != 'mini'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: preloaded-apps
+          path: build/apps
 
       - name: Build the ISO
         run: make iso-${{ matrix.edition }}
@@ -221,7 +248,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        edition: [amd, amd-legacy, intel, intel-arc, nvidia-rtx, nvidia-gtx]
+        edition: [mini, amd, amd-legacy, intel, intel-arc, nvidia-rtx, nvidia-gtx]
     steps:
       - uses: actions/checkout@v4
       - name: Get the ISO
