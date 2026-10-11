@@ -51,7 +51,7 @@ if [ $# -ge 1 ]; then
 	make -s -C "$SRC" O="$OUT" olddefconfig
 fi
 
-# a graphics edition's driver settings (kernel/gpu-variants) after the usual ones
+# the command line from zurbax.config, with any ZURBAX_CMDLINE_EXTRA after it
 base=$(sed -n 's/^CONFIG_CMDLINE="\(.*\)"$/\1/p' "$ROOT/kernel/zurbax.config")
 want="$base${ZURBAX_CMDLINE_EXTRA:+ $ZURBAX_CMDLINE_EXTRA}"
 if [ "$(sed -n 's/^CONFIG_CMDLINE="\(.*\)"$/\1/p' "$OUT/.config")" != "$want" ]; then

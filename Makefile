@@ -5,6 +5,9 @@
 #   make image      build the kernel with the system inside and the install
 #                   media: build/zurbax.iso (a DVD, or write it to a USB stick)
 #                   and build/zurbax.img (a plain USB stick image)
+#   make iso        just build/zurbax.iso, for every computer (over 6 GB with
+#                   the layer, the apps and the firmware built)
+#   make iso-mini   build/zurbax-mini.iso, which downloads the rest as it installs
 #   make run        boot build/zurbax.img in QEMU with UEFI firmware
 #
 # Every program is a static, freestanding binary: no C library, no outside code.
@@ -82,7 +85,7 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: media-prep isos firmware all test clean devroot devroot-links image run
+.PHONY: media-prep system-efi iso iso-mini downloads apps firmware all test clean devroot devroot-links image run
 .SECONDARY:
 all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(if $(STORE),$(OUT)/repo/index)
 
@@ -108,9 +111,10 @@ test: $(TESTS) devroot
 # The system archive is embedded in the kernel, so the one EFI file is the
 # whole OS: firmware loads it directly, with no boot loader in between.
 EFI_FILE := $(OUT)/kernel/arch/x86/boot/bzImage
-# The Linux layer (layer/build.sh makes it) and the firmware of every device
-# (make firmware) go on the install media when they have been built.
-LAYER ?= $(wildcard $(OUT)/layer/steam.sfs $(OUT)/firmware.sfs)
+# The Linux layer (layer/build.sh makes it), the apps (make apps) and the
+# firmware of every device (make firmware) go on the install media when they
+# have been built.
+LAYER ?= $(wildcard $(OUT)/layer/steam.sfs $(OUT)/preload/apps*.sfs $(OUT)/firmware.sfs)
 
 # Every file of linux-firmware in one compressed image: zinit points the
 # kernel's firmware loader at it (the system image keeps only what starts
@@ -123,60 +127,45 @@ $(OUT)/firmware.sfs: tools/fetch-firmware.py
 	@mv $@.part $@
 	@ls -l $@
 
-# The same image without NVIDIA's firmware, for the AMD and Intel editions
-# (named firmware.sfs on the media, the name zinit mounts).
-NONVIDIA_FW := $(OUT)/nonvidia/firmware.sfs
-$(NONVIDIA_FW): $(OUT)/firmware.sfs
-	@rm -rf $(OUT)/fw-nonvidia $@.part && mkdir -p $(dir $@)
-	@unsquashfs -q -d $(OUT)/fw-nonvidia $< >/dev/null
-	@rm -rf $(OUT)/fw-nonvidia/nvidia
-	@mksquashfs $(OUT)/fw-nonvidia $@.part -comp zstd -Xcompression-level 19 -b 1M -all-root -noappend -quiet
-	@rm -rf $(OUT)/fw-nonvidia && mv $@.part $@
-
 media-prep: all
 	@python3 tools/fetch-firmware.py $(OUT)/firmware || echo "   note: no Wi-Fi or GPU firmware fetched (offline?)"
 	@$(OUT)/tools/mkimage cpio $(OUT)/system.cpio
 
-image: media-prep
-	@kernel/build.sh $(OUT)/system.cpio
+# The system alone, as the one EFI file the install media and the download
+# place carry.
+system-efi: media-prep
+	@ZURBAX_CMDLINE_EXTRA= kernel/build.sh $(OUT)/system.cpio
+	@mkdir -p $(OUT)/downloads && cp $(EFI_FILE) $(OUT)/downloads/zurbax.efi
+
+# The install media, for every computer: the system, the Linux layer, the
+# apps that come ready to use and every device's firmware, so any graphics
+# card, Wi-Fi chip or controller works from the first start.
+image: system-efi
 	@$(OUT)/tools/mkimage disk $(OUT)/zurbax.img $(EFI_FILE) $(LAYER)
 	@$(OUT)/tools/mkimage iso $(OUT)/zurbax.iso $(EFI_FILE) $(LAYER)
-
-# One edition per kind of graphics card (kernel/gpu-variants):
-#   make iso-nvidia-rtx       build/zurbax-nvidia-rtx.iso
-#   make isos                 all of them
-GPUS := $(shell sed -n 's/^\([a-z-]*\)|.*/\1/p' kernel/gpu-variants)
-gpu_field = $(shell sed -n 's/^$(1)|\([^|]*\)|\([^|]*\)$$/\$(2)/p' kernel/gpu-variants)
-iso-%: media-prep
-	@echo ">> the $* edition"
-	@ZURBAX_CMDLINE_EXTRA='$(call gpu_field,$*,1)' kernel/build.sh $(OUT)/system.cpio
-	@$(MAKE) --no-print-directory $(if $(filter nonvidia,$(call gpu_field,$*,2)),$(NONVIDIA_FW),$(OUT)/firmware.sfs)
-	@mkdir -p $(OUT)/downloads && cp $(EFI_FILE) $(OUT)/downloads/zurbax-$*.efi
-	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-$*.iso $(EFI_FILE) $(wildcard $(OUT)/layer/steam.sfs $(OUT)/apps/apps*.sfs) \
-		$(if $(filter nonvidia,$(call gpu_field,$*,2)),$(NONVIDIA_FW),$(OUT)/firmware.sfs)
-isos: $(addprefix iso-,$(GPUS))
+iso: system-efi
+	@$(OUT)/tools/mkimage iso $(OUT)/zurbax.iso $(EFI_FILE) $(LAYER)
 
 # The apps that come ready to use (tools/preload-apps.sh needs flatpak).
-apps: $(OUT)/apps/apps.sfs
-$(OUT)/apps/apps.sfs: tools/preload-apps.sh
-	@tools/preload-apps.sh $(OUT)/apps
+apps: $(OUT)/preload/apps.sfs
+$(OUT)/preload/apps.sfs: tools/preload-apps.sh
+	@tools/preload-apps.sh $(OUT)/preload
 
-# The mini install image: the system alone (well under 1 GB, for small USB
-# sticks); its installer downloads the edition for the computer's graphics
-# and the rest from DOWNLOADS, the place `make downloads` fills.
+# The mini install image: the system alone (69 MB, for any USB stick). Its
+# installer downloads the rest from DOWNLOADS, the place `make downloads`
+# fills; when that can't be reached, it installs the stick's own system.
 DOWNLOADS ?= https://downloads.zurbax.com/2.0/
-iso-mini: media-prep
-	@echo ">> the mini edition"
-	@ZURBAX_CMDLINE_EXTRA= kernel/build.sh $(OUT)/system.cpio
+iso-mini: system-efi
 	@mkdir -p $(OUT)/mini && printf '%s\n' '$(DOWNLOADS)' >$(OUT)/mini/NETINST.TXT
 	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-mini.iso $(EFI_FILE) $(OUT)/mini/NETINST.TXT
 
-# What the download place serves: each edition's system, the layer, the
-# apps and both firmware images, with a manifest of sizes and checksums.
-downloads: isos
-	@cp $(wildcard $(OUT)/layer/steam.sfs $(OUT)/apps/apps*.sfs) $(OUT)/firmware.sfs $(OUT)/downloads/
-	@cp $(NONVIDIA_FW) $(OUT)/downloads/firmware-nonvidia.sfs
+# What the download place serves: the full image, the mini one, and the
+# pieces the mini installer downloads, with a manifest of their sizes and
+# SHA-256 sums (linked, not copied: the full image alone is over 6 GB).
+downloads: iso iso-mini
+	@ln -f $(LAYER) $(OUT)/zurbax.iso $(OUT)/zurbax-mini.iso $(OUT)/downloads/
 	@cd $(OUT)/downloads && for f in *.efi *.sfs; do printf '%s %s %s\n' "$$f" "$$(stat -c %s "$$f")" "$$(sha256sum "$$f" | cut -d' ' -f1)"; done >manifest
+	@cd $(OUT)/downloads && sha256sum zurbax.iso zurbax-mini.iso >SHA256SUMS
 	@cat $(OUT)/downloads/manifest
 
 OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd

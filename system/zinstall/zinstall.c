@@ -13,8 +13,7 @@
  *
  * From the mini install image (LAYERS/NETINST.TXT names a download
  * place), the system and the Linux layer's images come over the network
- * instead: the edition for this computer's graphics (kernel/gpu-variants),
- * each file checked against the place's manifest.
+ * instead, each file checked against the place's manifest.
  *
  * Layout: an EFI system partition holding \EFI\ZURBAX\ZURBAX.EFI (the kernel
  * with the whole system inside) and an ext4 partition named ZURBAX-DATA for
@@ -774,67 +773,6 @@ static bool net_medium(void)
 	return false;
 }
 
-static u32 sys_hex(const char *path)
-{
-	char *t = sys_str(path);
-	u32 v = 0;
-	const char *q = t ? t : "";
-	if (q[0] == '0' && (q[1] == 'x' || q[1] == 'X'))
-		q += 2;
-	for (; is_xdigit(*q); q++)
-		v = v * 16 + (u32)(is_digit(*q) ? *q - '0' : to_lower(*q) - 'a' + 10);
-	mem_free(t);
-	return v;
-}
-
-/* The edition for this computer's graphics. With an NVIDIA card next to
- * another, NVIDIA's (those editions keep every firmware). */
-static const char *detect_edition(void)
-{
-	bool nv_new = false, nv_old = false, amd = false, amd_old = false, xe = false;
-	DirList l = { 0 };
-	dir_list("/sys/bus/pci/devices", &l, false);
-	for (usize i = 0; i < l.len; i++) {
-		char *base = str_fmt("/sys/bus/pci/devices/%s", l.data[i].name), *p;
-		p = str_fmt("%s/class", base);
-		u32 cls = sys_hex(p);
-		mem_free(p);
-		p = str_fmt("%s/vendor", base);
-		u32 vendor = sys_hex(p);
-		mem_free(p);
-		p = str_fmt("%s/device", base);
-		u32 device = sys_hex(p);
-		mem_free(p);
-		if ((cls >> 16) == 0x03) {
-			if (vendor == 0x10de) {
-				/* Turing (RTX 20, GTX 16) and newer start at 0x1e00 */
-				if (device >= 0x1e00)
-					nv_new = true;
-				else
-					nv_old = true;
-			} else if (vendor == 0x1002) {
-				/* GCN 1 and 2 cards start on the radeon driver */
-				char link[256] = "";
-				p = str_fmt("%s/driver", base);
-				long n = sys_readlink(p, link, sizeof link - 1);
-				mem_free(p);
-				if (n > 0 && str_ends((link[n] = 0, link), "/radeon"))
-					amd_old = true;
-				else
-					amd = true;
-			} else if (vendor == 0x8086) {
-				u32 g = device >> 8;
-				/* Arc (Alchemist, Battlemage) and Core Ultra graphics */
-				if (g == 0x56 || g == 0xe2 || g == 0x7d || g == 0x64 || g == 0xb0 || g == 0xb6)
-					xe = true;
-			}
-		}
-		mem_free(base);
-	}
-	dir_list_free(&l);
-	return nv_new ? "nvidia-rtx" : nv_old ? "nvidia-gtx" : amd_old ? "amd-legacy" : amd ? "amd" : xe ? "intel-arc" : "intel";
-}
-
 typedef struct {
 	char name[64];
 	u64 size;
@@ -954,17 +892,23 @@ static bool net_get(const NetFile *f, Dl *d, const char *dest)
 	return false;
 }
 
-/* The system for this computer's graphics, before the disk is touched. */
-static u8 *net_system(const char *edition, usize *len)
+/* The newest system, before the disk is touched. NULL when the place
+ * can't be reached or doesn't have it yet; the stick's own system is
+ * installed then. */
+static bool net_reached;
+
+static u8 *net_system(usize *len)
 {
 	step(0.01f, "Connecting to the download place");
-	if (!net_manifest())
-		fail("Zurbax couldn't reach its download place. Connect to the internet (Wi-Fi is in the top bar) and try again.");
-	char name[64];
-	fmt(name, sizeof name, "zurbax-%s.efi", edition);
-	const NetFile *f = net_file(name);
-	if (!f)
-		fail("The download place doesn't have this computer's edition yet.");
+	if (!(net_reached = net_manifest())) {
+		say("note the download place couldn't be reached; installing the system from the stick");
+		return NULL;
+	}
+	const NetFile *f = net_file("zurbax.efi");
+	if (!f) {
+		say("note the download place has no system yet; installing the one from the stick");
+		return NULL;
+	}
 	StrBuf mem = { 0 };
 	Dl d = { .mem = &mem, .all = f->size, .from = 0.02f, .to = 0.1f, .what = "Downloading Zurbax" };
 	if (!net_get(f, &d, NULL))
@@ -973,17 +917,14 @@ static u8 *net_system(const char *edition, usize *len)
 	return (u8 *)sb_take(&mem);
 }
 
-/* The Linux layer's images onto the new data partition: every image the
- * place has, with the firmware this edition uses saved as firmware.sfs. */
-static void net_layers(const char *disk, const char *edition)
+/* The Linux layer's images onto the new data partition: the layer, the
+ * apps that come ready to use and every device's firmware. */
+static void net_layers(const char *disk)
 {
-	const char *fw = str_starts(edition, "nvidia") ? "firmware.sfs" : "firmware-nonvidia.sfs";
 	u64 all = 0;
-	for (int i = 0; i < net_nfiles; i++) {
-		const char *n = net_files[i].name;
-		if (str_ends(n, ".sfs") && (!str_starts(n, "firmware") || str_eq(n, fw)))
+	for (int i = 0; i < net_nfiles; i++)
+		if (str_ends(net_files[i].name, ".sfs"))
 			all += net_files[i].size;
-	}
 	if (!mount_data(disk)) {
 		say("note the Linux layer wasn't downloaded: the new storage partition couldn't be opened");
 		return;
@@ -991,10 +932,9 @@ static void net_layers(const char *disk, const char *edition)
 	Dl d = { .all = all, .from = 0.88f, .to = 0.99f, .what = "Downloading apps, games and drivers" };
 	bool ok = true;
 	for (int i = 0; i < net_nfiles; i++) {
-		const char *n = net_files[i].name;
-		if (!str_ends(n, ".sfs") || (str_starts(n, "firmware") && !str_eq(n, fw)))
+		if (!str_ends(net_files[i].name, ".sfs"))
 			continue;
-		char *to = str_fmt(WORK "/data/layers/%s", str_starts(n, "firmware") ? "firmware.sfs" : n);
+		char *to = str_fmt(WORK "/data/layers/%s", net_files[i].name);
 		ok &= net_get(&net_files[i], &d, to);
 		mem_free(to);
 	}
@@ -1015,13 +955,12 @@ static int cmd_install(const char *name, const char *mode)
 	if (d.boot_medium)
 		fail("Zurbax can't be installed on the stick it's running from.");
 	bool net = net_medium();
-	const char *edition = net ? detect_edition() : NULL;
 	usize sys_len = 0;
 	u8 *sys;
-	if (net) {
-		say("edition %s", edition);
-		sys = net_system(edition, &sys_len);
-	} else {
+	sys = NULL;
+	if (net)
+		sys = net_system(&sys_len);
+	if (!sys) {
 		step(0.02f, "Reading the install media");
 		sys = read_system(&sys_len);
 	}
@@ -1045,8 +984,8 @@ static int cmd_install(const char *name, const char *mode)
 	sys_close(fd);
 	sys_sync();
 	mem_free(sys);
-	if (net)
-		net_layers(name, edition);
+	if (net && net_reached)
+		net_layers(name);
 	else
 		copy_layers(name);
 	step(1, "Finished");

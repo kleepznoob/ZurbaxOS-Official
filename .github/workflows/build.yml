@@ -121,29 +121,25 @@ jobs:
       - name: Install Flatpak
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends flatpak squashfs-tools
       - name: Build the app images
-        run: tools/preload-apps.sh build/apps
+        run: tools/preload-apps.sh build/preload
       - name: Hand them to the image jobs
         uses: actions/upload-artifact@v4
         with:
           name: preloaded-apps
-          path: build/apps/*.sfs
+          path: build/preload/*.sfs
           compression-level: 0
           retention-days: 2
 
-  # the mini installer and one edition per kind of graphics card (kernel/gpu-variants)
+  # the install image for every computer, and the mini one
   image:
     needs: [layer, apps]
     # without a layer (its build failed) the images are still made, just without it
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [mini, amd, amd-legacy, intel, intel-arc, nvidia-rtx, nvidia-gtx]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Make room
+      - name: Make room (the image is over 6 GB)
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
       - name: Install build tools
@@ -157,7 +153,7 @@ jobs:
           path: |
             build/linux-*
             build/kernel
-          key: kernel-${{ matrix.edition }}-${{ hashFiles('kernel/build.sh', 'kernel/zurbax.config', 'kernel/gpu-variants') }}
+          key: kernel-${{ hashFiles('kernel/build.sh', 'kernel/zurbax.config') }}
           restore-keys: kernel-
 
       - name: Cache the Wi-Fi and GPU firmware
@@ -177,16 +173,14 @@ jobs:
         id: month
         run: echo "month=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache the firmware images
+      - name: Cache the firmware image
         uses: actions/cache@v4
         with:
-          path: |
-            build/firmware.sfs
-            build/nonvidia/firmware.sfs
+          path: build/firmware.sfs
           key: firmware-all-${{ hashFiles('tools/fetch-firmware.py', 'Makefile') }}-${{ steps.month.outputs.month }}
 
-      - name: Build the firmware images
-        run: make firmware build/nonvidia/firmware.sfs
+      - name: Build the firmware image
+        run: make firmware
 
       - name: Build
         run: make -j"$(nproc)"
@@ -202,25 +196,26 @@ jobs:
           path: build/layer
 
       - name: Get the apps that come with Zurbax
-        if: matrix.edition != 'mini'
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: preloaded-apps
-          path: build/apps
+          path: build/preload
 
-      - name: Build the ISO
-        run: make iso-${{ matrix.edition }}
+      - name: Build the images
+        run: make iso iso-mini
 
-      - name: Upload the ISO
+      - name: Upload the images
         uses: actions/upload-artifact@v4
         with:
-          name: zurbax-${{ matrix.edition }}
-          path: build/zurbax-${{ matrix.edition }}.iso
+          name: zurbax-images
+          path: |
+            build/zurbax.iso
+            build/zurbax-mini.iso
           compression-level: 0
           retention-days: 5
 
-  # the release itself (its notes), then each edition's files into it
+  # the release itself (its notes), then the images into it
   release:
     needs: image
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.release != '' }}
@@ -245,32 +240,20 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [mini, amd, amd-legacy, intel, intel-arc, nvidia-rtx, nvidia-gtx]
     steps:
       - uses: actions/checkout@v4
-      - name: Get the ISO
+      - name: Get the images
         uses: actions/download-artifact@v4
         with:
-          name: zurbax-${{ matrix.edition }}
+          name: zurbax-images
           path: build
-      # GitHub keeps release files under 2 GiB: bigger images go up in parts
-      # (zurbax.com's download page joins them in the instructions it shows)
-      - name: Add it to the release
+      # GitHub keeps release files under 2 GiB: the full image goes up in parts
+      - name: Add them to the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release }}
         run: |
           cd build
-          f=zurbax-${{ matrix.edition }}.iso
-          sha256sum "$f" > "$f.sha256"
-          files="$f.sha256"
-          if [ "$(stat -c %s "$f")" -ge 2000000000 ]; then
-            split -b 1900M -d -a 1 "$f" "$f.part"
-            files="$files $(ls "$f".part*)"
-          else
-            files="$files $f"
-          fi
-          gh release upload "$TAG" $files --clobber
+          sha256sum zurbax.iso zurbax-mini.iso > SHA256SUMS
+          split -b 1900M -d -a 1 zurbax.iso zurbax.iso.part
+          gh release upload "$TAG" SHA256SUMS zurbax-mini.iso zurbax.iso.part* --clobber
