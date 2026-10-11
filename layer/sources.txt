@@ -212,7 +212,7 @@ libportal https://github.com/flatpak/libportal/releases/download/0.9.1/libportal
 gtksourceview https://download.gnome.org/sources/gtksourceview/5.22/gtksourceview-5.22.0.tar.xz -
 vte https://download.gnome.org/sources/vte/0.84/vte-0.84.1.tar.xz -
 xdg-desktop-portal https://github.com/flatpak/xdg-desktop-portal/releases/download/1.20.4/xdg-desktop-portal-1.20.4.tar.xz -
-xdg-desktop-portal-gnome https://download.gnome.org/sources/xdg-desktop-portal-gnome/51/xdg-desktop-portal-gnome-51.0.tar.xz -
+xdg-desktop-portal-gnome https://download.gnome.org/sources/xdg-desktop-portal-gnome/50/xdg-desktop-portal-gnome-50.0.tar.xz ceeef2fb68b34b3f66a3def0a332a22a70af272641fb6c50065b7a2fde3d5759
 gnome-keyring https://download.gnome.org/sources/gnome-keyring/51/gnome-keyring-51.1.tar.xz -
 gvfs https://download.gnome.org/sources/gvfs/1.62/gvfs-1.62.0.tar.xz -
 gnome-settings-daemon https://download.gnome.org/sources/gnome-settings-daemon/51/gnome-settings-daemon-51.0.tar.xz -
