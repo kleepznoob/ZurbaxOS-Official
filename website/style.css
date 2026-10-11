@@ -356,3 +356,33 @@ kbd { display: inline-block; font: 600 13px var(--mono); padding: 2px 7px; borde
   .g-steps li > b { font-size: 34px; }
   .g-table td:first-child { white-space: normal; }
 }
+
+/* ---- big screens: wider, with the hero's text beside the monitor ---- */
+.hero-facts { display: none; }
+@media (min-width: 1100px) {
+  .hero { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); grid-template-areas: "copy copy" "side monitor"; column-gap: 72px; row-gap: 56px; align-items: center; }
+  .hero-copy { grid-area: copy; }
+  .hero-side { grid-area: side; }
+  .hero-monitor { grid-area: monitor; width: 100%; justify-self: end; }
+  .hero .intro { margin-top: 0; }
+  .hero-facts { display: block; list-style: none; margin: 48px 0 0; padding: 0; border-top: 2px solid var(--ink); }
+  .hero-facts li { padding: 16px 0; border-bottom: 1px solid rgba(20, 18, 16, .25); color: var(--ink-2); font-size: 16px; }
+  .hero-facts b { display: block; color: var(--ink); font-size: 19px; font-variation-settings: "wdth" 112; margin-bottom: 2px; }
+}
+@media (min-width: 1600px) {
+  :root { --gutter: max(40px, calc((100vw - 1600px) / 2)); }
+  body { font-size: 18px; }
+  h1 { font-size: clamp(120px, 8.4vw, 168px); }
+  .section-title { font-size: clamp(110px, 7.6vw, 156px); }
+  .tour-copy .section-title { font-size: clamp(72px, 4.6vw, 100px); }
+  .intro, .lede { font-size: 22px; }
+  .stop h3 { font-size: 38px; }
+  .stop p { font-size: 19px; }
+  .collage { gap: 28px; }
+  .dl-inner h2 { font-size: clamp(150px, 11vw, 220px); }
+  .steps b { font-size: 104px; }
+  .steps h3 { font-size: 27px; }
+  .steps p { font-size: 17px; }
+  .g-wrap { grid-template-columns: 280px minmax(0, 1fr); }
+  .g-body { max-width: 860px; }
+}
