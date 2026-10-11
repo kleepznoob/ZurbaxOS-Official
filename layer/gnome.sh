@@ -725,7 +725,7 @@ pkg_libndp() {
 pkg_networkmanager() {
 	unpack NetworkManager
 	mesonbuild -Dsystemd_journal=false -Dsession_tracking=systemd -Dsuspend_resume=auto -Dlibaudit=no -Dselinux=false \
-		-Dpolkit=false -Dmodem_manager=false -Dppp=false -Dnmcli=false -Dnmtui=false -Dclat=false -Dbluez5_dun=false -Debpf=false \
+		-Dpolkit=false -Dmodem_manager=false -Dppp=false -Dnmcli=false -Dnmtui=false -Dclat=false -Dnbft=false -Dbluez5_dun=false -Debpf=false \
 		-Dconfig_dhcp_default=internal -Ddhcpcd=no -Dintrospection=true -Dvapi=false -Ddocs=false -Dtests=no \
 		-Dqt=false -Dcrypto=null -Dlibpsl=true -Dnm_cloud_setup=false -Dovs=false -Dteamdctl=false -Dwext=false -Diwd=false \
 		-Dofono=false -Dfirewalld_zone=false -Dreadline=none -Dsystemdsystemunitdir=no -Dsystemdsystemgeneratordir=no -Dudev_dir=/usr/lib/udev \
