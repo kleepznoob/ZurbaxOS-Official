@@ -51,6 +51,14 @@ if [ $# -ge 1 ]; then
 	make -s -C "$SRC" O="$OUT" olddefconfig
 fi
 
+# a graphics edition's driver settings (kernel/gpu-variants) after the usual ones
+base=$(sed -n 's/^CONFIG_CMDLINE="\(.*\)"$/\1/p' "$ROOT/kernel/zurbax.config")
+want="$base${ZURBAX_CMDLINE_EXTRA:+ $ZURBAX_CMDLINE_EXTRA}"
+if [ "$(sed -n 's/^CONFIG_CMDLINE="\(.*\)"$/\1/p' "$OUT/.config")" != "$want" ]; then
+	"$SRC/scripts/config" --file "$OUT/.config" --set-str CMDLINE "$want"
+	make -s -C "$SRC" O="$OUT" olddefconfig
+fi
+
 echo ">> building with $JOBS jobs"
 make -s -C "$SRC" O="$OUT" -j"$JOBS" bzImage
 ls -l "$OUT/arch/x86/boot/bzImage"

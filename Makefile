@@ -82,7 +82,7 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: firmware all test clean devroot devroot-links image run
+.PHONY: media-prep isos firmware all test clean devroot devroot-links image run
 .SECONDARY:
 all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(if $(STORE),$(OUT)/repo/index)
 
@@ -123,12 +123,35 @@ $(OUT)/firmware.sfs: tools/fetch-firmware.py
 	@mv $@.part $@
 	@ls -l $@
 
-image: all
+# The same images without NVIDIA's firmware, for the AMD and Intel editions.
+$(OUT)/firmware-nonvidia.sfs: $(OUT)/firmware.sfs
+	@rm -rf $(OUT)/fw-nonvidia $@.part
+	@unsquashfs -q -d $(OUT)/fw-nonvidia $< >/dev/null
+	@rm -rf $(OUT)/fw-nonvidia/nvidia
+	@mksquashfs $(OUT)/fw-nonvidia $@.part -comp zstd -Xcompression-level 19 -b 1M -all-root -noappend -quiet
+	@rm -rf $(OUT)/fw-nonvidia && mv $@.part $@
+
+media-prep: all
 	@python3 tools/fetch-firmware.py $(OUT)/firmware || echo "   note: no Wi-Fi or GPU firmware fetched (offline?)"
 	@$(OUT)/tools/mkimage cpio $(OUT)/system.cpio
+
+image: media-prep
 	@kernel/build.sh $(OUT)/system.cpio
 	@$(OUT)/tools/mkimage disk $(OUT)/zurbax.img $(EFI_FILE) $(LAYER)
 	@$(OUT)/tools/mkimage iso $(OUT)/zurbax.iso $(EFI_FILE) $(LAYER)
+
+# One edition per kind of graphics card (kernel/gpu-variants):
+#   make iso-nvidia-rtx       build/zurbax-nvidia-rtx.iso
+#   make isos                 all of them
+GPUS := $(shell sed -n 's/^\([a-z-]*\)|.*/\1/p' kernel/gpu-variants)
+gpu_field = $(shell sed -n 's/^$(1)|\([^|]*\)|\([^|]*\)$$/\$(2)/p' kernel/gpu-variants)
+iso-%: media-prep
+	@echo ">> the $* edition"
+	@ZURBAX_CMDLINE_EXTRA='$(call gpu_field,$*,1)' kernel/build.sh $(OUT)/system.cpio
+	@$(MAKE) --no-print-directory $(if $(filter nonvidia,$(call gpu_field,$*,2)),$(OUT)/firmware-nonvidia.sfs,$(OUT)/firmware.sfs)
+	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-$*.iso $(EFI_FILE) $(wildcard $(OUT)/layer/steam.sfs) \
+		$(if $(filter nonvidia,$(call gpu_field,$*,2)),$(OUT)/firmware-nonvidia.sfs,$(OUT)/firmware.sfs)
+isos: $(addprefix iso-,$(GPUS))
 
 OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd
 OVMF_VARS ?= /usr/share/OVMF/OVMF_VARS_4M.fd

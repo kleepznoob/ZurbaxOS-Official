@@ -745,6 +745,8 @@ ORDER+=(libndp networkmanager)
 
 pkg_accountsservice() {
 	unpack accountsservice
+	# its tests (which need python-dbus) aren't built
+	sed -i "/^subdir('tests')/d" meson.build
 	mesonbuild -Dintrospection=true -Dvapi=false -Ddocbook=false -Dgtk_doc=false -Dsystemdsystemunitdir=no \
 		-Dadmin_group=wheel
 	rm -f "$ROOT"/usr/libexec/accounts-daemon "$ROOT"/usr/share/dbus-1/system-services/org.freedesktop.Accounts.service

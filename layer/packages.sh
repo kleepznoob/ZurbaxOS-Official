@@ -225,7 +225,8 @@ pkg_libglvnd() {
 }
 
 # AMD: radeonsi (OpenGL) and RADV (Vulkan), with Mesa's own compiler (ACO);
-# Intel: iris and crocus (OpenGL), ANV and HASVK (Vulkan); zink is OpenGL
+# older Radeons: r600 and r300; Intel: iris and crocus (OpenGL), ANV
+# and HASVK (Vulkan); zink is OpenGL
 # on any Vulkan driver, virgl and softpipe for virtual machines and as the
 # last resort.
 # NVIDIA: nouveau (in the kernel, with NVIDIA's GSP firmware) for OpenGL on
@@ -247,7 +248,7 @@ pkg_mesa() {
 		# NVK's Rust crates come through meson's subprojects (crates.io)
 		wrap=(--wrap-mode=default)
 	fi
-	mesonbuild -Dplatforms=x11,wayland -Dgallium-drivers=radeonsi,iris,crocus,nouveau,zink,virgl,softpipe \
+	mesonbuild -Dplatforms=x11,wayland -Dgallium-drivers=radeonsi,r600,r300,iris,crocus,nouveau,zink,virgl,softpipe \
 		-Dvulkan-drivers=$vk -Dvulkan-layers=device-select "${wrap[@]}" \
 		-Dllvm=disabled -Damd-use-llvm=false -Dmesa-clc=system \
 		-Dglx=dri -Degl=enabled -Dgbm=enabled -Dglvnd=enabled -Dopengl=true -Dgles1=disabled -Dgles2=enabled \
