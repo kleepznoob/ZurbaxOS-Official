@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zurbax 2.0</title>
+<meta name="description" content="Zurbax is a desktop operating system written from scratch on the Linux kernel: its own desktop, apps and services, Steam with Proton, and GNOME as a second desktop.">
+<meta property="og:title" content="Zurbax 2.0">
+<meta property="og:description" content="A desktop operating system written from scratch. Steam, Flathub and GNOME included.">
+<meta property="og:image" content="https://zurbax.com/images/desktop.jpg">
+<meta property="og:url" content="https://zurbax.com/">
+<meta name="theme-color" content="#1a0d17">
+<link rel="icon" href="/images/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/"><img src="/images/logo.svg" alt="" width="26" height="26">Zurbax</a>
+  <nav>
+    <a href="#scratch">Inside</a>
+    <a href="#play">Gaming</a>
+    <a href="#desktops">Desktops</a>
+    <a href="#download" class="pill">Download</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="hero-text">
+    <p class="kicker">Version 2.0 · Free download</p>
+    <h1>A computer that feels like it was made for you.</h1>
+    <p class="lede">Zurbax is a desktop operating system written from scratch. The Linux kernel runs underneath; the desktop, the apps and every service above it are Zurbax's own.</p>
+    <div class="actions">
+      <a class="button primary" href="#download">Download Zurbax 2.0</a>
+      <a class="button" href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY">Read the source</a>
+    </div>
+  </div>
+  <figure class="shot hero-shot">
+    <img src="/images/desktop.jpg" alt="The Zurbax desktop with the Silk wallpaper, a top bar and a taskbar" width="1280" height="720">
+  </figure>
+</section>
+
+<section class="facts" aria-label="At a glance">
+  <div><strong>0</strong><span>lines of glibc, GTK, Qt or X</span></div>
+  <div><strong>30+</strong><span>apps of its own</span></div>
+  <div><strong>2</strong><span>desktops: Zurbax and GNOME 51</span></div>
+  <div><strong>1 click</strong><span>for anything on Flathub</span></div>
+</section>
+
+<section id="scratch" class="chapter">
+  <div class="chapter-head">
+    <p class="num">01</p>
+    <h2>Written from the first line.</h2>
+    <p>Most systems are assembled. Zurbax was written: a C runtime, a graphics engine with its own typeface, a display server, a toolkit, an init system, a network stack with TLS, a sound server and an installer, all in one codebase that reads like one person wrote it.</p>
+  </div>
+  <div class="split">
+    <figure class="shot"><img src="/images/launcher.jpg" alt="The full-screen launcher with every app" loading="lazy" width="1280" height="720"></figure>
+    <ul class="ledger">
+      <li><span>Boot</span>Your PC's own logo stays on screen from power-on to desktop. No text, no flicker.</li>
+      <li><span>Desktop</span>A top bar, a taskbar with live previews, and a launcher that fills the screen.</li>
+      <li><span>Apps</span>Files, a web browser, Mail, Music, Photos, Calendar, Notes, Writer, a terminal and more.</li>
+      <li><span>Settings</span>Light or dark, ten accent colours, ten wallpapers painted in code.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="play" class="chapter dark">
+  <div class="chapter-head">
+    <p class="num">02</p>
+    <h2>Built to play.</h2>
+    <p>Steam runs with Proton for your Windows library. Controllers work everywhere, with vibration. Harbor puts Heroic, Lutris, Bottles, RetroArch and the rest one click away, and Zurbax ships its own 3D game, Glide.</p>
+  </div>
+  <div class="grid3">
+    <figure class="shot"><img src="/images/steam.jpg" alt="Steam starting in Big Picture" loading="lazy" width="1120" height="720"><figcaption>Steam, straight into Big Picture</figcaption></figure>
+    <figure class="shot"><img src="/images/arcade.jpg" alt="Arcade with Glide and classic games" loading="lazy" width="1280" height="720"><figcaption>Arcade, with Glide in 3D</figcaption></figure>
+    <figure class="shot"><img src="/images/harbor.jpg" alt="Harbor showing Flathub apps" loading="lazy" width="1280" height="720"><figcaption>Every store's launcher, in Harbor</figcaption></figure>
+  </div>
+  <ul class="gpu">
+    <li><strong>AMD</strong> RADV and radeonsi</li>
+    <li><strong>Intel</strong> ANV and iris</li>
+    <li><strong>NVIDIA</strong> NVK on GeForce RTX 20 and newer</li>
+    <li><strong>Firmware</strong> for every device, included</li>
+  </ul>
+</section>
+
+<section id="desktops" class="chapter">
+  <div class="chapter-head">
+    <p class="num">03</p>
+    <h2>Two desktops, one machine.</h2>
+    <p>The lock screen asks which one you want today. Zurbax's own desktop, or GNOME 51 built from GNOME's sources, with the Zurbax taskbar, the same wallpapers and your same files. Both run on Zurbax's own system services.</p>
+  </div>
+  <div class="split reverse">
+    <figure class="shot"><img src="/images/lock.jpg" alt="The Zurbax lock screen" loading="lazy" width="1280" height="720"></figure>
+    <ul class="ledger">
+      <li><span>GNOME</span>Files, Settings, Software, Calendar, Maps, Weather, Clocks, Text Editor, Console and the rest of GNOME's core apps.</li>
+      <li><span>Flathub</span>Thousands of Linux apps, each in its own sandbox, from Harbor or GNOME Software.</li>
+      <li><span>Private</span>No account to sign in, no telemetry, no ads. Your files stay on your disk.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="gallery" aria-label="More screenshots">
+  <figure class="shot"><img src="/images/harbor-app.jpg" alt="An app's page in Harbor" loading="lazy"></figure>
+  <figure class="shot"><img src="/images/dashboard.jpg" alt="Dashboard with weather and events" loading="lazy" width="1280" height="720"></figure>
+  <figure class="shot"><img src="/images/settings.jpg" alt="Settings with accent colours" loading="lazy" width="1280" height="720"></figure>
+  <figure class="shot"><img src="/images/music.jpg" alt="Music app" loading="lazy" width="1280" height="720"></figure>
+  <figure class="shot"><img src="/images/vault.jpg" alt="Vault, the file manager" loading="lazy" width="1280" height="720"></figure>
+</section>
+
+<section id="download" class="download">
+  <div class="dl-card">
+    <h2>Get Zurbax 2.0</h2>
+    <p>One file works as a DVD and as a USB stick. Try it from the stick first; install it when you're ready.</p>
+    <div class="actions">
+      <a class="button primary" href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest">Download the ISO</a>
+      <a class="button" href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest">Checksums and USB image</a>
+    </div>
+    <dl class="specs">
+      <div><dt>Computer</dt><dd>64-bit PC with UEFI</dd></div>
+      <div><dt>Memory</dt><dd>4 GB, 8 GB for games</dd></div>
+      <div><dt>Disk</dt><dd>32 GB or more</dd></div>
+      <div><dt>Write it with</dt><dd>balenaEtcher, Rufus or dd</dd></div>
+    </dl>
+    <p class="fine">On ASUS machines press F8 or Esc at power-on for the boot menu. Large downloads come in parts; the release notes say how to join them.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><img src="/images/logo.svg" alt="" width="18" height="18"> Zurbax · Made with care, line by line.</p>
+  <p><a href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY">Source</a> · <a href="https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases">Releases</a> · © 2026</p>
+</footer>
+
+</body>
+</html>
