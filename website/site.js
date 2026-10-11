@@ -70,9 +70,9 @@
   document.querySelectorAll('[data-get]').forEach(a => a.addEventListener('click', e => {
     if (!FULL) return; // the link scrolls to the download section
     e.preventDefault();
-    start(FULL, 'Zurbax 2.0 (about 8 GB)');
+    start(FULL, 'Zurbax 2.0 (about 7 GB)');
   }));
-  full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.0 (about 8 GB)'); });
+  full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.0 (about 7 GB)'); });
   document.querySelector('[data-mini]').addEventListener('click', e => { e.preventDefault(); start(MINI, 'the mini installer (69 MB)'); });
 
   const next = document.getElementById('next');

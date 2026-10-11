@@ -238,7 +238,7 @@ static int make_disk(const char *out, const char *efi, char **layer_paths, int n
 	if ((nlayers = layers_open(layer_paths, nlayers, layers)) < 0)
 		return 1;
 	/* Room for the kernel, an update of it, the layers and FAT32's minimum cluster count. */
-	u64 mib = MAX(64ull, ((u64)efi_size * 2 + layers_bytes(layers, nlayers) + (16u << 20) * (u64)(1 + nlayers)) >> 20);
+	u64 mib = MAX(64ull, ((u64)efi_size * 2 + layers_bytes(layers, nlayers) * 129 / 128 + (16u << 20) * (u64)(1 + nlayers)) >> 20);
 	u64 sectors = (mib << 20) / SECTOR;
 	int fd = open_image(out, sectors * SECTOR);
 	if (fd < 0)
@@ -292,8 +292,10 @@ static int make_iso(const char *out, const char *efi, char **layer_paths, int nl
 		return 1;
 	u64 lsize = layers_bytes(layers, nlayers) + (1u << 20) * (u64)nlayers;
 	const u64 readme_byte = 48 * ISO_BLOCK, fat_byte = 128 * 1024;
-	/* FAT32 needs 65525 clusters, so the image is at least about 34 MiB */
-	u64 fat_bytes = MAX(40ull, ((u64)efi_size + lsize + (4u << 20) + (1u << 20) - 1) >> 20) << 20;
+	/* FAT32 needs 65525 clusters, so the image is at least about 34 MiB;
+	 * the two FATs take 8 bytes per cluster, 1/512 of the data at 4 KiB
+	 * clusters (room for 1/128, and more for the files' last clusters) */
+	u64 fat_bytes = MAX(40ull, ((u64)efi_size + lsize + lsize / 128 + (16u << 20) + (1u << 20) - 1) >> 20) << 20;
 	u64 volume = fat_byte + fat_bytes;
 	/* room for the backup GPT after the file system, in whole disc sectors */
 	u64 total = (volume + 64 * SECTOR + ISO_BLOCK - 1) / ISO_BLOCK * ISO_BLOCK;
