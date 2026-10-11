@@ -6,12 +6,14 @@
 
 # ---- Build tools -----------------------------------------------------------------------------
 
-# PyGObject in the build's Python: blueprint-compiler (which turns GNOME apps'
-# interface descriptions into GTK's) runs on it
+# PyGObject in the build's Python (without cairo, which nothing here draws
+# with): blueprint-compiler (which turns GNOME apps' interface descriptions
+# into GTK's) and the weather locations' database maker run on it
 pkg_native_pygobject() {
 	native_env
-	PKG_CONFIG_PATH=$NATIVE/lib/pkgconfig "$L/venv/bin/pip" install -q --no-binary pygobject pycairo==1.28.0 pygobject==3.58.1 \
-		>"$WORK/pip.log" 2>&1 || { tail -30 "$WORK/pip.log"; exit 1; }
+	PKG_CONFIG_PATH=$NATIVE/lib/pkgconfig "$L/venv/bin/pip" install -q --no-deps --no-binary pygobject \
+		-Csetup-args=-Dpycairo=disabled meson-python pygobject==3.58.1 >"$WORK/pip.log" 2>&1 || { tail -30 "$WORK/pip.log"; exit 1; }
+	"$L/venv/bin/python3" -c 'from gi.repository import GLib' || { echo "PyGObject doesn't load" >&2; exit 1; }
 }
 
 pkg_native_blueprint() {
@@ -32,7 +34,7 @@ pkg_native_vala() {
 	make -j"$JOBS" >make.log 2>&1 && make install >install.log 2>&1 || { tail -20 make.log; exit 1; }
 }
 
-ORDER+=(native_pygobject native_blueprint native_vala)
+ORDER+=(native_blueprint native_vala)
 
 # ---- Libraries ---------------------------------------------------------------------------------
 
@@ -148,7 +150,7 @@ pkg_vte() {
 	mesonbuild -Dgtk3=false -Dgtk4=true -Dgir=true -Dvapi=false -Ddocs=false -D_systemd=false -Dgnutls=true -Dicu=true -Dglade=false
 }
 
-ORDER+=(libunistring libtasn1 nettle gnutls cracklib libpwquality libgtop colord_gtk udisks_client modemmanager gcr3 icu tinysparql
+ORDER+=(libunistring libtasn1 nettle gnutls cracklib libpwquality libgtop colord_gtk udisks_client modemmanager gcr3 tinysparql
 	localsearch gnome_autoar libportal gtksourceview vte)
 
 # ---- The session's services ----------------------------------------------------------------------

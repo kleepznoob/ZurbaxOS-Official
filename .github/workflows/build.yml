@@ -46,7 +46,7 @@ jobs:
             libgmp-dev libmpfr-dev libmpc-dev zlib1g-dev libzstd-dev libexpat1-dev x11proto-dev \
             llvm-18-dev clang-18 libclang-18-dev libclang-cpp18-dev libclc-18-dev llvm-spirv-18 \
             libllvmspirvlib-18-dev spirv-tools glslang-tools squashfs-tools curl xz-utils bzip2 \
-            libglib2.0-dev libglib2.0-dev-bin itstool libxml2-utils desktop-file-utils
+            libglib2.0-dev libglib2.0-dev-bin libxml2-dev itstool libxml2-utils desktop-file-utils unzip
 
       # the sources too, so rebuilding the layer doesn't depend on every
       # project's server answering that day (some turn build machines away)

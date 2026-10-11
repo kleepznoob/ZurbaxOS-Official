@@ -3,9 +3,13 @@
  * Apps come from sources: the one built into Zurbax (always there, works
  * offline) and any web sources listed in sources.conf, whose app lists must
  * be signed by a trusted publisher. Installing hands the package to
- * harborctl, which checks it again before putting it in /data/apps. */
+ * harborctl, which checks it again before putting it in /data/apps.
+ *
+ * Linux apps come from Flathub, installed with Flatpak into the Linux layer
+ * (flathub.c). */
 #include "zui.h"
 #include "zn.h"
+#include "flathub.h"
 #include "../../system/harborctl/harbor_repo.h"
 
 typedef struct {
@@ -43,9 +47,10 @@ static struct {
 	char job_result[200];
 	int job_done;            /* atomic */
 	/* view */
-	int tab;                 /* 0 home, 1 installed */
+	int tab;                 /* 0 home, 1 Flathub, 2 installed */
 	bool update_all;         /* keep updating until none are left */
 	Entry *detail;
+	FlatApp *flat_detail;
 	char category[32];
 	StrBuf search;
 	Ui *ui;
@@ -526,6 +531,254 @@ static void home_page(Ui *ui, Rect area)
 	ui_scroll_end(ui, cy - y + 24);
 }
 
+
+/* ---- Flathub --------------------------------------------------------------------------------------- */
+
+static void flat_action_button(Ui *ui, Rect r, FlatApp *a)
+{
+	if (a->op) {
+		ui_round(ui, r, 6, ui->theme.hover);
+		ui_border(ui, r, 6, 1, ui->theme.border);
+		if (a->fraction >= 0) {
+			ui_progress(ui, rect(r.x + 10, r.y + r.h - 9, r.w - 20, 4), a->fraction);
+			char pct[16];
+			fmt(pct, sizeof pct, "%d%%", (int)(a->fraction * 100 + 0.5f));
+			ui_text_in(ui, ui_font(ui, 12, 600), rect(r.x, r.y - 3, r.w, r.h), pct, ui->theme.text_dim, ALIGN_CENTER);
+		} else {
+			const char *label = a->op == FLAT_REMOVE ? "Removing…" : a->op == FLAT_UPDATE ? "Updating…" : "Installing…";
+			ui_spinner(ui, rect(r.x + 10, r.y + (r.h - 16) / 2, 16, 16));
+			ui_text_in(ui, ui_font(ui, 12, 600), rect(r.x + 30, r.y, r.w - 36, r.h), label, ui->theme.text_dim, ALIGN_CENTER);
+		}
+		return;
+	}
+	if (a->installed[0] && !a->update) {
+		if (ui_button(ui, r, "Open"))
+			ui_launch(ui, a->id, NULL);
+	} else if (ui_button_suggested(ui, r, a->update ? "Update" : "Install") && !flathub_busy()) {
+		flathub_job(a, a->update ? FLAT_UPDATE : FLAT_INSTALL);
+	}
+}
+
+/* Flathub checked who publishes it */
+static void verified_badge(Ui *ui, f32 cx, f32 cy)
+{
+	ui_circle(ui, cx, cy, 7.5f, ui->theme.accent);
+	ui_icon(ui, rect(cx - 5.5f, cy - 5.5f, 11, 11), "check", ui->theme.on_accent);
+}
+
+static void flat_card(Ui *ui, Rect r, FlatApp *a, int idx)
+{
+	Theme *t = &ui->theme;
+	ui_push_id(ui, 2000 + idx);
+	UiId id = ui_id(ui, "fcard");
+	UiInteract in = ui_interact(ui, id, r);
+	f32 hv = ui_fade(ui, id, in.hovered, 0.15f);
+	ui_shadow(ui, r, 12, 10 + 6 * hv, 2 + 2 * hv, color_with_alpha(t->shadow, (u8)(0x30 + 0x20 * hv)));
+	ui_round(ui, r, 12, t->card);
+	Rect c = pad(r, 16);
+	Rect icon = cut_left(&c, 64);
+	flathub_icon(ui, rect(icon.x, icon.y, 64, 64), a);
+	cut_left(&c, 14);
+	Font nf = ui_font(ui, 15, 700);
+	f32 nw = minf(ui_text_width(ui, nf, a->name), c.w - (a->verified ? 22 : 0));
+	ui_text_in(ui, nf, rect(c.x, c.y, nw, 22), a->name, t->text, ALIGN_START);
+	if (a->verified)
+		verified_badge(ui, c.x + nw + 14, c.y + 11);
+	ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(c.x, c.y + 24, c.w, 34), a->summary, t->text_dim, ALIGN_START);
+	Rect btn = rect(r.x + r.w - 16 - 104, r.y + r.h - 16 - 32, 104, 32);
+	flat_action_button(ui, btn, a);
+	ui_text_in(ui, ui_font(ui, 11, 600), rect(c.x, btn.y, c.w - 110, 32), a->developer[0] ? a->developer : a->category, t->text_faint,
+		   ALIGN_START);
+	if (in.clicked && !rect_contains(btn, ui->mx, ui->my))
+		H.flat_detail = a;
+	ui_pop_id(ui);
+}
+
+static void flathub_page(Ui *ui, Rect area)
+{
+	Theme *t = &ui->theme;
+	if (!flathub_available()) {
+		ui_placeholder(ui, area, "computer", "Linux apps aren't set up", "Flathub's apps need the Linux layer, which isn't installed.");
+		return;
+	}
+	flathub_lock();
+	int n;
+	bool search = H.search.len > 0;
+	FlatApp **list = search ? flathub_results(&n) : flathub_popular(&n);
+	if (!n) {
+		const char *err = flathub_error();
+		if ((search ? flathub_searching() : flathub_loading()) || (!search && !err[0])) {
+			ui_spinner(ui, center_in(area, 32, 32));
+			ui_text_in(ui, ui_font(ui, 13, 500), rect(area.x, area.y + area.h / 2 + 24, area.w, 20),
+				   search ? "Searching Flathub…" : "Getting Flathub's apps…", t->text_dim, ALIGN_CENTER);
+		} else if (search) {
+			ui_placeholder(ui, area, "search", "No apps found", "Try another word.");
+		} else {
+			ui_placeholder(ui, rect(area.x, area.y, area.w, area.h - 60), "network-offline", "Couldn't reach Flathub", err);
+			if (ui_button_suggested(ui, rect(area.x + (area.w - 120) / 2, area.y + area.h / 2 + 70, 120, 34), "Try Again"))
+				flathub_refresh();
+		}
+		flathub_unlock();
+		return;
+	}
+	f32 y = ui_scroll_begin(ui, area, "flathub");
+	Rect col = pad2(rect(area.x, y, area.w, 100000), maxf(24, (area.w - 1100) / 2), 24);
+	f32 cy = col.y;
+	if (!search) {
+		/* a header for the section, in Flathub's spirit */
+		Rect hr = rect(col.x, cy, col.w, 120);
+		ui_shadow(ui, hr, 16, 18, 6, 0x30000000);
+		ui_gradient(ui, hr, 16, 0xff4a86cf, 0xff2e5d9f);
+		ui_push_clip(ui, hr);
+		ui_circle(ui, hr.x + hr.w * 0.86f, hr.y + hr.h * 0.1f, hr.h * 1.1f, 0x16ffffff);
+		ui_circle(ui, hr.x + hr.w * 0.98f, hr.y + hr.h * 1.2f, hr.h * 0.8f, 0x10ffffff);
+		ui_pop_clip(ui);
+		ui_text(ui, ui_font(ui, 26, 700), hr.x + 28, hr.y + 52, "Flathub", COLOR_WHITE);
+		ui_text(ui, ui_font(ui, 14, 500), hr.x + 28, hr.y + 80, "Thousands of Linux apps, each in its own sandbox.", 0xe6ffffff);
+		cy += 120 + 28;
+	}
+	ui_text(ui, ui_font(ui, 18, 700), col.x, cy + 18, search ? "Results" : "Popular", t->text);
+	if (search && flathub_searching())
+		ui_spinner(ui, rect(col.x + 90, cy + 4, 18, 18));
+	cy += 36;
+	int cols = MAX(1, MIN(3, (int)(col.w / 330)));
+	f32 gap = 16, cw = (col.w - gap * (f32)(cols - 1)) / (f32)cols;
+	for (int i = 0; i < n; i++) {
+		Rect r = rect(col.x + (cw + gap) * (f32)(i % cols), cy + (136 + gap) * (f32)(i / cols), cw, 136);
+		flat_card(ui, r, list[i], i);
+	}
+	cy += (136 + gap) * (f32)((n + cols - 1) / cols) + 8;
+	ui_text(ui, ui_font(ui, 11, 500), col.x, cy + 12, "Apps from Flathub are made by their developers and run in a sandbox.", t->text_faint);
+	cy += 28;
+	flathub_unlock();
+	ui_scroll_end(ui, cy - y + 24);
+}
+
+static void flat_detail_page(Ui *ui, Rect area, FlatApp *a)
+{
+	Theme *t = &ui->theme;
+	if (atomic_load(&a->details) == 0)
+		flathub_details(a);
+	flathub_lock();
+	f32 y = ui_scroll_begin(ui, area, "fdetail");
+	Rect col = pad2(rect(area.x, y, area.w, 100000), maxf(24, (area.w - 900) / 2), 28);
+	f32 cy = col.y;
+	flathub_icon(ui, rect(col.x, cy, 112, 112), a);
+	f32 x = col.x + 136;
+	ui_text(ui, ui_font(ui, 28, 700), x, cy + 36, a->name, t->text);
+	const char *who = a->developer[0] ? a->developer : "Flathub";
+	ui_text(ui, ui_font(ui, 14, 500), x, cy + 60, who, t->text_dim);
+	if (a->verified) {
+		f32 wx = x + ui_text_width(ui, ui_font(ui, 14, 500), who) + 16;
+		verified_badge(ui, wx, cy + 55);
+		ui_text(ui, ui_font(ui, 13, 600), wx + 12, cy + 60, "Verified", t->accent);
+	}
+	ui_text_in(ui, ui_font(ui, 14, 400), rect(x, cy + 66, col.w - 136, 22), a->summary, t->text, ALIGN_START);
+	Rect btn = rect(x, cy + 96, 124, 34);
+	flat_action_button(ui, btn, a);
+	if (a->installed[0] && !a->op && ui_button_destructive(ui, rect(btn.x + 134, btn.y, 104, 34), "Remove") && !flathub_busy())
+		flathub_job(a, FLAT_REMOVE);
+	cy += 130 + 16;
+	if (a->error[0]) {
+		Rect er = rect(col.x, cy, col.w, 40);
+		ui_round(ui, er, 8, color_with_alpha(t->danger, 0x22));
+		ui_icon(ui, rect(er.x + 12, er.y + 12, 16, 16), "error", t->danger);
+		ui_text_in(ui, ui_font(ui, 13, 500), rect(er.x + 38, er.y, er.w - 50, er.h), a->error, t->text, ALIGN_START);
+		cy += 40 + 12;
+	}
+	cy += 12;
+	int d = atomic_load(&a->details);
+	if (d == 1) {
+		ui_spinner(ui, rect(col.x + (col.w - 28) / 2, cy + 40, 28, 28));
+		cy += 120;
+	} else if (d == 3) {
+		ui_placeholder(ui, rect(col.x, cy, col.w, 160), "network-offline", "Couldn't get the details", "Flathub didn't answer.");
+		cy += 170;
+	}
+	if (a->shot) {
+		f32 sw = minf(col.w, (f32)a->shot->width), sh = sw * (f32)a->shot->height / (f32)a->shot->width;
+		Rect sr = rect(col.x + (col.w - sw) / 2, cy, sw, sh);
+		ui_shadow(ui, sr, 12, 24, 8, 0x40000000);
+		ui_image(ui, sr, a->shot, 12, true);
+		cy += sh + 32;
+	}
+	if (d == 2 && a->description && a->description[0])
+		cy += ui_text_wrapped(ui, ui_font(ui, 14, 400), rect(col.x, cy, col.w, 4000), a->description, t->text, ALIGN_START) + 24;
+	if (d == 2) {
+		ui_separator(ui, col.x, cy, col.x + col.w);
+		cy += 20;
+		char dl[32] = "—", inst[32] = "—";
+		if (a->download_size)
+			fmt_bytes(dl, sizeof dl, a->download_size);
+		if (a->installed_size)
+			fmt_bytes(inst, sizeof inst, a->installed_size);
+		const char *labels[4] = { "Version", "Download", "Installed Size", "License" };
+		const char *values[4] = { a->version[0] ? a->version : "—", dl, inst, a->license[0] ? a->license : "—" };
+		f32 w = col.w / 4;
+		for (int i = 0; i < 4; i++) {
+			ui_text(ui, ui_font(ui, 11, 700), col.x + w * (f32)i, cy + 12, labels[i], t->text_faint);
+			ui_text_in(ui, ui_font(ui, 14, 600), rect(col.x + w * (f32)i, cy + 18, w - 12, 24), values[i], t->text, ALIGN_START);
+		}
+		cy += 60;
+		if (a->runtime[0]) {
+			char rt[160];
+			fmt(rt, sizeof rt, "Runs on %s, which Flatpak installs once for every app that needs it.", a->runtime);
+			ui_text(ui, ui_font(ui, 12, 400), col.x, cy + 10, rt, t->text_dim);
+			cy += 28;
+		}
+	}
+	flathub_unlock();
+	ui_scroll_end(ui, cy - y + 24);
+}
+
+/* The installed page's Linux apps (under flathub_lock). */
+static f32 flat_installed(Ui *ui, Rect col, f32 cy, FlatApp **list, int n)
+{
+	Theme *t = &ui->theme;
+	ui_text(ui, ui_font(ui, 13, 700), col.x + 4, cy + 14, "Linux apps from Flathub", t->text_dim);
+	int updates = flathub_updates();
+	FlatApp *all = flathub_all();
+	if (all->op) {
+		ui_spinner(ui, rect(col.x + col.w - 20, cy, 18, 18));
+		if (all->progress[0])
+			ui_text_in(ui, ui_font(ui, 12, 500), rect(col.x, cy, col.w - 28, 20), all->progress, t->text_dim, ALIGN_END);
+	} else if (updates && !flathub_busy()) {
+		char label[40];
+		fmt(label, sizeof label, updates == 1 ? "Update" : "Update All (%d)", updates);
+		if (ui_button_suggested(ui, rect(col.x + col.w - 150, cy - 6, 150, 30), label))
+			flathub_job(NULL, FLAT_UPDATE);
+	}
+	if (all->error[0])
+		ui_text_in(ui, ui_font(ui, 12, 500), rect(col.x + 200, cy, col.w - 360, 20), all->error, t->danger, ALIGN_END);
+	cy += 32;
+	ui_card(ui, rect(col.x, cy, col.w, 72 * (f32)n));
+	for (int i = 0; i < n; i++) {
+		FlatApp *a = list[i];
+		Rect r = rect(col.x, cy + 72 * (f32)i, col.w, 72);
+		if (i)
+			ui_separator(ui, r.x + 16, r.y, r.x + r.w - 16);
+		Rect c = pad2(r, 16, 12);
+		flathub_icon(ui, rect(c.x, c.y, 48, 48), a);
+		ui_text_in(ui, ui_font(ui, 14, 700), rect(c.x + 62, c.y + 6, c.w - 300, 20), a->name[0] ? a->name : a->id, t->text, ALIGN_START);
+		char ver[80];
+		fmt(ver, sizeof ver, a->update ? "Version %s · update ready" : "Version %s", a->installed);
+		ui_text(ui, ui_font(ui, 12, 400), c.x + 62, c.y + 40, ver, a->update ? t->accent : t->text_dim);
+		ui_push_id(ui, 3000 + i);
+		Rect btns = cut_right(&c, 220);
+		if (ui_interact(ui, ui_id(ui, "frow"), rect(r.x, r.y, r.w - 240, r.h)).clicked)
+			H.flat_detail = a;
+		if (a->op) {
+			ui_spinner(ui, rect(btns.x + btns.w - 24, btns.y + 14, 20, 20));
+		} else {
+			if (ui_button_destructive(ui, rect(btns.x, btns.y + 6, 100, 34), "Remove") && !flathub_busy())
+				flathub_job(a, FLAT_REMOVE);
+			flat_action_button(ui, rect(btns.x + 112, btns.y + 6, 104, 34), a);
+		}
+		ui_pop_id(ui);
+	}
+	return cy + 72 * (f32)n;
+}
+
 static void installed_page(Ui *ui, Rect area)
 {
 	Theme *t = &ui->theme;
@@ -548,10 +801,18 @@ static void installed_page(Ui *ui, Rect area)
 			H.update_all = true;   /* frame() runs them one at a time */
 		cy += 56 + 20;
 	}
-	if (!count) {
+	flathub_lock();
+	int nflat;
+	FlatApp **flat = flathub_installed(&nflat);
+	if (!count && !nflat) {
+		flathub_unlock();
 		ui_placeholder(ui, rect(col.x, cy, col.w, 300), "bag", "Nothing installed from Harbor yet", "Apps you install show up here.");
 		ui_scroll_end(ui, 340);
 		return;
+	}
+	if (count) {
+		ui_text(ui, ui_font(ui, 13, 700), col.x + 4, cy + 14, OS_NAME " apps", t->text_dim);
+		cy += 28;
 	}
 	ui_card(ui, rect(col.x, cy, col.w, 72 * (f32)count));
 	int row = 0;
@@ -581,6 +842,9 @@ static void installed_page(Ui *ui, Rect area)
 		row++;
 	}
 	cy += 72 * (f32)count;
+	if (nflat)
+		cy = flat_installed(ui, col, cy + (count ? 24 : 0), flat, nflat);
+	flathub_unlock();
 	ui_scroll_end(ui, cy - y + 24);
 }
 
@@ -594,12 +858,12 @@ static void detail_page(Ui *ui, Rect area, Entry *e)
 	f32 x = col.x + 136;
 	ui_text(ui, ui_font(ui, 28, 700), x, cy + 36, e->app->name, t->text);
 	ui_text(ui, ui_font(ui, 14, 500), x, cy + 60, e->app->developer[0] ? e->app->developer : e->src->name, t->text_dim);
-	ui_text_wrapped(ui, ui_font(ui, 14, 400), rect(x, cy + 70, col.w - 136, 40), e->app->summary, t->text, ALIGN_START);
-	Rect btn = rect(x, cy + 112 - 34, 124, 34);
+	ui_text_in(ui, ui_font(ui, 14, 400), rect(x, cy + 66, col.w - 136, 22), e->app->summary, t->text, ALIGN_START);
+	Rect btn = rect(x, cy + 96, 124, 34);
 	action_button(ui, btn, e);
 	if (e->installed[0] && !e->op && ui_button_destructive(ui, rect(btn.x + 134, btn.y, 104, 34), "Remove"))
 		start_job(e, OP_REMOVE);
-	cy += 112 + 16;
+	cy += 130 + 16;
 	if (e->error[0]) {
 		Rect er = rect(col.x, cy, col.w, 40);
 		ui_round(ui, er, 8, color_with_alpha(t->danger, 0x22));
@@ -641,6 +905,7 @@ static void frame(Ui *ui)
 	Theme *t = &ui->theme;
 	H.ui = ui;
 	finish_job(ui);
+	flathub_poll(ui);
 	/* "Update All": the next one, until none are left */
 	if (H.update_all && !atomic_load(&H.busy)) {
 		Entry *next = NULL;
@@ -660,27 +925,51 @@ static void frame(Ui *ui)
 	if (H.detail) {
 		if (ui_icon_button(ui, cut_left(&hb, 32), "go-back", "Back") || ui_key_pressed(ui, KEY_ESC, 0) || ui_key_pressed(ui, KEY_LEFT, MOD_ALT))
 			H.detail = NULL;
+	} else if (H.flat_detail) {
+		if (ui_icon_button(ui, cut_left(&hb, 32), "go-back", "Back") || ui_key_pressed(ui, KEY_ESC, 0) || ui_key_pressed(ui, KEY_LEFT, MOD_ALT))
+			H.flat_detail = NULL;
 	}
 	Rect search = cut_right(&hb, minf(240, hb.w * 0.3f));
-	int ev = ui_entry(ui, search, "search", &H.search, "Search apps", ENTRY_SEARCH);
+	int ev = ui_entry(ui, search, "search", &H.search, H.tab == 1 ? "Search Flathub" : "Search apps", ENTRY_SEARCH);
 	if (ev & ENTRY_CHANGED) {
 		H.detail = NULL;
-		H.tab = 0;
+		H.flat_detail = NULL;
+		if (H.tab == 1)
+			flathub_search(sb_str(&H.search));
+		else
+			H.tab = 0;
 	}
 	int updates = 0;
 	for (int i = 0; i < H.nentries; i++)
 		updates += has_update(&H.entries[i]);
+	updates += flathub_updates();
 	char installed_label[32];
 	fmt(installed_label, sizeof installed_label, updates ? "Installed (%d)" : "Installed", updates);
-	const char *tabs[] = { "Home", installed_label };
-	Rect seg = center_in(hb, 240, 32);
+	const char *tabs[] = { OS_NAME, "Flathub", installed_label };
+	Rect seg = center_in(hb, 360, 32);
 	int tab = H.tab;
-	if (ui_segmented(ui, seg, tabs, 2, &tab)) {
+	if (ui_segmented(ui, seg, tabs, 3, &tab)) {
+		/* the search box searches the section it's in */
+		if ((tab == 1) != (H.tab == 1) && H.search.len) {
+			sb_clear(&H.search);
+			flathub_search("");
+		}
 		H.tab = tab;
 		H.detail = NULL;
+		H.flat_detail = NULL;
 	}
 	ui_fill(ui, rect(win.x, win.y, win.w, 1), t->border);
 	ui_fill(ui, win, t->view);
+	if (flathub_busy() || flathub_loading() || flathub_searching())
+		ui->wake_at = ui->now + 0.1;
+	if (H.flat_detail) {
+		flat_detail_page(ui, win, H.flat_detail);
+		return;
+	}
+	if (H.tab == 1) {
+		flathub_page(ui, win);
+		return;
+	}
 	if (atomic_load(&H.loading)) {
 		ui_spinner(ui, center_in(win, 32, 32));
 		ui_text_in(ui, ui_font(ui, 13, 500), rect(win.x, win.y + win.h / 2 + 24, win.w, 20), "Getting the app list…", t->text_dim, ALIGN_CENTER);
@@ -693,7 +982,7 @@ static void frame(Ui *ui)
 	}
 	if (H.detail)
 		detail_page(ui, win, H.detail);
-	else if (H.tab == 1)
+	else if (H.tab == 2)
 		installed_page(ui, win);
 	else
 		home_page(ui, win);
@@ -701,8 +990,10 @@ static void frame(Ui *ui)
 		ui->wake_at = ui->now + 0.1;
 	if (ui_key_pressed(ui, KEY_F, MOD_CTRL))
 		ui_focus(ui, "search");
-	if (ui_key_pressed(ui, KEY_R, MOD_CTRL) || ui_key_pressed(ui, KEY_F5, 0))
+	if (ui_key_pressed(ui, KEY_R, MOD_CTRL) || ui_key_pressed(ui, KEY_F5, 0)) {
 		start_loading();
+		flathub_refresh();
+	}
 }
 
 static void init(Ui *ui)
@@ -713,6 +1004,7 @@ static void init(Ui *ui)
 	str_copy(H.cache_dir, cache, sizeof H.cache_dir);
 	mem_free(cache);
 	start_loading();
+	flathub_init(ui, H.cache_dir);
 }
 
 int main(void)

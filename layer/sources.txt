@@ -249,3 +249,4 @@ hunspell https://github.com/hunspell/hunspell/releases/download/v1.7.2/hunspell-
 enchant https://github.com/rrthomas/enchant/releases/download/v2.8.14/enchant-2.8.14.tar.gz -
 hunspell-en-us https://downloads.sourceforge.net/wordlist/hunspell-en_US-2020.12.07.zip -
 libspelling https://download.gnome.org/sources/libspelling/0.4/libspelling-0.4.10.tar.xz -
+gweather-locations https://download.gnome.org/sources/gweather-locations/2026/gweather-locations-2026.2.tar.xz -
