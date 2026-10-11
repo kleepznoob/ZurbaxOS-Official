@@ -41,6 +41,7 @@ void flathub_poll(Ui *ui);                   /* each frame: finished jobs */
 
 FlatApp **flathub_popular(int *n);
 FlatApp **flathub_results(int *n);
+FlatApp **flathub_gaming(int *n);           /* Zurbax's picks for playing */
 FlatApp **flathub_installed(int *n);
 bool flathub_loading(void);
 bool flathub_searching(void);

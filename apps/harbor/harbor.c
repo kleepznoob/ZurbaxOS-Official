@@ -637,12 +637,22 @@ static void flathub_page(Ui *ui, Rect area)
 		ui_text(ui, ui_font(ui, 14, 500), hr.x + 28, hr.y + 80, "Thousands of Linux apps, each in its own sandbox.", 0xe6ffffff);
 		cy += 120 + 28;
 	}
+	int ng;
+	FlatApp **games = search ? NULL : flathub_gaming(&ng);
+	int cols = MAX(1, MIN(3, (int)(col.w / 330)));
+	f32 gap = 16, cw = (col.w - gap * (f32)(cols - 1)) / (f32)cols;
+	if (games && ng) {
+		ui_text(ui, ui_font(ui, 18, 700), col.x, cy + 18, "Gaming", t->text);
+		ui_text(ui, ui_font(ui, 12, 500), col.x + 90, cy + 18, "Every store, Windows games, emulators, streaming", t->text_dim);
+		cy += 36;
+		for (int i = 0; i < ng; i++)
+			flat_card(ui, rect(col.x + (cw + gap) * (f32)(i % cols), cy + (136 + gap) * (f32)(i / cols), cw, 136), games[i], 100 + i);
+		cy += (136 + gap) * (f32)((ng + cols - 1) / cols) + 12;
+	}
 	ui_text(ui, ui_font(ui, 18, 700), col.x, cy + 18, search ? "Results" : "Popular", t->text);
 	if (search && flathub_searching())
 		ui_spinner(ui, rect(col.x + 90, cy + 4, 18, 18));
 	cy += 36;
-	int cols = MAX(1, MIN(3, (int)(col.w / 330)));
-	f32 gap = 16, cw = (col.w - gap * (f32)(cols - 1)) / (f32)cols;
 	for (int i = 0; i < n; i++) {
 		Rect r = rect(col.x + (cw + gap) * (f32)(i % cols), cy + (136 + gap) * (f32)(i / cols), cw, 136);
 		flat_card(ui, r, list[i], i);

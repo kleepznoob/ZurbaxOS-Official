@@ -20,8 +20,8 @@ static struct {
 	char cache[512];            /* icons, by app id */
 	Mutex lock;                 /* the lists and the app table */
 	Map apps;                   /* id -> FlatApp* (kept for the life of the window) */
-	FlatApp *popular[MAX_LIST], *results[MAX_LIST], *installed[256];
-	int npopular, nresults, ninstalled, updates;
+	FlatApp *popular[MAX_LIST], *results[MAX_LIST], *installed[256], *gaming[16];
+	int npopular, nresults, ninstalled, ngaming, updates;
 	int loading, searching;     /* atomic: loading counts the threads at it */
 	int list_loading;           /* atomic: Flathub's list is on its way */
 	int available;              /* -1 until known */
@@ -218,6 +218,35 @@ static void read_installed(void)
 
 static void installed_thread(void *arg);
 
+/* Zurbax's picks for playing: launchers for every store, Windows games,
+ * Proton versions, emulators, and streaming games to and from this PC */
+static const char *const GAMING[] = {
+	"com.heroicgameslauncher.hgl", "net.lutris.Lutris", "com.usebottles.bottles", "com.vysp3r.ProtonPlus",
+	"net.davidotek.pupgui2", "org.libretro.RetroArch", "org.prismlauncher.PrismLauncher",
+	"dev.lizardbyte.app.Sunshine", "com.moonlight_stream.Moonlight",
+};
+
+static void gaming_thread(void *arg)
+{
+	UNUSED(arg);
+	for (usize i = 0; i < ARRAY_LEN(GAMING); i++) {
+		char url[256];
+		fmt(url, sizeof url, API "/appstream/%s", GAMING[i]);
+		Json *j = get_json(url, NULL);
+		if (!j)
+			continue;
+		mutex_lock(&F.lock);
+		FlatApp *a = app_for(GAMING[i]);
+		fill_from_appstream(a, j);
+		str_copy(a->category, "Games", sizeof a->category);
+		F.gaming[F.ngaming++] = a;
+		mutex_unlock(&F.lock);
+		json_free(j);
+		ui_wake(F.ui);
+	}
+	atomic_add(&F.loading, -1);
+}
+
 static void load_thread(void *arg)
 {
 	UNUSED(arg);
@@ -225,6 +254,10 @@ static void load_thread(void *arg)
 	 * on its own thread, while Flathub's list loads */
 	atomic_add(&F.loading, 1);
 	thread_spawn(installed_thread, NULL);
+	if (!F.ngaming) {
+		atomic_add(&F.loading, 1);
+		thread_spawn(gaming_thread, NULL);
+	}
 	Json *j = get_json(API "/collection/popular?page=1&per_page=60", NULL);
 	if (j) {
 		Json *hits = json_get(j, "hits");
@@ -674,6 +707,12 @@ FlatApp **flathub_popular(int *n)
 {
 	*n = F.npopular;
 	return F.popular;
+}
+
+FlatApp **flathub_gaming(int *n)
+{
+	*n = F.ngaming;
+	return F.gaming;
 }
 
 FlatApp **flathub_results(int *n)
