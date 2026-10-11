@@ -106,11 +106,15 @@ pkg_modemmanager() {
 
 # gcr 3: the keyring still speaks its older interface
 # gcr 3 asks for the paths of ssh-add and ssh-agent even with its SSH agent
-# off (they're only written into that agent)
+# off (they're only written into that agent), and makes Vala bindings
+# whenever it makes introspection data
 pkg_gcr3() {
 	unpack gcr3
 	sed -i -e "s|^ssh_add_path = find_program('ssh-add'.*|ssh_add_path = '/usr/bin/ssh-add'|" \
 		-e "s|^ssh_agent_path = find_program('ssh-agent'.*|ssh_agent_path = '/usr/bin/ssh-agent'|" meson.build
+	# and no Vala bindings: vapigen would look for GLib's in the build machine's folders
+	sed -i '/gck_vapi = gnome.generate_vapi/,/^  )/d' gck/meson.build
+	sed -i '/gcr_vapi = gnome.generate_vapi/,/^  )/d' gcr/meson.build
 	mesonbuild -Dgtk=false -Dintrospection=true -Dgtk_doc=false -Dssh_agent=false -Dsystemd=disabled
 }
 
