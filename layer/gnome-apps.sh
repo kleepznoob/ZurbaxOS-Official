@@ -11,8 +11,9 @@
 # into GTK's) and the weather locations' database maker run on it
 pkg_native_pygobject() {
 	native_env
-	PKG_CONFIG_PATH=$NATIVE/lib/pkgconfig "$L/venv/bin/pip" install -q --no-deps --no-binary pygobject \
-		-Csetup-args=-Dpycairo=disabled meson-python pygobject==3.58.1 >"$WORK/pip.log" 2>&1 || { tail -30 "$WORK/pip.log"; exit 1; }
+	"$L/venv/bin/pip" install -q meson-python==0.18.0 >"$WORK/pip.log" 2>&1 &&
+		PKG_CONFIG_PATH=$NATIVE/lib/pkgconfig "$L/venv/bin/pip" install -q --no-deps --no-build-isolation --no-binary pygobject \
+		-Csetup-args=-Dpycairo=disabled pygobject==3.58.1 >>"$WORK/pip.log" 2>&1 || { tail -30 "$WORK/pip.log"; exit 1; }
 	"$L/venv/bin/python3" -c 'from gi.repository import GLib' || { echo "PyGObject doesn't load" >&2; exit 1; }
 }
 
@@ -116,7 +117,10 @@ pkg_icu() {
 	../configure --build=$BUILD --host=$HOST --prefix=/usr --libdir=$LIBDIR --with-cross-build="$PWD/../native" \
 		--disable-tests --disable-samples --disable-static >configure.log 2>&1 || { tail -30 configure.log; exit 1; }
 	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A5 -m5 'error' make.log | head -40; exit 1; }
-	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -20 install.log; exit 1; }
+	# ICU's install puts its tools' libraries before $LD_LIBRARY_PATH; left
+	# empty, that adds the current folder, and the layer's library folder
+	# (with the layer's C library) once the install changes into it
+	LD_LIBRARY_PATH=$NATIVE/lib make DESTDIR="$DEST" install >install.log 2>&1 || { tail -20 install.log; exit 1; }
 	finish
 }
 
