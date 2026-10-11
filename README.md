@@ -7,8 +7,8 @@ the only outside code.
 controllers everywhere, Glide (a 3D game drawn by Zurbax's own renderer),
 controller vibration, F11 full screen, and the Silk wallpaper. It also
 brings Wi-Fi, Mail, Flathub's apps in Harbor, and a full GNOME desktop
-built from GNOME's own sources as a second desktop. (Inside the source, programs, paths and
-settings carry the name in lower case, `zurbax`.)
+built from GNOME's own sources as a second desktop. (Inside the source,
+programs, paths and settings carry the name in lower case, `zurbax`.)
 
 There's no glibc, no X server or libwayland, no GTK or Qt, no GRUB and no
 distribution underneath. Zurbax has its own pieces for everything:
