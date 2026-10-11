@@ -685,8 +685,15 @@ pkg_evolution_data_server() {
 	# the layer's character set converters
 	printf '#!/bin/sh\nGCONV_PATH="%s" exec "%s" "$@"\n' "$ROOT/usr/lib/gconv" "$L/cross-bin/run-target" >"$WORK/run-target"
 	chmod +x "$WORK/run-target"
-	# the introspection tools: the build's, not the layer's (which its pkg-config file names)
-	sed -i -e "s|pkg_check_variable(G_IR_SCANNER gobject-introspection-1.0 g_ir_scanner)|set(G_IR_SCANNER $L/cross-bin/g-ir-scanner)|" \
+	# the introspection tools: the build's, not the layer's (which its pkg-config file names);
+	# the scanner links against libraries that need EDS's other libraries beside them
+	cat >"$WORK/g-ir-scanner" <<-EOF
+		#!/bin/sh
+		export LDFLAGS="\$LDFLAGS \$(find "$PWD/_build" -name '*.so*' -printf '-Wl,-rpath-link=%h\n' | sort -u | tr '\n' ' ')"
+		exec "$L/cross-bin/g-ir-scanner" "\$@"
+	EOF
+	chmod +x "$WORK/g-ir-scanner"
+	sed -i -e "s|pkg_check_variable(G_IR_SCANNER gobject-introspection-1.0 g_ir_scanner)|set(G_IR_SCANNER $WORK/g-ir-scanner)|" \
 		-e "s|pkg_check_variable(G_IR_COMPILER gobject-introspection-1.0 g_ir_compiler)|set(G_IR_COMPILER $L/cross-bin/g-ir-compiler)|" \
 		cmake/modules/GObjectIntrospection.cmake
 	# its table generators run by target name, so they go through the same way
