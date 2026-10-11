@@ -163,11 +163,11 @@ cross_tools() {
 	mkdir -p "$bin"
 	cat >"$bin/run-target" <<-EOF
 		#!/bin/sh
-		exec "$ROOT/usr/lib/ld-linux-x86-64.so.2" --library-path "\${GI_LIB_DIRS:+\$GI_LIB_DIRS:}\${LD_LIBRARY_PATH:+\$LD_LIBRARY_PATH:}$ROOT/usr/lib" "\$@"
+		exec "$ROOT/usr/lib/ld-linux-x86-64.so.2" --library-path "\${GI_LIB_DIRS:+\$GI_LIB_DIRS:}\${LD_LIBRARY_PATH:+\$LD_LIBRARY_PATH:}$ROOT/usr/lib:$ROOT/usr/lib/pulseaudio" "\$@"
 	EOF
 	cat >"$bin/ldd-target" <<-EOF
 		#!/bin/sh
-		exec "$ROOT/usr/lib/ld-linux-x86-64.so.2" --list --library-path "\${GI_LIB_DIRS:+\$GI_LIB_DIRS:}\${LD_LIBRARY_PATH:+\$LD_LIBRARY_PATH:}$ROOT/usr/lib" "\$@"
+		exec "$ROOT/usr/lib/ld-linux-x86-64.so.2" --list --library-path "\${GI_LIB_DIRS:+\$GI_LIB_DIRS:}\${LD_LIBRARY_PATH:+\$LD_LIBRARY_PATH:}$ROOT/usr/lib:$ROOT/usr/lib/pulseaudio" "\$@"
 	EOF
 	# the build machine's scanner (pkg_native_gobject_introspection), compiling
 	# and running its helper programs the layer's way; the library folders

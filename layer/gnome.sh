@@ -839,7 +839,7 @@ pkg_gnome_shell() {
 	# gjs is only named in the D-Bus services it writes: give the layer's, and
 	# put back the path it has on the installed system afterwards
 	sed -i "s|^gjs = find_program('gjs')|gjs = find_program('$ROOT/usr/bin/gjs')|" meson.build
-	mesonbuild -Dcamera_monitor=true -Dextensions_tool=true -Dgtk_doc=false -Dman=false -Dtests=false -Dnetworkmanager=true \
+	mesonbuild -Dcamera_monitor=true -Dextensions_tool=false -Dgtk_doc=false -Dman=false -Dtests=false -Dnetworkmanager=true \
 		-Dportal_helper=false -Dsystemd=false
 	grep -rlI "$ROOT/usr/bin/gjs" "$ROOT/usr/share/dbus-1" "$ROOT/usr/libexec" "$ROOT/usr/bin" "$ROOT/usr/share/gnome-shell" 2>/dev/null |
 		xargs -r sed -i "s|$ROOT/usr/bin/gjs|/usr/bin/gjs|g"
