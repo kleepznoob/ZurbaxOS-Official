@@ -286,8 +286,14 @@ rust_ld = '$TC/bin/gcc'"
 autobuild() {
 	./configure --build=$BUILD --host=$HOST --prefix=/usr --libdir=$LIBDIR --sysconfdir=/etc --localstatedir=/var \
 		--disable-static "$@" >configure.log 2>&1 || { tail -30 config.log; exit 1; }
-	make -j"$JOBS" >make.log 2>&1 || { grep -B5 -A5 -m5 'error' make.log | head -60; exit 1; }
-	make DESTDIR="$DEST" install >install.log 2>&1 || { tail -30 install.log; exit 1; }
+	# introspection: configure finds the layer's own scanner, which can't run
+	# here; the cross one and the layer's rules instead
+	local gi=()
+	[ "$ARCH" = 64 ] && [ -x "$L/cross-bin/g-ir-scanner" ] &&
+		gi=(INTROSPECTION_SCANNER="$L/cross-bin/g-ir-scanner" INTROSPECTION_COMPILER="$L/cross-bin/g-ir-compiler"
+			INTROSPECTION_MAKEFILE="$ROOT/usr/share/gobject-introspection-1.0/Makefile.introspection")
+	make -j"$JOBS" "${gi[@]}" >make.log 2>&1 || { grep -B5 -A5 -m5 'error' make.log | head -60; exit 1; }
+	make DESTDIR="$DEST" "${gi[@]}" install >install.log 2>&1 || { tail -30 install.log; exit 1; }
 	finish
 }
 
