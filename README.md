@@ -272,7 +272,9 @@ on whichever one Zurbax started from.
   events.
 - **Hardware 3D in Zurbax's own apps.** The desktop and Glide are drawn in
   software, so they work on any GPU.
-- **NVIDIA graphics.** NVIDIA's driver is a kernel module, and the Zurbax
-  kernel has no module loader; on laptops with NVIDIA and AMD/Intel
-  graphics, the AMD or Intel GPU drives the screen.
+- **NVIDIA's own driver.** NVIDIA graphics run on the open drivers:
+  nouveau in the kernel with NVIDIA's GSP firmware, Mesa's NVK for Vulkan
+  (Steam and Proton games, GeForce RTX 20 series and newer) and zink for
+  OpenGL on it; older GeForces get nouveau's OpenGL. NVIDIA's proprietary
+  driver is a kernel module, and the Zurbax kernel has no module loader.
 - **Windows programs outside Steam.** `.exe` files don't run on their own.

@@ -228,10 +228,27 @@ pkg_libglvnd() {
 # Intel: iris and crocus (OpenGL), ANV and HASVK (Vulkan); zink is OpenGL
 # on any Vulkan driver, virgl and softpipe for virtual machines and as the
 # last resort.
+# NVIDIA: nouveau (in the kernel, with NVIDIA's GSP firmware) for OpenGL on
+# older GeForces, NVK (Vulkan, written in part in Rust) for GeForce RTX 20
+# and newer, and zink (OpenGL on NVK) there; Steam's Proton runs on NVK.
+pkg_native_bindgen() {
+	rust_env
+	CARGO_NET_OFFLINE=false cargo install -q --locked --root "$NATIVE" bindgen-cli@0.72.1 >"$WORK/cargo.log" 2>&1 ||
+		{ tail -20 "$WORK/cargo.log"; exit 1; }
+}
+
 pkg_mesa() {
 	unpack mesa
-	mesonbuild -Dplatforms=x11,wayland -Dgallium-drivers=radeonsi,iris,crocus,zink,virgl,softpipe \
-		-Dvulkan-drivers=amd,intel,intel_hasvk -Dvulkan-layers=device-select \
+	local vk=amd,intel,intel_hasvk wrap=()
+	if [ "$ARCH" = 64 ]; then
+		vk+=,nouveau
+		rust_env
+		unset CARGO_BUILD_TARGET
+		# NVK's Rust crates come through meson's subprojects (crates.io)
+		wrap=(--wrap-mode=default)
+	fi
+	mesonbuild -Dplatforms=x11,wayland -Dgallium-drivers=radeonsi,iris,crocus,nouveau,zink,virgl,softpipe \
+		-Dvulkan-drivers=$vk -Dvulkan-layers=device-select "${wrap[@]}" \
 		-Dllvm=disabled -Damd-use-llvm=false -Dmesa-clc=system \
 		-Dglx=dri -Degl=enabled -Dgbm=enabled -Dglvnd=enabled -Dopengl=true -Dgles1=disabled -Dgles2=enabled \
 		-Dvideo-codecs= -Dgallium-va=disabled -Dgallium-rusticl=false -Dteflon=false \
@@ -257,7 +274,7 @@ pkg_gpucheck() {
 	$CC $CFLAGS -o "$ROOT/usr/bin/zos-gpucheck" "$HERE/gpucheck/zos-gpucheck.c" $LDFLAGS -lvulkan -lEGL
 }
 
-ORDER+=(libglvnd libglvnd:32 mesa mesa:32 vulkan_loader vulkan_loader:32 gpucheck)
+ORDER+=(native_bindgen libglvnd libglvnd:32 mesa mesa:32 vulkan_loader vulkan_loader:32 gpucheck)
 
 # ---- Xwayland: X11 programs (Steam) on Zurbax's display -------------------------------------------
 
