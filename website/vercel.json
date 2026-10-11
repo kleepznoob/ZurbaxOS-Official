@@ -41,5 +41,12 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/download/2.0/:file",
+      "destination": "https://archive.org/download/zurbax-2.0/:file",
+      "permanent": false
+    }
   ]
 }

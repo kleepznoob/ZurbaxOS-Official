@@ -179,7 +179,8 @@ pkg_vte() {
 		tar -xf "$(fetch "vte-$sp")" -C "subprojects/$sp" --strip-components=1
 		cp -r "subprojects/packagefiles/$sp/." "subprojects/$sp/"
 	done
-	mesonbuild -Dgtk3=false -Dgtk4=true -Dgir=true -Dvapi=false -Ddocs=false -D_systemd=false -Dgnutls=true -Dicu=true -Dglade=false
+	# VTE refuses to build with assertions off
+	mesonbuild -Db_ndebug=false -Dgtk3=false -Dgtk4=true -Dgir=true -Dvapi=false -Ddocs=false -D_systemd=false -Dgnutls=true -Dicu=true -Dglade=false
 }
 
 ORDER+=(libunistring libtasn1 gmp nettle gnutls cracklib libpwquality libgtop colord_gtk udisks_client modemmanager gcr3 tinysparql
