@@ -635,6 +635,14 @@ pkg_libical() {
 		-DGObjectIntrospection_SCANNER="$L/cross-bin/g-ir-scanner" -DGObjectIntrospection_COMPILER="$L/cross-bin/g-ir-compiler"
 }
 
+# libuuid (from util-linux), for Evolution Data Server
+pkg_libuuid() {
+	unpack util-linux
+	autobuild --disable-all-programs --enable-libuuid --disable-nls --without-python --without-systemd --without-udev \
+		--without-ncurses --without-tinfo --without-readline --disable-bash-completion --disable-liblastlog2 \
+		--disable-pylibmount --disable-makeinstall-chown --disable-makeinstall-setuid
+}
+
 pkg_libpsl() { unpack libpsl; mesonbuild -Druntime=no -Dbuiltin=true -Dtests=false -Ddocs=false; }
 
 pkg_libsoup() {
@@ -672,14 +680,23 @@ pkg_gnome_online_accounts() {
 
 pkg_evolution_data_server() {
 	unpack evolution-data-server
-	cmakebuild -DENABLE_GTK=OFF -DENABLE_GTK4=ON -DENABLE_OAUTH2_WEBKITGTK=OFF -DENABLE_OAUTH2_WEBKITGTK4=OFF \
+	# its configuration runs test programs (character set conversion, the
+	# OAuth2 client names): the layer's way, through its dynamic linker, with
+	# the layer's character set converters
+	printf '#!/bin/sh\nGCONV_PATH="%s" exec "%s" "$@"\n' "$ROOT/usr/lib/gconv" "$L/cross-bin/run-target" >"$WORK/run-target"
+	chmod +x "$WORK/run-target"
+	# the introspection tools: the build's, not the layer's (which its pkg-config file names)
+	sed -i -e "s|pkg_check_variable(G_IR_SCANNER gobject-introspection-1.0 g_ir_scanner)|set(G_IR_SCANNER $L/cross-bin/g-ir-scanner)|" \
+		-e "s|pkg_check_variable(G_IR_COMPILER gobject-introspection-1.0 g_ir_compiler)|set(G_IR_COMPILER $L/cross-bin/g-ir-compiler)|" \
+		cmake/modules/GObjectIntrospection.cmake
+	cmakebuild -DCMAKE_CROSSCOMPILING_EMULATOR="$WORK/run-target" -DENABLE_GTK=OFF -DENABLE_GTK4=ON -DENABLE_OAUTH2_WEBKITGTK=OFF -DENABLE_OAUTH2_WEBKITGTK4=OFF \
 		-DENABLE_EXAMPLES=OFF -DENABLE_GOA=ON -DENABLE_WEATHER=ON -DENABLE_CANBERRA=OFF -DENABLE_INTROSPECTION=ON \
 		-DENABLE_VALA_BINDINGS=OFF -DWITH_PHONENUMBER=OFF -DENABLE_TESTS=OFF -DENABLE_GTK_DOC=OFF -DWITH_LIBDB=OFF \
 		-DWITH_OPENLDAP=OFF -DWITH_KRB5=OFF -DWITH_SYSTEMDUSERUNITDIR=OFF -DENABLE_INSTALLED_TESTS=OFF \
 		-DWITH_GWEATHER4=ON -DLIBEXEC_INSTALL_DIR=/usr/libexec
 }
 
-ORDER+=(icu nspr nss libical libpsl libsoup glib_networking geocode_glib native_pygobject gweather_locations libgweather rest gnome_online_accounts evolution_data_server)
+ORDER+=(icu libuuid nspr nss libical libpsl libsoup glib_networking geocode_glib native_pygobject gweather_locations libgweather rest gnome_online_accounts evolution_data_server)
 
 # ---- NetworkManager's library ----------------------------------------------------------------
 # GNOME Shell's network menu and Settings talk to NetworkManager's D-Bus

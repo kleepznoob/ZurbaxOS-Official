@@ -149,13 +149,29 @@ pkg_libportal() {
 
 pkg_gtksourceview() { unpack gtksourceview; mesonbuild -Dintrospection=enabled -Dvapi=false -Ddocumentation=false -Dbuild-testsuite=false -Dinstall-tests=false -Dsysprof=false; }
 
+# LZ4, which the terminal keeps its scrollback with
+pkg_lz4() {
+	unpack lz4
+	local mk=(CC="$CC" CFLAGS="$CFLAGS" PREFIX=/usr LIBDIR="$LIBDIR" BUILD_STATIC=no)
+	make -C lib -j"$JOBS" "${mk[@]}" >make.log 2>&1 && make -C lib "${mk[@]}" DESTDIR="$DEST" install >install.log 2>&1 ||
+		{ tail -20 make.log install.log; exit 1; }
+	finish
+}
+
 pkg_vte() {
 	unpack vte
+	# the libraries VTE builds in, from their releases, with VTE's build files for them
+	local sp
+	for sp in fast_float fmt simdutf; do
+		mkdir -p "subprojects/$sp"
+		tar -xf "$(fetch "vte-$sp")" -C "subprojects/$sp" --strip-components=1
+		cp -r "subprojects/packagefiles/$sp/." "subprojects/$sp/"
+	done
 	mesonbuild -Dgtk3=false -Dgtk4=true -Dgir=true -Dvapi=false -Ddocs=false -D_systemd=false -Dgnutls=true -Dicu=true -Dglade=false
 }
 
 ORDER+=(libunistring libtasn1 nettle gnutls cracklib libpwquality libgtop colord_gtk udisks_client modemmanager gcr3 tinysparql
-	localsearch gnome_autoar libportal gtksourceview vte)
+	localsearch gnome_autoar libportal gtksourceview lz4 vte)
 
 # ---- The session's services ----------------------------------------------------------------------
 
@@ -218,7 +234,7 @@ pkg_hunspell_en_us() {
 
 pkg_libspelling() { unpack libspelling; mesonbuild -Denchant=enabled -Dintrospection=enabled -Dvapi=false -Ddocs=false -Dsysprof=false; }
 
-pkg_gnome_text_editor() { unpack gnome-text-editor; mesonbuild -Ddevelopment=false; }
+pkg_gnome_text_editor() { unpack gnome-text-editor; mesonbuild -Ddevelopment=false -Deditorconfig=disabled; }
 
 ORDER+=(gnome_control_center nautilus gnome_console hunspell enchant hunspell_en_us libspelling gnome_text_editor)
 

@@ -250,3 +250,7 @@ enchant https://github.com/rrthomas/enchant/releases/download/v2.8.14/enchant-2.
 hunspell-en-us https://downloads.sourceforge.net/wordlist/hunspell-en_US-2020.12.07.zip -
 libspelling https://download.gnome.org/sources/libspelling/0.4/libspelling-0.4.10.tar.xz -
 gweather-locations https://download.gnome.org/sources/gweather-locations/2026/gweather-locations-2026.2.tar.xz -
+lz4 https://github.com/lz4/lz4/releases/download/v1.10.0/lz4-1.10.0.tar.gz 537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b
+vte-fast_float https://github.com/fastfloat/fast_float/archive/refs/tags/v8.0.2.tar.gz e14a33089712b681d74d94e2a11362643bd7d769ae8f7e7caefe955f57f7eacd fast_float-8.0.2.tar.gz
+vte-fmt https://github.com/fmtlib/fmt/archive/refs/tags/12.1.0.tar.gz ea7de4299689e12b6dddd392f9896f08fb0777ac7168897a244a6d6085043fea libfmt-12.1.0.tar.gz
+vte-simdutf https://github.com/simdutf/simdutf/archive/refs/tags/v8.2.0.tar.gz 033a91b1d7d1cb818c1eff49e61faaa1b64a3a530d59ef9efef0195e56bda8b1 simdutf-8.2.0.tar.gz
