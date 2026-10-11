@@ -689,6 +689,9 @@ pkg_evolution_data_server() {
 	sed -i -e "s|pkg_check_variable(G_IR_SCANNER gobject-introspection-1.0 g_ir_scanner)|set(G_IR_SCANNER $L/cross-bin/g-ir-scanner)|" \
 		-e "s|pkg_check_variable(G_IR_COMPILER gobject-introspection-1.0 g_ir_compiler)|set(G_IR_COMPILER $L/cross-bin/g-ir-compiler)|" \
 		cmake/modules/GObjectIntrospection.cmake
+	# its table generators run by target name, so they go through the same way
+	sed -i 's|COMMAND ${CMAKE_CURRENT_BINARY_DIR}/gen-western-table|COMMAND gen-western-table|' src/addressbook/libebook-contacts/CMakeLists.txt
+	sed -i 's|COMMAND ${CMAKE_CURRENT_BINARY_DIR}/camel-gen-tables|COMMAND camel-gen-tables|' src/camel/CMakeLists.txt
 	cmakebuild -DCMAKE_CROSSCOMPILING_EMULATOR="$WORK/run-target" -DENABLE_GTK=OFF -DENABLE_GTK4=ON -DENABLE_OAUTH2_WEBKITGTK=OFF -DENABLE_OAUTH2_WEBKITGTK4=OFF \
 		-DENABLE_EXAMPLES=OFF -DENABLE_GOA=ON -DENABLE_WEATHER=ON -DENABLE_CANBERRA=OFF -DENABLE_INTROSPECTION=ON \
 		-DENABLE_VALA_BINDINGS=OFF -DWITH_PHONENUMBER=OFF -DENABLE_TESTS=OFF -DENABLE_GTK_DOC=OFF -DWITH_LIBDB=OFF \
