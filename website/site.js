@@ -2,7 +2,6 @@
 (() => {
   // where the full image lives; empty until it's up, and the page says so
   const FULL = '/download/2.0/zurbax.iso';
-  const MINI = '/download/zurbax-mini.iso';
 
   const root = document.documentElement;
   root.classList.replace('no-js', 'js');
@@ -65,7 +64,7 @@
     full.closest('.dl-actions').classList.add('soon');
     full.removeAttribute('href');
     full.setAttribute('aria-disabled', 'true');
-    fullNote.textContent = 'The full image is on its way. Until it arrives, the mini installer below sets up the same system.';
+    fullNote.textContent = 'The full image is on its way.';
   }
   document.querySelectorAll('[data-get]').forEach(a => a.addEventListener('click', e => {
     if (!FULL) return; // the link scrolls to the download section
@@ -73,7 +72,6 @@
     start(FULL, 'Zurbax 2.0 (about 7 GB)');
   }));
   full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.0 (about 7 GB)'); });
-  document.querySelector('[data-mini]').addEventListener('click', e => { e.preventDefault(); start(MINI, 'the mini installer (69 MB)'); });
 
   const next = document.getElementById('next');
   let opener = null;
