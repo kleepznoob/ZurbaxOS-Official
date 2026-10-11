@@ -160,7 +160,7 @@ libgweather https://download.gnome.org/sources/libgweather/4.6/libgweather-4.6.0
 rest https://download.gnome.org/sources/rest/0.9/rest-0.9.1.tar.xz -
 gnome-online-accounts https://download.gnome.org/sources/gnome-online-accounts/3.58/gnome-online-accounts-3.58.1.tar.xz -
 evolution-data-server https://download.gnome.org/sources/evolution-data-server/3.62/evolution-data-server-3.62.1.tar.xz -
-libndp https://github.com/jpirko/libndp/archive/refs/tags/v1.9.tar.gz - libndp-1.9.tar.gz
+libndp http://libndp.org/files/libndp-1.9.tar.gz -
 NetworkManager https://gitlab.freedesktop.org/NetworkManager/NetworkManager/-/archive/1.58.1/NetworkManager-1.58.1.tar.bz2 -
 gnome-shell https://download.gnome.org/sources/gnome-shell/51/gnome-shell-51.0.tar.xz -
 shaderc https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz - shaderc-2026.3.tar.gz

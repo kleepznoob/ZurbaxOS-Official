@@ -718,7 +718,7 @@ ORDER+=(icu libuuid nspr nss libical libpsl libsoup glib_networking geocode_glib
 
 pkg_libndp() {
 	unpack libndp
-	./autogen.sh >autogen.log 2>&1
+	[ -x configure ] || ./autogen.sh >autogen.log 2>&1
 	autobuild
 }
 
@@ -728,7 +728,7 @@ pkg_networkmanager() {
 		-Dpolkit=false -Dmodem_manager=false -Dppp=false -Dnmcli=true -Dnmtui=false -Dbluez5_dun=false -Debpf=false \
 		-Dconfig_dhcp_default=internal -Ddhcpcd=no -Dintrospection=true -Dvapi=false -Ddocs=false -Dtests=no \
 		-Dqt=false -Dcrypto=null -Dlibpsl=true -Dnm_cloud_setup=false -Dovs=false -Dteamdctl=false -Dwext=false -Diwd=false \
-		-Dofono=false -Dfirewalld_zone=false -Dreadline=none -Dsystemdsystemunitdir=no -Dudev_dir=/usr/lib/udev \
+		-Dofono=false -Dfirewalld_zone=false -Dreadline=none -Dsystemdsystemunitdir=no -Dsystemdsystemgeneratordir=no -Dudev_dir=/usr/lib/udev \
 		-Dmore_asserts=no -Dconcheck=true
 	# zsys answers for NetworkManager (with znet underneath): the library and
 	# nmcli stay, the daemon goes
