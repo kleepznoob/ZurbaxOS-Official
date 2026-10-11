@@ -1,7 +1,7 @@
 // zurbax.com: the boot on the hero monitor, the tour, and the download
 (() => {
   // where the full image lives; empty until it's up, and the page says so
-  const FULL = '';
+  const FULL = '/download/2.0/zurbax.iso';
   const MINI = '/download/zurbax-mini.iso';
 
   const root = document.documentElement;
@@ -65,14 +65,14 @@
     full.closest('.dl-actions').classList.add('soon');
     full.removeAttribute('href');
     full.setAttribute('aria-disabled', 'true');
-    fullNote.textContent = 'The full 6.4 GB image is on its way. Until it arrives, the mini installer below sets up the same system.';
+    fullNote.textContent = 'The full image is on its way. Until it arrives, the mini installer below sets up the same system.';
   }
   document.querySelectorAll('[data-get]').forEach(a => a.addEventListener('click', e => {
     if (!FULL) return; // the link scrolls to the download section
     e.preventDefault();
-    start(FULL, 'Zurbax 2.0 (6.4 GB)');
+    start(FULL, 'Zurbax 2.0 (about 8 GB)');
   }));
-  full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.0 (6.4 GB)'); });
+  full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.0 (about 8 GB)'); });
   document.querySelector('[data-mini]').addEventListener('click', e => { e.preventDefault(); start(MINI, 'the mini installer (69 MB)'); });
 
   const next = document.getElementById('next');
