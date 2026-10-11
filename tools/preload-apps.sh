@@ -34,6 +34,8 @@ printf '%s\n' "$GROUPS" | while read -r group; do
 	rm -rf "$WORK/install" "$WORK/usb" && mkdir -p "$WORK/usb"
 	export FLATPAK_USER_DIR="$WORK/install"
 	flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+	# offline repositories need the remote's collection ID (Flathub's)
+	flatpak --user remote-modify --collection-id=org.flathub.Stable flathub
 	# shellcheck disable=SC2086
 	flatpak --user install -y --noninteractive flathub $group
 	# shellcheck disable=SC2086

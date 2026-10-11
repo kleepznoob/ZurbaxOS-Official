@@ -1,133 +1,100 @@
-// zurbax.com: reveals, counters, the tilting screenshots and the download chooser
+// zurbax.com: the boot on the hero monitor, the tour, and the download
 (() => {
+  // where the full image lives; empty until it's up, and the page says so
+  const FULL = '';
+  const MINI = '/download/zurbax-mini.iso';
+
   const root = document.documentElement;
-  root.classList.remove('no-js');
+  root.classList.replace('no-js', 'js');
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const BASE = 'https://downloads.zurbax.com/2.0/';
 
-  const EDITIONS = {
-    'nvidia-rtx': ['Zurbax 2.0 for GeForce RTX', 'RTX 20, 30, 40 and 50 series and GTX 16 series. About 6.5 GB, for an 8 GB stick.'],
-    'nvidia-gtx': ['Zurbax 2.0 for GeForce GTX', 'GTX 10 series and older. About 6.5 GB, for an 8 GB stick.'],
-    'amd': ['Zurbax 2.0 for Radeon', 'RX 400 and newer, and Ryzen graphics. About 6.5 GB, for an 8 GB stick.'],
-    'amd-legacy': ['Zurbax 2.0 for older Radeon', 'HD 2000 to HD 7000, R7 and R9. About 6.5 GB, for an 8 GB stick.'],
-    'intel-arc': ['Zurbax 2.0 for Intel Arc', 'Arc graphics cards and Core Ultra. About 6.5 GB, for an 8 GB stick.'],
-    'intel': ['Zurbax 2.0 for Intel graphics', 'HD, UHD and Iris graphics. About 6.5 GB, for an 8 GB stick.'],
-    'mini': ['Zurbax 2.0 mini installer', 'Fits on a 2 GB stick. It finds your graphics card and downloads the right edition while it installs, so keep the computer online.'],
-  };
+  // the bar gets its rule once the page moves
+  const top = document.querySelector('.top');
+  const rule = () => top.classList.toggle('ruled', scrollY > 8);
+  addEventListener('scroll', rule, { passive: true });
+  rule();
 
-  // the bar turns to glass once the page moves; the progress line fills
-  const bar = document.querySelector('.bar');
-  const hero = document.querySelector('.hero-shot');
-  let ticking = false;
-  const onScroll = () => {
-    ticking = false;
-    const y = scrollY;
-    bar.classList.toggle('solid', y > 24);
-    const max = root.scrollHeight - innerHeight;
-    root.style.setProperty('--progress', max > 0 ? (y / max).toFixed(4) : 0);
-    if (still) return;
-    root.style.setProperty('--scroll', Math.min(y, 1200));
-    if (hero) {
-      const r = hero.getBoundingClientRect();
-      const t = Math.min(1, Math.max(0, 1 - (r.top - innerHeight * 0.25) / (innerHeight * 0.6)));
-      hero.style.setProperty('--hero-tilt', t.toFixed(3));
-    }
-  };
-  addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
-  onScroll();
+  // the hero monitor starts up: logo and spinner, then the desktop
+  const hero = document.querySelector('.hero-monitor');
+  setTimeout(() => hero.classList.add('on'), still ? 0 : 1500);
 
-  // reveal on scroll, and count the facts up when they arrive
-  const count = el => {
-    const end = +el.dataset.count;
-    if (still) { el.textContent = end; return; }
-    const t0 = performance.now();
-    const step = now => {
-      const p = Math.min(1, (now - t0) / 1400);
-      el.textContent = Math.round(end * (1 - Math.pow(1 - p, 3)));
-      if (p < 1) requestAnimationFrame(step);
+  // rise into place
+  const rise = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); rise.unobserve(e.target); }
+  }, { rootMargin: '0px 0px -60px 0px', threshold: 0.12 });
+  document.querySelectorAll('.rise').forEach(el => rise.observe(el));
+
+  // the tour: the stop in the middle of the screen picks the screenshot
+  const stops = [...document.querySelectorAll('.stop')];
+  const cur = document.querySelector('.tour .shot.current');
+  const nxt = document.querySelector('.tour .shot.next');
+  stops.forEach(s => s.style.setProperty('--shot', `url("${s.dataset.shot}")`));
+  stops.forEach(s => { const i = new Image(); i.src = s.dataset.shot; });
+  let showing = cur.getAttribute('src'), busy = false, want = null;
+  const swap = src => {
+    if (src === showing) return;
+    if (busy) { want = src; return; }
+    busy = true; showing = src;
+    nxt.src = src;
+    const done = () => {
+      cur.src = src;
+      nxt.classList.remove('wipe');
+      busy = false;
+      if (want && want !== showing) { const w = want; want = null; swap(w); } else want = null;
     };
-    requestAnimationFrame(step);
+    if (still) return done();
+    requestAnimationFrame(() => requestAnimationFrame(() => nxt.classList.add('wipe')));
+    setTimeout(done, 780);
   };
-  const seen = new IntersectionObserver(entries => {
+  const tour = new IntersectionObserver(entries => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
-      e.target.classList.add('in');
-      e.target.querySelectorAll('[data-count]').forEach(count);
-      seen.unobserve(e.target);
+      stops.forEach(s => s.classList.toggle('active', s === e.target));
+      swap(e.target.dataset.shot);
     }
-  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-  document.querySelectorAll('.reveal, .steps').forEach(el => seen.observe(el));
+  }, { rootMargin: '-45% 0px -45% 0px' });
+  stops.forEach(s => tour.observe(s));
+  stops[0].classList.add('active');
 
-  // screenshots lean toward the pointer
-  if (!still && matchMedia('(hover: hover)').matches) {
-    document.querySelectorAll('.tilt').forEach(el => {
-      el.addEventListener('pointermove', e => {
-        const r = el.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-        el.style.setProperty('--ry', `${(x - 0.5) * 6}deg`);
-        el.style.setProperty('--rx', `${(0.5 - y) * 6}deg`);
-        el.style.setProperty('--mx', `${x * 100}%`);
-        el.style.setProperty('--my', `${y * 100}%`);
-      });
-      el.addEventListener('pointerleave', () => {
-        el.style.setProperty('--rx', '0deg');
-        el.style.setProperty('--ry', '0deg');
-      });
-    });
+  // the download
+  const full = document.querySelector('[data-full]');
+  const fullNote = document.querySelector('[data-full-note]');
+  if (FULL) {
+    full.href = FULL;
+  } else {
+    full.closest('.dl-actions').classList.add('soon');
+    full.removeAttribute('href');
+    full.setAttribute('aria-disabled', 'true');
+    fullNote.textContent = 'The full 6.4 GB image is on its way. Until it arrives, the mini installer below sets up the same system.';
   }
+  document.querySelectorAll('[data-get]').forEach(a => a.addEventListener('click', e => {
+    if (!FULL) return; // the link scrolls to the download section
+    e.preventDefault();
+    start(FULL, 'Zurbax 2.0 (6.4 GB)');
+  }));
+  full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.0 (6.4 GB)'); });
+  document.querySelector('[data-mini]').addEventListener('click', e => { e.preventDefault(); start(MINI, 'the mini installer (69 MB)'); });
 
-  // the download chooser: vendor, then family, then the file
-  const dialog = document.getElementById('chooser');
-  const panes = dialog.querySelectorAll('.pane');
+  const next = document.getElementById('next');
   let opener = null;
-  const show = step => {
-    panes.forEach(p => { p.hidden = p.dataset.step !== step; });
-    const first = dialog.querySelector(`.pane[data-step="${step}"] button:not(.back), .pane[data-step="${step}"] a`);
-    if (first) first.focus({ preventScroll: true });
-  };
-  const open = () => {
+  function start(url, what) {
+    const a = document.createElement('a');
+    a.href = url; a.download = ''; a.style.display = 'none';
+    document.body.append(a); a.click(); a.remove();
+    next.querySelector('[data-next-kicker]').textContent = `Downloading ${what}`;
+    next.querySelector('[data-next-link]').href = url;
     opener = document.activeElement;
-    dialog.hidden = false;
+    next.hidden = false;
     document.body.style.overflow = 'hidden';
-    show('vendor');
-    requestAnimationFrame(() => dialog.classList.add('open'));
-  };
-  const close = () => {
-    dialog.classList.remove('open');
+    requestAnimationFrame(() => next.classList.add('open'));
+    next.querySelector('.next-close').focus({ preventScroll: true });
+  }
+  function close() {
+    next.classList.remove('open');
     document.body.style.overflow = '';
-    setTimeout(() => { dialog.hidden = true; }, 300);
+    setTimeout(() => { next.hidden = true; }, 300);
     if (opener) opener.focus({ preventScroll: true });
-  };
-  const pick = edition => {
-    const [name, note] = EDITIONS[edition];
-    dialog.querySelector('[data-name]').textContent = name;
-    dialog.querySelector('[data-note]').textContent = note;
-    const file = dialog.querySelector('[data-file]');
-    file.href = `${BASE}zurbax-${edition}.iso`;
-    file.setAttribute('download', '');
-    file.textContent = edition === 'mini' ? 'Download the mini installer' : 'Download Zurbax 2.0';
-    show('done');
-  };
-
-  document.querySelectorAll('[data-mini]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); open(); pick('mini'); }));
-  document.querySelectorAll('[data-download]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); open(); }));
-  dialog.addEventListener('click', e => {
-    if (e.target === dialog || e.target.closest('[data-close]')) return close();
-    const go = e.target.closest('[data-go]');
-    if (go) return show(go.dataset.go);
-    const ed = e.target.closest('[data-edition]');
-    if (ed) pick(ed.dataset.edition);
-  });
-  addEventListener('keydown', e => {
-    if (dialog.hidden) return;
-    if (e.key === 'Escape') close();
-    if (e.key === 'Tab') {
-      const f = [...dialog.querySelectorAll('button, a[href]')].filter(x => x.offsetParent);
-      if (!f.length) return;
-      const i = f.indexOf(document.activeElement);
-      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
-      else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
-    }
-  });
-  if (location.hash === '#get') open();
+  }
+  next.addEventListener('click', e => { if (e.target === next || e.target.closest('[data-close]')) close(); });
+  addEventListener('keydown', e => { if (!next.hidden && e.key === 'Escape') close(); });
 })();

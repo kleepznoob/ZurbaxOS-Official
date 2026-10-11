@@ -755,7 +755,7 @@ pkg_accountsservice() {
 pkg_upower() {
 	unpack upower
 	mesonbuild -Dintrospection=enabled -Dgtk-doc=false -Dman=false -Didevice=disabled -Dsystemdsystemunitdir=no \
-		-Dos_backend=linux -Dpolkit=disabled
+		-Dos_backend=linux -Dpolkit=disabled -Dudevrulesdir=/usr/lib/udev/rules.d -Dudevhwdbdir=/usr/lib/udev/hwdb.d
 	rm -f "$ROOT"/usr/libexec/upowerd "$ROOT"/usr/share/dbus-1/system-services/org.freedesktop.UPower.service
 }
 

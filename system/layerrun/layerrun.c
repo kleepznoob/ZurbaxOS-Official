@@ -671,6 +671,7 @@ static void preload_apps(const char *home)
 	if (ids.len) {
 		char *dir = path_dir(marker);
 		char *script = str_fmt("mkdir -p '%s' && flatpak remote-add --user --if-not-exists flathub /usr/share/zos/flathub.flatpakrepo && "
+				       "flatpak remote-modify --user --collection-id=org.flathub.Stable flathub && "
 				       "flatpak install --user --noninteractive -y%s flathub%s && touch '%s'", dir,
 				       sb_str(&repos), sb_str(&ids), marker);
 		char *argv[] = { "sh", "-c", script, NULL };
