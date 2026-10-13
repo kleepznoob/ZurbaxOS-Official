@@ -135,6 +135,7 @@ static void run_command(int fd, char *line)
 				if (shift)
 					input_key(KEY_LEFTSHIFT, false, false);
 			}
+			reply(fd, "ok\n");
 			return;
 		}
 		for (const char *t = arg; *t;) {

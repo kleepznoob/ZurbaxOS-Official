@@ -88,6 +88,7 @@ static void choose(int i)
 	S.clipboard_len = len;
 	str_copy(S.clipboard_mime, mime, sizeof S.clipboard_mime);
 	clip_history_add(mime, S.clipboard, len); /* to the top */
+	wl_clipboard_changed();
 	open_ = false;
 	shell_mark_dirty();
 	Window *w = S.focus;

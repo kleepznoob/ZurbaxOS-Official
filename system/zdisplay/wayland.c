@@ -78,6 +78,8 @@ struct WlClient {
 	int nout_fds;
 	WlResource **objs;
 	u32 nobjs;
+	WlResource *sobjs[128]; /* objects the server made (clipboard offers), ids from WL_SERVER_ID */
+	u32 next_sid;
 	/* input objects this client asked for */
 	WlResource *pointers[8], *keyboards[8], *relative[8];
 	int npointers, nkeyboards, nrelative;
@@ -383,6 +385,8 @@ static void event(WlResource *r, u32 op, const char *sig, ...)
 
 static WlResource *obj(WlClient *c, u32 id)
 {
+	if (id >= WL_SERVER_ID)
+		return id - WL_SERVER_ID < ARRAY_LEN(c->sobjs) ? c->sobjs[id - WL_SERVER_ID] : NULL;
 	return id < c->nobjs ? c->objs[id] : NULL;
 }
 
@@ -416,6 +420,21 @@ static WlResource *res_new(WlClient *c, u32 id, const WlInterface *iface, u32 ve
 	return r;
 }
 
+/* An object the server makes for the client, under an id from the server's range. */
+static WlResource *res_new_server(WlClient *c, const WlInterface *iface, u32 version, WlDispatch dispatch, void *data)
+{
+	for (u32 tries = 0; tries < ARRAY_LEN(c->sobjs); tries++) {
+		u32 k = c->next_sid++ % (u32)ARRAY_LEN(c->sobjs);
+		if (c->sobjs[k])
+			continue;
+		WlResource *r = NEW(WlResource);
+		r->id = WL_SERVER_ID + k, r->iface = iface, r->version = version, r->client = c, r->dispatch = dispatch, r->data = data;
+		c->sobjs[k] = r;
+		return r;
+	}
+	return NULL;
+}
+
 /* Drops an object: frees its state and tells the client the id is free again. */
 static void res_destroy(WlResource *r)
 {
@@ -426,6 +445,8 @@ static void res_destroy(WlResource *r)
 		r->destroy(r);
 	if (r->id < c->nobjs && c->objs[r->id] == r)
 		c->objs[r->id] = NULL;
+	if (r->id >= WL_SERVER_ID && r->id - WL_SERVER_ID < ARRAY_LEN(c->sobjs) && c->sobjs[r->id - WL_SERVER_ID] == r)
+		c->sobjs[r->id - WL_SERVER_ID] = NULL;
 	if (r->id < WL_SERVER_ID && !c->dead) {
 		WlResource *display = obj(c, 1);
 		if (display && display != r)
@@ -997,26 +1018,367 @@ static void xdg_output_manager_dispatch(WlResource *r, u32 op, WlArg *a)
 	}
 }
 
-/* ---- Clipboard (accepted, not yet connected to Zurbax's) ------------------------------------- */
+/* ---- Clipboard ------------------------------------------------------------------------------
+ * One clipboard for everything. What a Linux program copies is read at once
+ * into Zurbax's clipboard (as text, or as files when a file manager copies
+ * files), so Zurbax's apps paste it; other Linux programs get it straight
+ * from the program that copied it. What Zurbax's apps copy is offered to
+ * Linux programs as text (or as files) whenever one gets the keyboard. */
+
+typedef struct {
+	char *mimes[16];
+	int n;
+} DataSource;
+
+typedef struct {
+	u32 serial;          /* the selection it was made for */
+} DataOffer;
+
+static struct {
+	WlResource *devices[64];
+	int ndevices;
+	WlResource *source;  /* the Linux program's selection, or NULL: Zurbax's clipboard */
+	u32 serial;          /* goes up whenever the selection changes */
+	int fetch_fd;        /* reading the program's selection into Zurbax's clipboard */
+	StrBuf fetched;
+	bool fetch_files;
+} CB = { .fetch_fd = -1 };
+
+/* Writing clipboard data into a reader's pipe, a piece whenever it has room. */
+typedef struct {
+	int fd;
+	char *data;
+	usize len, off;
+} PipeWrite;
+
+static void on_pipe_writable(Loop *loop, int fd, u32 events, void *data)
+{
+	PipeWrite *pw = data;
+	bool done = (events & (EPOLLERR | EPOLLHUP)) != 0;
+	while (!done && pw->off < pw->len) {
+		long n = sys_write(fd, pw->data + pw->off, pw->len - pw->off);
+		if (n == -EAGAIN)
+			return;
+		if (n <= 0)
+			done = true;
+		else
+			pw->off += (usize)n;
+	}
+	loop_del_fd(loop, fd);
+	sys_close(fd);
+	mem_free(pw->data);
+	mem_free(pw);
+}
+
+static void pipe_write(int fd, const char *data, usize len)
+{
+	sys_fcntl(fd, F_SETFL, O_NONBLOCK);
+	PipeWrite *pw = NEW(PipeWrite);
+	pw->fd = fd;
+	pw->data = mem_alloc(len + 1);
+	memcpy(pw->data, data, len);
+	pw->len = len;
+	if (!loop_add_fd(S.loop, fd, EPOLLOUT, on_pipe_writable, pw)) {
+		sys_close(fd);
+		mem_free(pw->data);
+		mem_free(pw);
+	}
+}
+
+static bool is_text_mime(const char *m)
+{
+	return str_eq(m, "text/plain;charset=utf-8") || str_eq(m, "text/plain") || str_eq(m, "UTF8_STRING") || str_eq(m, "TEXT") ||
+	       str_eq(m, "STRING") || str_eq(m, "text/plain;charset=UTF-8");
+}
+
+/* "file:///home/a%20b" as "/home/a b" */
+static void uri_to_path(const char *uri, StrBuf *out)
+{
+	const char *p = uri;
+	if (str_starts(p, "file://"))
+		p += 7;
+	for (; *p && *p != '\r' && *p != '\n'; p++) {
+		if (*p == '%' && is_xdigit((u8)p[1]) && is_xdigit((u8)p[2])) {
+			int hi = (p[1] | 32) >= 'a' ? (p[1] | 32) - 'a' + 10 : p[1] - '0';
+			int lo = (p[2] | 32) >= 'a' ? (p[2] | 32) - 'a' + 10 : p[2] - '0';
+			sb_addc(out, (char)(hi * 16 + lo));
+			p += 2;
+		} else {
+			sb_addc(out, *p);
+		}
+	}
+}
+
+static void fetch_done(void)
+{
+	if (CB.fetch_fd >= 0) {
+		loop_del_fd(S.loop, CB.fetch_fd);
+		sys_close(CB.fetch_fd);
+		CB.fetch_fd = -1;
+	}
+	const char *d = sb_str(&CB.fetched);
+	if (CB.fetched.len) {
+		mem_free(S.clipboard);
+		if (CB.fetch_files) {
+			/* "copy\nfile:///…" (GNOME's), or a plain list of addresses */
+			StrBuf f = { 0 };
+			usize n;
+			char **lines = str_split(d, '\n', &n);
+			bool cut = n > 0 && str_starts(lines[0], "cut");
+			sb_adds(&f, cut ? "cut\n" : "copy\n");
+			for (usize i = 0; i < n; i++)
+				if (str_starts(str_trim(lines[i]), "file://")) {
+					uri_to_path(str_trim(lines[i]), &f);
+					sb_addc(&f, '\n');
+				}
+			str_split_free(lines, n);
+			S.clipboard = str_dup(sb_str(&f));
+			S.clipboard_len = f.len;
+			str_copy(S.clipboard_mime, CLIPBOARD_FILES, sizeof S.clipboard_mime);
+			sb_free(&f);
+		} else {
+			S.clipboard = mem_alloc(CB.fetched.len + 1);
+			memcpy(S.clipboard, d, CB.fetched.len + 1);
+			S.clipboard_len = CB.fetched.len;
+			str_copy(S.clipboard_mime, "text/plain", sizeof S.clipboard_mime);
+		}
+		clip_history_add(S.clipboard_mime, S.clipboard, S.clipboard_len);
+	}
+	sb_free(&CB.fetched);
+}
+
+static void on_fetch(Loop *loop, int fd, u32 events, void *data)
+{
+	UNUSED(loop), UNUSED(events), UNUSED(data);
+	char buf[16384];
+	for (;;) {
+		long n = sys_read(fd, buf, sizeof buf);
+		if (n == -EAGAIN)
+			return;
+		if (n <= 0 || CB.fetched.len > (16u << 20)) {
+			fetch_done();
+			return;
+		}
+		sb_add(&CB.fetched, buf, (usize)n);
+	}
+}
+
+/* Reads a Linux program's new selection into Zurbax's clipboard. */
+static void fetch_selection(WlResource *source)
+{
+	DataSource *ds = source->data;
+	const char *want = NULL;
+	bool files = false;
+	for (int i = 0; i < ds->n && !want; i++)
+		if (str_eq(ds->mimes[i], "x-special/gnome-copied-files"))
+			want = ds->mimes[i], files = true;
+	for (int i = 0; i < ds->n && !want; i++)
+		if (is_text_mime(ds->mimes[i]))
+			want = ds->mimes[i];
+	for (int i = 0; i < ds->n && !want; i++)
+		if (str_eq(ds->mimes[i], "text/uri-list"))
+			want = ds->mimes[i], files = true;
+	if (!want)
+		return;
+	if (CB.fetch_fd >= 0) {
+		loop_del_fd(S.loop, CB.fetch_fd);
+		sys_close(CB.fetch_fd);
+		CB.fetch_fd = -1;
+	}
+	sb_free(&CB.fetched);
+	int p[2];
+	if (sys_pipe2(p, O_CLOEXEC | O_NONBLOCK) < 0)
+		return;
+	event(source, WL_DATA_SOURCE_EV_SEND, "sh", want, p[1]);
+	sys_close(p[1]);
+	CB.fetch_fd = p[0];
+	CB.fetch_files = files;
+	loop_add_fd(S.loop, p[0], EPOLLIN, on_fetch, NULL);
+	flush_client(source->client);
+}
+
+static void data_offer_dispatch(WlResource *r, u32 op, WlArg *a)
+{
+	DataOffer *o = r->data;
+	if (op == WL_DATA_OFFER_DESTROY) {
+		mem_free(o);
+		r->data = NULL;
+		res_destroy(r);
+		return;
+	}
+	if (op != WL_DATA_OFFER_RECEIVE || a[1].fd < 0)
+		return;
+	const char *mime = a[0].s ? a[0].s : "";
+	int fd = a[1].fd;
+	if (o && o->serial == CB.serial && CB.source && !CB.source->client->dead) {
+		/* from another Linux program: it writes straight into the pipe */
+		event(CB.source, WL_DATA_SOURCE_EV_SEND, "sh", mime, fd);
+		flush_client(CB.source->client);
+		sys_close(fd);
+		return;
+	}
+	/* Zurbax's clipboard, as the kind asked for */
+	const char *data = S.clipboard ? S.clipboard : "";
+	usize len = S.clipboard ? S.clipboard_len : 0;
+	StrBuf conv = { 0 };
+	if (str_eq(S.clipboard_mime, CLIPBOARD_FILES) && S.clipboard) {
+		usize n;
+		char **lines = str_split(S.clipboard, '\n', &n);
+		bool gnome = str_eq(mime, "x-special/gnome-copied-files"), uris = gnome || str_eq(mime, "text/uri-list");
+		if (gnome)
+			sb_adds(&conv, n && str_starts(lines[0], "cut") ? "cut" : "copy");
+		int k = 0;
+		for (usize i = 1; i < n; i++) {
+			const char *path = str_trim(lines[i]);
+			if (*path != '/')
+				continue;
+			if (gnome || k)
+				sb_adds(&conv, uris && !gnome ? "\r\n" : "\n");
+			if (uris) {
+				sb_adds(&conv, "file://");
+				for (const char *c = path; *c; c++) {
+					if (is_alnum((u8)*c) || str_chr("/-_.~", *c))
+						sb_addc(&conv, *c);
+					else
+						sb_fmt(&conv, "%%%02X", (u8)*c);
+				}
+			} else {
+				sb_adds(&conv, path);
+			}
+			k++;
+		}
+		str_split_free(lines, n);
+		data = sb_str(&conv);
+		len = conv.len;
+	}
+	pipe_write(fd, data, len);
+	sb_free(&conv);
+}
+
+static void offer_mime(WlResource *offer, const char *m)
+{
+	event(offer, WL_DATA_OFFER_EV_OFFER, "s", m);
+}
+
+/* Tells a program what's on the clipboard: when it gets the keyboard, and
+ * when the clipboard changes while it has it. */
+static void offer_selection(WlClient *c)
+{
+	for (int i = 0; i < CB.ndevices; i++) {
+		WlResource *dev = CB.devices[i];
+		if (dev->client != c)
+			continue;
+		bool native = !CB.source || CB.source->client->dead;
+		if (native && !S.clipboard) {
+			event(dev, WL_DATA_DEVICE_EV_SELECTION, "o", 0);
+			continue;
+		}
+		DataOffer *o = NEW(DataOffer);
+		o->serial = CB.serial;
+		WlResource *offer = res_new_server(c, &wl_data_offer_interface, MIN(dev->version, 3u), data_offer_dispatch, o);
+		if (!offer) {
+			mem_free(o);
+			continue;
+		}
+		event(dev, WL_DATA_DEVICE_EV_DATA_OFFER, "n", offer->id);
+		if (!native) {
+			DataSource *ds = CB.source->data;
+			for (int k = 0; k < ds->n; k++)
+				offer_mime(offer, ds->mimes[k]);
+		} else if (str_eq(S.clipboard_mime, CLIPBOARD_FILES)) {
+			offer_mime(offer, "x-special/gnome-copied-files");
+			offer_mime(offer, "text/uri-list");
+			offer_mime(offer, "text/plain;charset=utf-8");
+			offer_mime(offer, "text/plain");
+		} else {
+			offer_mime(offer, "text/plain;charset=utf-8");
+			offer_mime(offer, "text/plain");
+			offer_mime(offer, "UTF8_STRING");
+			offer_mime(offer, "TEXT");
+			offer_mime(offer, "STRING");
+		}
+		event(dev, WL_DATA_DEVICE_EV_SELECTION, "o", offer->id);
+	}
+}
+
+/* Zurbax's clipboard changed (an app copied, the desktop, the history):
+ * it takes over from any Linux program's selection. */
+void wl_clipboard_changed(void)
+{
+	if (CB.source) {
+		event(CB.source, WL_DATA_SOURCE_EV_CANCELLED, "");
+		CB.source = NULL;
+	}
+	CB.serial++;
+	if (W.kb_focus)
+		offer_selection(W.kb_focus->client);
+}
+
+static void data_source_destroyed(WlResource *r)
+{
+	DataSource *ds = r->data;
+	if (CB.source == r)
+		CB.source = NULL;
+	if (ds) {
+		for (int i = 0; i < ds->n; i++)
+			mem_free(ds->mimes[i]);
+		mem_free(ds);
+	}
+}
 
 static void data_source_dispatch(WlResource *r, u32 op, WlArg *a)
 {
+	DataSource *ds = r->data;
 	if (op == WL_DATA_SOURCE_DESTROY)
-		plain_destroy(r, op, a);
+		res_destroy(r);
+	else if (op == WL_DATA_SOURCE_OFFER && ds && ds->n < (int)ARRAY_LEN(ds->mimes) && a[0].s)
+		ds->mimes[ds->n++] = str_dup(a[0].s);
+}
+
+static void data_device_destroyed(WlResource *r)
+{
+	for (int i = 0; i < CB.ndevices; i++)
+		if (CB.devices[i] == r) {
+			CB.devices[i] = CB.devices[--CB.ndevices];
+			break;
+		}
 }
 
 static void data_device_dispatch(WlResource *r, u32 op, WlArg *a)
 {
-	if (op == WL_DATA_DEVICE_RELEASE)
-		plain_destroy(r, op, a);
+	if (op == WL_DATA_DEVICE_RELEASE) {
+		res_destroy(r);
+	} else if (op == WL_DATA_DEVICE_SET_SELECTION) {
+		WlResource *src = a[0].obj;
+		if (src == CB.source)
+			return;
+		if (CB.source)
+			event(CB.source, WL_DATA_SOURCE_EV_CANCELLED, "");
+		CB.source = src;
+		CB.serial++;
+		if (src)
+			fetch_selection(src);
+		/* everyone else hears of it when they next get the keyboard; the focused one now */
+		if (W.kb_focus && W.kb_focus->client != r->client)
+			offer_selection(W.kb_focus->client);
+	}
 }
 
 static void data_device_manager_dispatch(WlResource *r, u32 op, WlArg *a)
 {
-	if (op == WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE)
-		res_new(r->client, a[0].u, &wl_data_source_interface, r->version, data_source_dispatch, NULL);
-	else if (op == WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE)
-		res_new(r->client, a[0].u, &wl_data_device_interface, r->version, data_device_dispatch, NULL);
+	if (op == WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE) {
+		WlResource *src = res_new(r->client, a[0].u, &wl_data_source_interface, r->version, data_source_dispatch, NEW(DataSource));
+		if (src)
+			src->destroy = data_source_destroyed;
+	} else if (op == WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE) {
+		WlResource *dev = res_new(r->client, a[0].u, &wl_data_device_interface, r->version, data_device_dispatch, NULL);
+		if (dev && CB.ndevices < (int)ARRAY_LEN(CB.devices)) {
+			dev->destroy = data_device_destroyed;
+			CB.devices[CB.ndevices++] = dev;
+			if (W.kb_focus && W.kb_focus->client == r->client)
+				offer_selection(r->client);
+		}
+	}
 }
 
 /* ---- Subsurfaces ---------------------------------------------------------------------------- */
@@ -1781,6 +2143,9 @@ static void client_kill(WlClient *c)
 		return;
 	c->dead = true;
 	loop_del_fd(S.loop, c->fd);
+	for (usize k = 0; k < ARRAY_LEN(c->sobjs); k++)
+		if (c->sobjs[k])
+			res_destroy(c->sobjs[k]);
 	/* objects go newest first, so surfaces leave before what they reference */
 	for (u32 id = c->nobjs; id-- > 0;)
 		if (c->objs[id])
@@ -2213,6 +2578,9 @@ static void kb_set_focus(WlSurface *s)
 	W.nkeys_down = 0;
 	if (s) {
 		u32 serial = next_serial();
+		/* the clipboard comes first, so a paste right away finds it */
+		if (!old || old->client != s->client)
+			offer_selection(s->client);
 		for (int k = 0; k < s->client->nkeyboards; k++)
 			event(s->client->keyboards[k], WL_KEYBOARD_EV_ENTER, "uoa", serial, s->res->id, W.keys_down, 0);
 		send_modifiers(s->client);

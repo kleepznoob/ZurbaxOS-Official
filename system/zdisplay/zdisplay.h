@@ -467,6 +467,7 @@ void wl_scroll_event(Window *w, f32 dx, f32 dy, u32 source, u32 phase);
 void wl_key_event(Window *w, u32 code, u32 state);
 void wl_focus_event(Window *w, bool focused);
 void wl_keymap_changed(void);
+void wl_clipboard_changed(void);          /* Zurbax's clipboard has something new */
 void wl_relative_motion(f32 dx, f32 dy, f32 raw_dx, f32 raw_dy);
 bool wl_pointer_locked(void);
 void wl_confine(f32 *x, f32 *y);

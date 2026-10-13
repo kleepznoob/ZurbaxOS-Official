@@ -562,6 +562,7 @@ static void clip_selected(bool cut)
 		S.clipboard_len = strlen(S.clipboard);
 		str_copy(S.clipboard_mime, CLIPBOARD_FILES, sizeof S.clipboard_mime);
 		clip_history_add(S.clipboard_mime, S.clipboard, S.clipboard_len);
+		wl_clipboard_changed();
 	}
 	mem_free(paths);
 }
