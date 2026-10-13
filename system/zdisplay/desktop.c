@@ -561,6 +561,7 @@ static void clip_selected(bool cut)
 		S.clipboard = str_fmt("%s\n%s", cut ? "cut" : "copy", paths);
 		S.clipboard_len = strlen(S.clipboard);
 		str_copy(S.clipboard_mime, CLIPBOARD_FILES, sizeof S.clipboard_mime);
+		clip_history_add(S.clipboard_mime, S.clipboard, S.clipboard_len);
 	}
 	mem_free(paths);
 }
@@ -1029,7 +1030,7 @@ bool desktop_key(u32 code, u32 state, u32 mods, const char *text)
 		paste(-1, 0);
 	} else if (code == KEY_N && mods == (MOD_CTRL | MOD_SHIFT)) {
 		make_new(true, -1, 0);
-	} else if (code >= KEY_UP && code <= KEY_DOWN && mods == 0 && nicons) {
+	} else if ((code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT) && mods == 0 && nicons) {
 		/* arrows walk the selection through the grid */
 		int cur = -1;
 		for (int i = 0; i < nicons && cur < 0; i++)

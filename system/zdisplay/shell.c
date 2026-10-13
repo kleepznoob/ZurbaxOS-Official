@@ -739,6 +739,7 @@ static void shell_frame(Ui *ui)
 		topbar_draw(ui);
 		taskbar_draw(ui);
 		desktop_menu_draw(ui);
+		clip_history_draw(ui);
 		notifications_draw(ui);
 		controlcenter_draw(ui);
 		if (S.switcher_open)
@@ -862,7 +863,7 @@ static bool shell_wants_pointer(void)
 		return false;
 	if (S.locked || S.launcher_open || S.notifications_open || S.session_menu_open || S.switcher_open || S.dock_menu[0])
 		return true;
-	if (desktop_wants_pointer())
+	if (desktop_wants_pointer() || clip_history_open())
 		return true;
 	if (S.py < shell_panel_height())
 		return true;
@@ -991,8 +992,42 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 			shell_lock();
 			return true;
 		}
+		/* Super+V: what was copied lately */
+		if ((mods & MOD_SUPER) && code == KEY_V && !S.locked) {
+			clip_history_toggle();
+			return true;
+		}
+		/* Shift+Print or Super+Shift+S: a screenshot of an area, dragged out */
+		if ((code == KEY_PRINT && (mods & MOD_SHIFT)) || ((mods & MOD_SUPER) && (mods & MOD_SHIFT) && code == KEY_S)) {
+			screenshot_request(NULL, 0, SCREENSHOT_AREA);
+			return true;
+		}
 		if (code == KEY_PRINT) {
 			shell_screenshot();
+			return true;
+		}
+		/* Ctrl+Alt+T opens a terminal, Super+E the files, as people are used to */
+		if ((mods & MOD_CTRL) && (mods & MOD_ALT) && code == KEY_T) {
+			shell_launch_new("forge");
+			return true;
+		}
+		if ((mods & MOD_SUPER) && code == KEY_E) {
+			shell_launch_new("vault");
+			return true;
+		}
+		/* Super+arrows: halves of the screen, maximize, and back (or away) */
+		if ((mods & MOD_SUPER) && !(mods & (MOD_CTRL | MOD_ALT)) && (code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT) && S.focus &&
+		    !(S.focus->flags & WIN_POPUP)) {
+			Window *w = S.focus;
+			if (code == KEY_UP)
+				window_maximize(w, true);
+			else if (code == KEY_DOWN) {
+				if (w->states & (STATE_MAXIMIZED | STATE_TILED_LEFT | STATE_TILED_RIGHT))
+					window_maximize(w, false);
+				else
+					window_minimize(w, true);
+			} else
+				window_tile(w, code == KEY_LEFT ? -1 : 1);
 			return true;
 		}
 		/* F11: full screen for the window in front (and game mode with it) */
@@ -1000,7 +1035,7 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 			window_fullscreen(S.focus, !(S.focus->states & STATE_FULLSCREEN));
 			return true;
 		}
-		if ((mods & MOD_CTRL) && (mods & MOD_ALT) && code >= KEY_LEFT && code <= KEY_DOWN) {
+		if ((mods & MOD_CTRL) && (mods & MOD_ALT) && (code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT)) {
 			Window *w = S.focus;
 			if (w) {
 				if (code == KEY_UP) window_maximize(w, true);
@@ -1009,7 +1044,7 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 			}
 			return true;
 		}
-		if (desktop_wants_keys() && !S.launcher_open) {
+		if ((desktop_wants_keys() || clip_history_open()) && !S.launcher_open) {
 			ui_input_key(ui, code, state, mods, text);
 			shell_mark_dirty();
 			return true;

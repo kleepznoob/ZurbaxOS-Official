@@ -203,6 +203,7 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 				S.clipboard_len = n > 0 ? (usize)n : 0;
 				S.clipboard[S.clipboard_len] = 0;
 				str_copy(S.clipboard_mime, m->mime, sizeof S.clipboard_mime);
+				clip_history_add(S.clipboard_mime, S.clipboard, S.clipboard_len);
 			}
 		}
 		break;

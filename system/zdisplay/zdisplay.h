@@ -494,6 +494,12 @@ void desktop_drop(const char *paths, f32 x, f32 y, u32 mods, bool from_desktop);
 const char *desktop_dir(void);
 Ui *desktop_aux_ui(Canvas *target, f32 w, f32 h); /* a drawing context for offscreen pictures */
 
+/* cliphistory.c: what was copied lately, on Super+V */
+void clip_history_add(const char *mime, const char *data, usize len);
+void clip_history_toggle(void);
+bool clip_history_open(void);
+void clip_history_draw(Ui *ui);
+
 /* dnd.c: files dragged between windows, the desktop and the taskbar */
 void dnd_start(Window *source, const char *paths, int count, Canvas *thumb); /* source NULL: the desktop */
 bool dnd_active(void);

@@ -337,19 +337,27 @@ void topbar_draw(Ui *ui)
 
 	/* the date and time */
 	char date[48], time[32];
+	bool spooky = false;
 	{
 		Civil c;
 		civil_local(time_unix(), &c);
+		spooky = c.month == 10 && c.day >= 24; /* the last week of October */
 		static const char *days[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 		static const char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 		fmt(date, sizeof date, "%s %d %s", days[c.wday], c.day, months[c.month - 1]);
 		format_clock(time, sizeof time, false);
 	}
 	f32 dw = ui_text_width(ui, medium, date), tw = ui_text_width(ui, bold, time);
-	f32 cw = dw + 8 + tw, cx = roundf((S.sw - cw) / 2);
+	f32 pk = spooky ? 22 : 0; /* a pumpkin before the date in Halloween week */
+	f32 cw = pk + dw + 8 + tw, cx = roundf((S.sw - cw) / 2);
 	clock_btn = rect(cx - 12, 0, cw + 24, h);
 	if (bar_button(ui, clock_btn, "tb-clock", S.notifications_open, &l, 3).clicked)
 		toggle_notifications();
+	if (spooky) {
+		ui_icon(ui, rect(cx, roundf((h - 16) / 2), 16, 16), "pumpkin", color_hex("#ff9a2e"));
+		cx += pk;
+		cw -= pk;
+	}
 	ui_text(ui, medium, cx, base, date, l.dim);
 	ui_text(ui, bold, cx + dw + 8, base, time, l.fg);
 	int unread = 0;
@@ -2001,6 +2009,8 @@ void lockscreen_draw(Ui *ui)
 	else
 		fmt(clock, sizeof clock, "%d:%02d", c.hour % 12 ? c.hour % 12 : 12, c.min);
 	fmt(date, sizeof date, "%s %d %s", WEEKDAY_NAMES[c.wday], c.day, MONTH_NAMES[c.month - 1]);
+	if (c.month == 10 && c.day == 31)
+		str_copy(date, "Happy Halloween", sizeof date);
 	f32 date_base = maxf(64, S.sh * 0.11f) - lift;
 	lock_text_center(ui, ui_font(ui, 22, 600), cx, date_base, date, k * 0.92f);
 	Font big = ui_font(ui, S.sh < 700 ? 104 : 136, 650);
