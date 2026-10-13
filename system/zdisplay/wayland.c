@@ -1032,7 +1032,15 @@ typedef struct {
 
 typedef struct {
 	u32 serial;          /* the selection it was made for */
+	bool dnd;            /* files dragged over the program, not the clipboard */
 } DataOffer;
+
+/* Files from the desktop or Vault being dragged over a Linux program. */
+static struct {
+	WlSurface *surface;  /* the surface they're over */
+	char *uris;          /* as text/uri-list */
+	char *paths;         /* one per line */
+} DD;
 
 static struct {
 	WlResource *devices[64];
@@ -1206,6 +1214,16 @@ static void data_offer_dispatch(WlResource *r, u32 op, WlArg *a)
 		res_destroy(r);
 		return;
 	}
+	if (o && o->dnd) {
+		/* dropped files: a copy, as a list of addresses or of paths */
+		if (op == WL_DATA_OFFER_SET_ACTIONS && r->version >= 3)
+			event(r, WL_DATA_OFFER_EV_ACTION, "u", 1);
+		else if (op == WL_DATA_OFFER_RECEIVE && a[1].fd >= 0) {
+			const char *d = a[0].s && str_eq(a[0].s, "text/uri-list") ? DD.uris : DD.paths;
+			pipe_write(a[1].fd, d ? d : "", d ? strlen(d) : 0);
+		}
+		return;
+	}
 	if (op != WL_DATA_OFFER_RECEIVE || a[1].fd < 0)
 		return;
 	const char *mime = a[0].s ? a[0].s : "";
@@ -1312,6 +1330,115 @@ void wl_clipboard_changed(void)
 	CB.serial++;
 	if (W.kb_focus)
 		offer_selection(W.kb_focus->client);
+}
+
+/* ---- Files dragged over Linux programs ---- */
+
+static WlSurface *pointer_target(Window *w, f32 x, f32 y, f32 *sx, f32 *sy);
+static void to_surface(Window *w, f32 x, f32 y, f32 *wx, f32 *wy);
+
+static bool has_device(WlClient *c)
+{
+	for (int i = 0; i < CB.ndevices; i++)
+		if (CB.devices[i]->client == c)
+			return true;
+	return false;
+}
+
+static void drag_leave(void)
+{
+	if (!DD.surface)
+		return;
+	for (int i = 0; i < CB.ndevices; i++)
+		if (CB.devices[i]->client == DD.surface->client)
+			event(CB.devices[i], WL_DATA_DEVICE_EV_LEAVE, "");
+	flush_client(DD.surface->client);
+	DD.surface = NULL;
+}
+
+/* Files dragged over a Linux program's window (kind DRAG_*); true if it can take them. */
+bool wl_drag_motion(Window *w, const char *paths, u32 kind)
+{
+	if (kind == DRAG_LEAVE || !w || !w->wl) {
+		drag_leave();
+		return false;
+	}
+	if (paths && (!DD.uris || !DD.paths || !str_starts(paths, DD.paths) || strlen(paths) > strlen(DD.paths) + 1)) {
+		mem_free(DD.paths);
+		mem_free(DD.uris);
+		DD.paths = str_dup(paths);
+		/* as text, no newline at the end: a terminal would run it */
+		for (usize l = strlen(DD.paths); l && (DD.paths[l - 1] == '\n' || DD.paths[l - 1] == ' '); l--)
+			DD.paths[l - 1] = 0;
+		StrBuf u = { 0 };
+		usize n;
+		char **lines = str_split(paths, '\n', &n);
+		for (usize i = 0; i < n; i++) {
+			const char *pth = str_trim(lines[i]);
+			if (*pth != '/')
+				continue;
+			sb_adds(&u, "file://");
+			for (const char *c = pth; *c; c++) {
+				if (is_alnum((u8)*c) || str_chr("/-_.~", *c))
+					sb_addc(&u, *c);
+				else
+					sb_fmt(&u, "%%%02X", (u8)*c);
+			}
+			sb_adds(&u, "\r\n");
+		}
+		str_split_free(lines, n);
+		DD.uris = str_dup(sb_str(&u));
+		sb_free(&u);
+	}
+	f32 wx, wy, sx, sy;
+	to_surface(w, S.px, S.py, &wx, &wy);
+	WlSurface *s = pointer_target(w, wx, wy, &sx, &sy);
+	if (!s || !has_device(s->client)) {
+		drag_leave();
+		return false;
+	}
+	if (s != DD.surface) {
+		drag_leave();
+		DD.surface = s;
+		u32 serial = next_serial();
+		for (int i = 0; i < CB.ndevices; i++) {
+			WlResource *dev = CB.devices[i];
+			if (dev->client != s->client)
+				continue;
+			DataOffer *o = NEW(DataOffer);
+			o->dnd = true;
+			WlResource *offer = res_new_server(s->client, &wl_data_offer_interface, MIN(dev->version, 3u), data_offer_dispatch, o);
+			if (!offer) {
+				mem_free(o);
+				continue;
+			}
+			event(dev, WL_DATA_DEVICE_EV_DATA_OFFER, "n", offer->id);
+			event(offer, WL_DATA_OFFER_EV_OFFER, "s", "text/uri-list");
+			event(offer, WL_DATA_OFFER_EV_OFFER, "s", "text/plain;charset=utf-8");
+			if (offer->version >= 3)
+				event(offer, WL_DATA_OFFER_EV_SOURCE_ACTIONS, "u", 1);
+			event(dev, WL_DATA_DEVICE_EV_ENTER, "uoffo", serial, s->res->id, FIX(sx), FIX(sy), offer->id);
+		}
+	} else {
+		for (int i = 0; i < CB.ndevices; i++)
+			if (CB.devices[i]->client == s->client)
+				event(CB.devices[i], WL_DATA_DEVICE_EV_MOTION, "uff", now_ms(), FIX(sx), FIX(sy));
+	}
+	flush_client(s->client);
+	return true;
+}
+
+/* Let go over a Linux program: true if it took them. */
+bool wl_drag_drop(Window *w)
+{
+	if (!DD.surface || !w || DD.surface->client != (w->wl ? ((WlSurface *)w->wl)->client : NULL))
+		return false;
+	for (int i = 0; i < CB.ndevices; i++)
+		if (CB.devices[i]->client == DD.surface->client)
+			event(CB.devices[i], WL_DATA_DEVICE_EV_DROP, "");
+	flush_client(DD.surface->client);
+	DD.surface = NULL; /* after a drop there's no leave */
+	return true;
 }
 
 static void data_source_destroyed(WlResource *r)

@@ -172,7 +172,11 @@ static int target(Window **win, char *app, usize cap)
 
 static void tell_window(Window *w, u32 kind)
 {
-	if (!w || !w->client || w->wl)
+	if (w && w->wl) {
+		wl_drag_motion(w, D.paths, kind);
+		return;
+	}
+	if (!w || !w->client)
 		return;
 	MsgDragOver m = { .kind = kind, .count = (u32)D.count, .mods = S.mods, .x = S.px - w->rect.x, .y = S.py - w->rect.y };
 	const char *nl = str_chr(D.paths, '\n');
@@ -295,7 +299,12 @@ static void finish(bool cancel)
 	char app[48];
 	int t = cancel ? T_NONE : target(&w, app, sizeof app);
 	bool done = false;
-	if (t == T_WINDOW && w->client && !w->wl) {
+	if (t == T_WINDOW && w->wl && wl_drag_drop(w)) {
+		/* a Linux program takes them through its own drag and drop */
+		window_raise(w);
+		window_focus(w);
+		done = true;
+	} else if (t == T_WINDOW && w->client && !w->wl) {
 		send_drop(w);
 		if (w->minimized)
 			window_minimize(w, false);

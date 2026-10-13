@@ -468,6 +468,8 @@ void wl_key_event(Window *w, u32 code, u32 state);
 void wl_focus_event(Window *w, bool focused);
 void wl_keymap_changed(void);
 void wl_clipboard_changed(void);          /* Zurbax's clipboard has something new */
+bool wl_drag_motion(Window *w, const char *paths, u32 kind); /* files dragged over a Linux program (DRAG_*) */
+bool wl_drag_drop(Window *w);             /* and let go there; true if it took them */
 void wl_relative_motion(f32 dx, f32 dy, f32 raw_dx, f32 raw_dy);
 bool wl_pointer_locked(void);
 void wl_confine(f32 *x, f32 *y);
