@@ -18,6 +18,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<script>
+/* Halloween: purple with a pumpkin through October, unless switched off */
+(() => { const d = new Date(), m = d.getMonth(), day = d.getDate(); let on = m === 9 || (m === 10 && day <= 2);
+  try { const s = localStorage.getItem('zurbax-halloween'); if (s) on = s === 'on'; } catch (e) {}
+  if (on) { document.documentElement.classList.add('halloween'); document.querySelector('meta[name=theme-color]').content = '#4a1d7a'; } })();
+</script>
 <script src="/site.js" defer></script>
 </head>
 <body>
@@ -25,6 +31,7 @@
 <header class="top">
   <a class="mark" href="/"><img src="/images/logo.svg" alt="" width="28" height="28"><span>Zurbax</span></a>
   <nav>
+    <button class="spooky" type="button" aria-label="Halloween look" aria-pressed="false" title="Halloween look"><svg class="pumpkin" viewBox="0 0 120 112" aria-hidden="true"><path d="M58 26c-1-9 3-17 12-20l3 6c-6 2-8 7-8 14z" fill="#3f6b2a"/><ellipse cx="34" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="86" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="46" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="74" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="60" cy="68" rx="27" ry="42" fill="#ff8f26"/></svg></button>
     <a href="#tour">Tour</a>
     <a href="#play">Games</a>
     <a href="#install">Install</a>
@@ -39,6 +46,7 @@
   <div class="hero-copy">
     <p class="version">Zurbax 2.0</p>
     <h1><span class="line">Welcome to</span> <span class="line">Zurbax.</span></h1>
+    <svg class="pumpkin" viewBox="0 0 120 112" aria-hidden="true"><path d="M58 26c-1-9 3-17 12-20l3 6c-6 2-8 7-8 14z" fill="#3f6b2a"/><ellipse cx="34" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="86" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="46" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="74" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="60" cy="68" rx="27" ry="42" fill="#ff8f26"/></svg>
   </div>
   <div class="hero-side">
     <p class="intro">A desktop operating system written from the first line, with Steam, thousands of apps and the drivers for every graphics card already on it. Start it from a USB stick and it's ready.</p>
@@ -55,7 +63,8 @@
   <div class="monitor hero-monitor" aria-label="Zurbax starting up, then its desktop">
     <div class="screen">
       <div class="boot" aria-hidden="true"><img src="/images/logo.svg" alt="" width="72" height="72"><i class="spin"></i></div>
-      <img class="shot" src="/images/desktop.jpg?v=3" alt="The Zurbax desktop" width="1280" height="720">
+      <img class="shot plain" src="/images/desktop.jpg?v=3" alt="The Zurbax desktop" width="1280" height="720">
+      <img class="shot spooky-shot" src="/images/desktop-halloween.jpg?v=1" alt="The Zurbax desktop with the Halloween theme" width="1280" height="720" loading="lazy">
     </div>
     <div class="stand" aria-hidden="true"></div>
   </div>

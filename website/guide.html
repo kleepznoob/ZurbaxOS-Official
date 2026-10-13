@@ -17,6 +17,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<script>
+/* Halloween: purple with a pumpkin through October, unless switched off */
+(() => { const d = new Date(), m = d.getMonth(), day = d.getDate(); let on = m === 9 || (m === 10 && day <= 2);
+  try { const s = localStorage.getItem('zurbax-halloween'); if (s) on = s === 'on'; } catch (e) {}
+  if (on) { document.documentElement.classList.add('halloween'); document.querySelector('meta[name=theme-color]').content = '#4a1d7a'; } })();
+</script>
 <script src="/guide.js" defer></script>
 </head>
 <body class="guide-page">
@@ -24,6 +30,7 @@
 <header class="top">
   <a class="mark" href="/"><img src="/images/logo.svg" alt="" width="28" height="28"><span>Zurbax</span></a>
   <nav>
+    <button class="spooky" type="button" aria-label="Halloween look" aria-pressed="false" title="Halloween look"><svg class="pumpkin" viewBox="0 0 120 112" aria-hidden="true"><path d="M58 26c-1-9 3-17 12-20l3 6c-6 2-8 7-8 14z" fill="#3f6b2a"/><ellipse cx="34" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="86" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="46" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="74" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="60" cy="68" rx="27" ry="42" fill="#ff8f26"/></svg></button>
     <a href="/#tour">Tour</a>
     <a href="/#play">Games</a>
     <a href="/guide" aria-current="page">Guide</a>
@@ -58,6 +65,7 @@
       <li><a href="#settings">Settings</a></li>
       <li><a href="#trouble">When something's wrong</a></li>
       <li><a href="#remove">Removing Zurbax</a></li>
+      <li><a href="#utm">Try it on an iPad or Mac</a></li>
       <li><a href="#faq">Questions</a></li>
     </ol>
   </nav>
@@ -236,12 +244,26 @@
       <p>If Zurbax has the whole disk, install another system over it.</p>
     </section>
 
+    <section id="utm" class="g-sec">
+      <h2>Try it on an iPad or Mac</h2>
+      <p>No PC at hand? UTM runs Zurbax in a window on an iPad, an iPhone or a Mac, by pretending to be a PC. It's free: <em>UTM SE</em> on the App Store for iPad and iPhone, or <a href="https://mac.getutm.app" target="_blank" rel="noopener">UTM</a> for the Mac.</p>
+      <ol class="g-steps">
+        <li><b>1</b><div><h3>Download the small image</h3><p>For a virtual machine, the small image is all you need: <a href="/download/2.0/zurbax-mini.iso">zurbax-mini.iso</a>, 72 MB. It has the whole desktop and every Zurbax app, without the PC drivers and Steam. In Safari it goes to Files, in Downloads.</p></div></li>
+        <li><b>2</b><div><h3>Make the machine</h3><p>In UTM, press <em>+</em>, then <em>Emulate</em>, then <em>Other</em>. For the boot device choose <em>CD/DVD Image</em>, press <em>Browse</em> and pick zurbax-mini.iso.</p></div></li>
+        <li><b>3</b><div><h3>Hardware</h3><p>Architecture <em>x86_64</em>, system <em>Standard PC (Q35)</em>, memory <em>2048 MB</em> (or 3072 if your device has 6 GB or more), <em>2</em> CPU cores. Storage: 8 GB is plenty. Skip the shared folder, name it Zurbax and save.</p></div></li>
+        <li><b>4</b><div><h3>One setting first</h3><p>Before the first start, edit the machine. Under <em>System</em>, set <em>CPU</em> to <em>Nehalem</em> or anything newer (Skylake-Client is fine). Under <em>QEMU</em>, check that <em>UEFI Boot</em> is on. Zurbax 2.1 and later won't need the CPU setting.</p></div></li>
+        <li><b>5</b><div><h3>Start it, and wait</h3><p>Press play. UTM SE can't use the iPad's full speed, so be patient: the Zurbax logo shows after a minute or three and the Welcome window after five to ten. Choose <em>Try Zurbax</em>.</p></div></li>
+      </ol>
+      <div class="g-note"><b>Getting around in UTM.</b> Tap to click and tap with two fingers to right-click. A keyboard and trackpad make it much nicer; UTM's toolbar has a button that brings up the on-screen keyboard. It's slow on an iPad because every instruction of the PC is worked out in software: on a real PC Zurbax is many times faster.</div>
+    </section>
+
     <section id="faq" class="g-sec">
       <h2>Questions</h2>
       <details class="g-q"><summary>Is Zurbax free?</summary><p>Yes. No accounts, no ads, no tracking.</p></details>
       <details class="g-q"><summary>Is it Linux?</summary><p>It runs on the Linux kernel, which is how it supports so much hardware. Everything above the kernel, from the desktop to the apps, is Zurbax's own. Linux apps from Flathub and Windows games through Proton run on it too.</p></details>
       <details class="g-q"><summary>Can I keep Windows?</summary><p>Yes. Choose <em>Install alongside Windows</em> and both stay on the computer. Pick one in the boot menu each time it starts.</p></details>
       <details class="g-q"><summary>Do I need an NVIDIA, AMD or Intel version?</summary><p>No. The one image has the drivers for every graphics card.</p></details>
+      <details class="g-q"><summary>Can I try it without a PC?</summary><p>Yes, in UTM on an iPad, iPhone or Mac: see <a href="#utm">Try it on an iPad or Mac</a>.</p></details>
       <details class="g-q"><summary>Does it work on a Mac?</summary><p>On Macs with Intel chips, yes: hold Option at start-up to choose the stick. Macs with Apple chips (M1 and later) aren't supported.</p></details>
     </section>
 
