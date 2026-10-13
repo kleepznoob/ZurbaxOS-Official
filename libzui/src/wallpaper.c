@@ -420,7 +420,7 @@ static Canvas *silk(int w, int h)
 
 /* ---- Halloween ------------------------------------------------------------------------ */
 
-/* Halloween: one pumpkin on purple. */
+/* Halloween: one jack-o'-lantern on purple. */
 static Canvas *halloween(int w, int h)
 {
 	Canvas *c = canvas_new(w, h);
@@ -449,6 +449,33 @@ static Canvas *halloween(int w, int h)
 		fill_path(c, &lobe, mat_identity(), &body, FILL_NONZERO);
 		path_free(&lobe);
 	}
+	/* the carved face, lit from inside: triangle eyes and nose, a toothy grin */
+	Path face = { 0 };
+	path_move(&face, cx - r * 0.52f, cy - r * 0.1f);
+	path_line(&face, cx - r * 0.16f, cy - r * 0.1f);
+	path_line(&face, cx - r * 0.34f, cy - r * 0.42f);
+	path_close(&face);
+	path_move(&face, cx + r * 0.52f, cy - r * 0.1f);
+	path_line(&face, cx + r * 0.16f, cy - r * 0.1f);
+	path_line(&face, cx + r * 0.34f, cy - r * 0.42f);
+	path_close(&face);
+	path_move(&face, cx, cy - r * 0.02f);
+	path_line(&face, cx - r * 0.09f, cy + r * 0.13f);
+	path_line(&face, cx + r * 0.09f, cy + r * 0.13f);
+	path_close(&face);
+	path_move(&face, cx - r * 0.6f, cy + r * 0.17f);
+	path_quad(&face, cx, cy + r * 0.36f, cx + r * 0.6f, cy + r * 0.17f);
+	path_line(&face, cx + r * 0.44f, cy + r * 0.42f);
+	path_line(&face, cx + r * 0.32f, cy + r * 0.32f);
+	path_line(&face, cx + r * 0.17f, cy + r * 0.52f);
+	path_line(&face, cx + r * 0.03f, cy + r * 0.4f);
+	path_line(&face, cx - r * 0.12f, cy + r * 0.54f);
+	path_line(&face, cx - r * 0.25f, cy + r * 0.36f);
+	path_line(&face, cx - r * 0.42f, cy + r * 0.46f);
+	path_close(&face);
+	Paint lit = paint_solid(color_hex("#ffd84a"));
+	fill_path(c, &face, mat_identity(), &lit, FILL_NONZERO);
+	path_free(&face);
 	return c;
 }
 
