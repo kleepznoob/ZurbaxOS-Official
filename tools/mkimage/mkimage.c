@@ -337,7 +337,7 @@ static int make_iso(const char *out, const char *efi, char **layer_paths, int nl
 	};
 	for (int i = 0; i < nlayers; i++)
 		files[2 + i] = (IsoFile){ layers[i].name, layers[i].byte, (u64)layers[i].size };
-	IsoVolume v = { .system_id = OS_NAME, .volume_id = "ZURBAX_2_0", .publisher = OS_NAME, .app_id = OS_PRETTY_NAME,
+	IsoVolume v = { .system_id = OS_NAME, .volume_id = "ZURBAX_2_1", .publisher = OS_NAME, .app_id = OS_PRETTY_NAME,
 			.boot_byte = fat_byte, .boot_size = fat_bytes, .volume_bytes = volume };
 	check(!failed && iso_write(fd, &v, files, 2 + nlayers), "ISO 9660 records");
 	sys_fsync(fd);

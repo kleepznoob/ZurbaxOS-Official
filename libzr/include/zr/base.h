@@ -41,7 +41,7 @@ typedef ptrdiff_t isize;
 /* The system's name and release, as people see it. (Inside, programs,
  * paths and settings keep the "zurbax" name it was started under.) */
 #define OS_NAME "Zurbax"
-#define OS_VERSION "2.0"
+#define OS_VERSION "2.1"
 #define OS_PRETTY_NAME OS_NAME " " OS_VERSION
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
