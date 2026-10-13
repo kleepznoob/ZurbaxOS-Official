@@ -6,10 +6,10 @@
 #include "zui.h"
 
 const char *const WALLPAPER_NAMES[] = { "silk", "horizon", "daybreak", "golden-rain", "lake", "ridgeline", "glacier", "nightfall", "ember",
-					"meadow" };
+					"meadow", "halloween" };
 const char *const WALLPAPER_TITLES[] = { "Silk", "Horizon", "Daybreak", "Golden Rain", "Lake at Dusk", "Ridgeline", "Glacier", "Nightfall",
-					 "Ember", "Meadow" };
-const int WALLPAPER_COUNT = 10;
+					 "Ember", "Meadow", "Halloween" };
+const int WALLPAPER_COUNT = 11;
 
 static f32 hash1(int i, u32 seed)
 {
@@ -418,6 +418,40 @@ static Canvas *silk(int w, int h)
 	return c;
 }
 
+/* ---- Halloween ------------------------------------------------------------------------ */
+
+/* Halloween: one pumpkin on purple. */
+static Canvas *halloween(int w, int h)
+{
+	Canvas *c = canvas_new(w, h);
+	f32 fw = (f32)w, fh = (f32)h;
+	Paint bg = paint_linear(0, 0, 0, fh, color_hex("#4a1d7a"), color_hex("#2a0e4a"));
+	fill_rect_paint(c, rect(0, 0, fw, fh), &bg);
+	f32 cx = fw / 2, cy = fh * 0.54f, r = fh * 0.2f;
+	/* the stem */
+	Path st = { 0 };
+	path_move(&st, cx - r * 0.09f, cy - r * 0.7f);
+	path_cubic(&st, cx - r * 0.11f, cy - r * 1.0f, cx + r * 0.04f, cy - r * 1.18f, cx + r * 0.28f, cy - r * 1.12f);
+	path_line(&st, cx + r * 0.25f, cy - r * 0.98f);
+	path_cubic(&st, cx + r * 0.12f, cy - r * 0.99f, cx + r * 0.09f, cy - r * 0.86f, cx + r * 0.11f, cy - r * 0.7f);
+	path_close(&st);
+	Paint stem = paint_solid(color_hex("#3f6b2a"));
+	fill_path(c, &st, mat_identity(), &stem, FILL_NONZERO);
+	path_free(&st);
+	/* the body: five lobes, the outer ones first */
+	static const f32 LOBE_X[] = { -0.55f, 0.55f, -0.28f, 0.28f, 0 };
+	static const f32 LOBE_W[] = { 0.5f, 0.5f, 0.52f, 0.52f, 0.46f };
+	static const char *const LOBE_C[] = { "#e06a12", "#e06a12", "#f07d1c", "#f07d1c", "#ff8f26" };
+	for (int i = 0; i < 5; i++) {
+		Path lobe = { 0 };
+		path_ellipse(&lobe, cx + LOBE_X[i] * r, cy, LOBE_W[i] * r, r * 0.8f);
+		Paint body = paint_solid(color_hex(LOBE_C[i]));
+		fill_path(c, &lobe, mat_identity(), &body, FILL_NONZERO);
+		path_free(&lobe);
+	}
+	return c;
+}
+
 Canvas *wallpaper_render(const char *name, int w, int h)
 {
 	if (!name || !*name || str_eq(name, "silk"))
@@ -426,6 +460,8 @@ Canvas *wallpaper_render(const char *name, int w, int h)
 		return dawn(&HORIZON, w, h);
 	if (str_eq(name, "daybreak"))
 		return dawn(&DAYBREAK, w, h);
+	if (str_eq(name, "halloween"))
+		return halloween(w, h);
 	if (name && str_eq(name, "golden-rain"))
 		return golden_rain(w, h);
 	/* A user picture? */

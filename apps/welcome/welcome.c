@@ -670,7 +670,7 @@ static void page_look(Ui *ui, Rect r)
 	cut_top(&r, 16);
 	ui_text_in(ui, ui_font(ui, 13, 700), cut_top(&r, 22), "Wallpaper", t->text, ALIGN_START);
 	cut_top(&r, 4);
-	int per = 5;
+	int per = 6;
 	f32 gw = (r.w - (f32)(per - 1) * 10) / (f32)per, gh = gw * 9 / 16;
 	int sel = wallpaper_index();
 	for (int i = 0; i < WALLPAPER_COUNT; i++) {

@@ -39,7 +39,7 @@ typedef struct {
 	Conf *conf;
 	char conf_path[512];
 	/* appearance */
-	Canvas *thumbs[8];
+	Canvas *thumbs[16];
 	Canvas *custom_thumb;
 	char custom_path[512];
 	/* users */
@@ -242,6 +242,55 @@ static void page_appearance(Ui *ui, Rect r)
 	b.h = 100000; /* scrolling content: room to lay out everything */
 	f32 top = b.y;
 	page_title(ui, &b, "Appearance", "Make Zurbax yours: style, colour and wallpaper.");
+
+	/* whole looks in one click: a style, an accent and a wallpaper that go together */
+	section(ui, &b, "Themes");
+	{
+		static const struct {
+			const char *name, *about, *wallpaper, *accent;
+			bool dark;
+		} THEMES[] = {
+			{ "Zurbax", "Silk, light, iris", "silk", "iris", false },
+			{ "Golden Rain", "Dusk gold, dark", "golden-rain", "gold", true },
+			{ "Halloween", "Pumpkin on purple, dark", "halloween", "orange", true },
+		};
+		Rect row = cut_top(&b, 118);
+		f32 cw = minf(200, (row.w - 2 * 14) / 3);
+		for (usize i = 0; i < ARRAY_LEN(THEMES); i++) {
+			Rect card = rect(row.x + (f32)i * (cw + 14), row.y, cw, row.h);
+			ui_push_id(ui, 300 + (i64)i);
+			UiInteract it = ui_interact(ui, ui_id(ui, "theme"), card);
+			ui_pop_id(ui);
+			bool on = str_eq(get("wallpaper", WALLPAPER_DEFAULT), THEMES[i].wallpaper) && get_bool("dark", false) == THEMES[i].dark &&
+				  str_eq(get("accent", THEME_ACCENT_DEFAULT), THEMES[i].accent);
+			Rect pic = rect(card.x, card.y, card.w, card.h - 34);
+			int wi = 0;
+			for (int k = 0; k < WALLPAPER_COUNT; k++)
+				if (str_eq(WALLPAPER_NAMES[k], THEMES[i].wallpaper))
+					wi = k;
+			ui_shadow(ui, pic, 8, 8, 3, color_hex("#00000030"));
+			ui_image(ui, pic, thumb_for(wi), 8, true);
+			/* a little window in the theme's style and accent */
+			Rect win = rect(pic.x + 12, pic.y + 14, pic.w * 0.55f, pic.h - 28);
+			ui_round(ui, win, 5, THEMES[i].dark ? color_hex("#2a2b30f0") : color_hex("#fafafaf0"));
+			ui_round(ui, rect(win.x + 8, win.y + win.h - 16, 34, 9), 4.5f, theme_accent_named(THEMES[i].accent));
+			ui_round(ui, rect(win.x + 8, win.y + 9, win.w - 16, 5), 2.5f, THEMES[i].dark ? color_hex("#ffffff30") : color_hex("#00000020"));
+			ui_round(ui, rect(win.x + 8, win.y + 18, win.w * 0.5f, 5), 2.5f, THEMES[i].dark ? color_hex("#ffffff20") : color_hex("#00000014"));
+			if (on)
+				ui_border(ui, rect_inset(pic, -3, -3), 10, 2.5f, t->accent);
+			else if (it.hovered)
+				ui_border(ui, rect_inset(pic, -2, -2), 9, 1.5f, color_with_alpha(t->text, 0x40));
+			ui_text_in(ui, ui_font(ui, 13, 600), rect(card.x, card.y + card.h - 32, card.w, 16), THEMES[i].name, t->text, ALIGN_CENTER);
+			ui_text_in(ui, ui_font(ui, 11, 400), rect(card.x, card.y + card.h - 15, card.w, 14), THEMES[i].about, t->text_dim, ALIGN_CENTER);
+			if (it.clicked) {
+				conf_set(st.conf, "wallpaper", THEMES[i].wallpaper);
+				conf_set(st.conf, "accent", THEMES[i].accent);
+				conf_set(st.conf, "accent_follow", "false");
+				set_bool(ui, "dark", THEMES[i].dark);
+			}
+		}
+	}
+	cut_top(&b, 12);
 
 	section(ui, &b, "Style");
 	Rect styles = cut_top(&b, 150);
