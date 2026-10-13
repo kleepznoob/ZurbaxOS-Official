@@ -504,6 +504,21 @@ static void shortcuts(Ui *ui)
 		find_next(ui, true);
 }
 
+/* Text files dragged onto the window open in tabs. */
+static void dropped(Ui *ui)
+{
+	if (!ui_drop_zone(ui, rect(0, 46, ui->width, ui->height - 46), "text-file", "Drop to open"))
+		return;
+	usize n;
+	char **lines = str_split(ui->drop_paths, '\n', &n);
+	for (usize i = 0; i < n && i < 12; i++) {
+		const char *p = str_trim(lines[i]);
+		if (*p == '/' && !dir_exists(p))
+			open_file(ui, p);
+	}
+	str_split_free(lines, n);
+}
+
 static void frame(Ui *ui)
 {
 	Theme *t = &ui->theme;
@@ -578,6 +593,7 @@ static void frame(Ui *ui)
 	char wt[200];
 	fmt(wt, sizeof wt, "%s — Writer", name);
 	ui_set_title(ui, wt);
+	dropped(ui);
 }
 
 static bool on_close(Ui *ui)

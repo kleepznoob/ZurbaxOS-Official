@@ -2216,6 +2216,24 @@ static void draw_page(Ui *ui, Tab *t, Rect view)
 	}
 }
 
+/* Pages, pictures and text dropped on the window open in new tabs. */
+static void dropped(Ui *ui)
+{
+	if (!ui_drop_zone(ui, rect(0, 80, ui->width, ui->height - 80), "globe", "Drop to open in a new tab"))
+		return;
+	usize n;
+	char **lines = str_split(ui->drop_paths, '\n', &n);
+	for (usize i = 0; i < n && i < 8; i++) {
+		const char *p = str_trim(lines[i]);
+		if (*p != '/' || dir_exists(p))
+			continue;
+		char *u = str_fmt("file://%s", p);
+		new_tab(u, true);
+		mem_free(u);
+	}
+	str_split_free(lines, n);
+}
+
 static void frame(Ui *ui)
 {
 	Theme *th = &ui->theme;
@@ -2405,6 +2423,7 @@ static void frame(Ui *ui)
 	fmt(title, sizeof title, "%s", t->doc ? tab_title(t) : "Drift");
 	if (!str_eq(title, ui->title))
 		ui_set_title(ui, title);
+	dropped(ui);
 }
 
 static void init(Ui *ui)

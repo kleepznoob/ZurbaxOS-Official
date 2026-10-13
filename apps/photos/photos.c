@@ -439,6 +439,8 @@ static void library(Ui *ui, Rect r)
 	ui_scroll_end(ui, y - r.y + 24);
 }
 
+static void dropped(Ui *ui);
+
 static void frame(Ui *ui)
 {
 	Theme *t = &ui->theme;
@@ -501,9 +503,27 @@ static void frame(Ui *ui)
 		ui_text_in(ui, ui_font(ui, 12, 500), cut_right(&tools, 120), count, t->text_dim, ALIGN_CENTER);
 		library(ui, win);
 	}
+	dropped(ui);
 }
 
 static const char *start_file;
+
+/* Pictures dragged onto the window open, with their folder alongside. */
+static void dropped(Ui *ui)
+{
+	Rect all = rect(0, 46, ui->width, ui->height - 46);
+	if (!ui_drop_zone(ui, all, "image", "Drop to view"))
+		return;
+	char *p = ui_dropped_file(ui, "png,jpg,jpeg,bmp,gif");
+	if (p) {
+		ph.from_file = true;
+		load_folder_of(p);
+		open_photo(ph.current);
+		mem_free(p);
+	} else {
+		flash(ui, "That isn't a picture Photos can show.");
+	}
+}
 
 static void init(Ui *ui)
 {

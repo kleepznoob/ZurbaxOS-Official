@@ -836,6 +836,33 @@ static void context_menu(Ui *ui, Session *s)
 	ui_popover_end(ui);
 }
 
+/* Files dropped on the terminal are typed in as paths, quoted, as in other terminals. */
+static void dropped(Ui *ui)
+{
+	Session *s = cur();
+	if (!ui->drop_paths || !s)
+		return;
+	usize n;
+	char **lines = str_split(ui->drop_paths, '\n', &n);
+	for (usize i = 0; i < n; i++) {
+		const char *p = str_trim(lines[i]);
+		if (*p != '/')
+			continue;
+		StrBuf q = { 0 };
+		sb_addc(&q, '\'');
+		for (const char *c = p; *c; c++) {
+			if (*c == '\'')
+				sb_adds(&q, "'\\''");
+			else
+				sb_addc(&q, *c);
+		}
+		sb_adds(&q, "' ");
+		write_pty(s, q.data, q.len);
+		sb_free(&q);
+	}
+	str_split_free(lines, n);
+}
+
 static void frame(Ui *ui)
 {
 	Theme *t = &ui->theme;
@@ -845,6 +872,7 @@ static void frame(Ui *ui)
 	fg.cell_h = roundf(fg.font_size * ui->theme.text_scale * 1.36f);
 	if (fg.ntabs == 0)
 		open_tab();
+	dropped(ui);
 	Session *s = cur();
 	ui_window_background(ui, TERM_BG);
 	Rect win = rect(0, 0, ui->width, ui->height);

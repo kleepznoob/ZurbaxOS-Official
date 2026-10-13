@@ -443,6 +443,11 @@ bool ui_drag_threshold(Ui *ui, UiInteract in);
 void ui_drag_files(Ui *ui, const char *paths, int count, const Canvas *thumb);  /* paths one per line */
 bool ui_drop_hover(Ui *ui, Rect r);       /* files are over r right now */
 void ui_drop_highlight(Ui *ui, Rect r, f32 radius); /* the accent frame of a place files can go */
+/* A whole area that takes files: lit up with an icon and a line while files
+ * are over it; true in the frame they're dropped there (ui->drop_paths). */
+bool ui_drop_zone(Ui *ui, Rect r, const char *icon, const char *text);
+/* The first dropped path whose extension is in `exts` ("png,jpg"), or NULL. */
+char *ui_dropped_file(Ui *ui, const char *exts);
 /* Asks the desktop for a screenshot (SCREENSHOT_SCREEN, _WINDOW or _AREA). When it
  * arrives, ui->screenshot_ready is set and ui->screenshot holds the picture (or NULL). */
 void ui_screenshot_request(Ui *ui, u32 mode);

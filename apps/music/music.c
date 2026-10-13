@@ -298,6 +298,36 @@ static void build_albums(void)
 	}
 }
 
+/* A file opened from Files or dropped on the window: play it, adding it if
+ * it's outside the library. */
+static void play_opened(void)
+{
+if (mu.open_path) {
+	int found = -1;
+	for (int i = 0; i < mu.ntracks; i++)
+		if (str_eq(mu.tracks[i].path, mu.open_path))
+			found = i;
+	AudioInfo info;
+	if (found < 0 && audio_probe(mu.open_path, &info, false)) {
+		mu.tracks = mem_realloc(mu.tracks, sizeof(Track) * (usize)(mu.ntracks + 1));
+		Track *t = &mu.tracks[mu.ntracks];
+		memset(t, 0, sizeof *t);
+		t->path = str_dup(mu.open_path);
+		t->duration = (f32)info.duration;
+		t->track = info.track;
+		str_copy(t->title, info.title, sizeof t->title);
+		str_copy(t->artist, info.artist, sizeof t->artist);
+		str_copy(t->album, info.album, sizeof t->album);
+		found = mu.ntracks++;
+		build_albums();
+	}
+	if (found >= 0)
+		play_from(&found, 1, 0);
+	mem_free(mu.open_path);
+	mu.open_path = NULL;
+}
+}
+
 static void library_ready(void)
 {
 	/* Keep playing the same song across a rescan. */
@@ -318,31 +348,7 @@ static void library_ready(void)
 	mutex_unlock(&mu.lock);
 	mem_free(playing);
 	atomic_store(&mu.scan_state, 0);
-	/* A file opened from Files: play it, adding it if it's outside the library. */
-	if (mu.open_path) {
-		int found = -1;
-		for (int i = 0; i < mu.ntracks; i++)
-			if (str_eq(mu.tracks[i].path, mu.open_path))
-				found = i;
-		AudioInfo info;
-		if (found < 0 && audio_probe(mu.open_path, &info, false)) {
-			mu.tracks = mem_realloc(mu.tracks, sizeof(Track) * (usize)(mu.ntracks + 1));
-			Track *t = &mu.tracks[mu.ntracks];
-			memset(t, 0, sizeof *t);
-			t->path = str_dup(mu.open_path);
-			t->duration = (f32)info.duration;
-			t->track = info.track;
-			str_copy(t->title, info.title, sizeof t->title);
-			str_copy(t->artist, info.artist, sizeof t->artist);
-			str_copy(t->album, info.album, sizeof t->album);
-			found = mu.ntracks++;
-			build_albums();
-		}
-		if (found >= 0)
-			play_from(&found, 1, 0);
-		mem_free(mu.open_path);
-		mu.open_path = NULL;
-	}
+	play_opened();
 }
 
 static void rescan(void)
@@ -1010,6 +1016,16 @@ static void frame(Ui *ui)
 	}
 	if (mu.playing_track >= 0 && !mu.paused)
 		ui->wake_at = ui->now + 0.25;
+	/* songs dropped on the window play */
+	if (ui_drop_zone(ui, rect(0, 0, ui->width, ui->height), "music", "Drop to play")) {
+		char *p = ui_dropped_file(ui, "mp3,flac,ogg,oga,opus,wav,m4a");
+		if (p) {
+			mem_free(mu.open_path);
+			mu.open_path = p;
+			if (atomic_load(&mu.scan_state) == 0)
+				play_opened();
+		}
+	}
 }
 
 static void init(Ui *ui)

@@ -978,6 +978,50 @@ void ui_drop_highlight(Ui *ui, Rect r, f32 radius)
 	ui_border(ui, r, radius, 2, ui->theme.accent);
 }
 
+bool ui_drop_zone(Ui *ui, Rect r, const char *icon, const char *text)
+{
+	bool over = ui_drop_hover(ui, r);
+	f32 k = ui_fade(ui, ui_id(ui, "__dropzone"), over, 0.12f);
+	if (k > 0.01f) {
+		Theme *t = &ui->theme;
+		Rect in = rect_inset(r, 10, 10);
+		ui_round(ui, in, 14, color_scale_alpha(t->dark ? color_hex("#1b1c20e0") : color_hex("#ffffffe0"), k));
+		ui_round(ui, in, 14, color_scale_alpha(color_with_alpha(t->accent, 0x22), k));
+		ui_border(ui, in, 14, 2, color_scale_alpha(t->accent, k));
+		f32 cy = in.y + in.h / 2 - 20;
+		ui_circle(ui, in.x + in.w / 2, cy, 30, color_scale_alpha(t->accent, k));
+		ui_icon(ui, rect(in.x + in.w / 2 - 15, cy - 15, 30, 30), icon, color_scale_alpha(t->on_accent, k));
+		ui_text_in(ui, ui_font(ui, 15, 600), rect(in.x, cy + 40, in.w, 24), text, color_scale_alpha(t->text, k), ALIGN_CENTER);
+	}
+	if (!ui->drop_paths)
+		return false;
+	Rect abs = { r.x + ui->ox, r.y + ui->oy, r.w, r.h };
+	return rect_contains(abs, ui->mx, ui->my);
+}
+
+char *ui_dropped_file(Ui *ui, const char *exts)
+{
+	if (!ui->drop_paths)
+		return NULL;
+	char *found = NULL;
+	usize n, ne;
+	char **lines = str_split(ui->drop_paths, '\n', &n);
+	char **want = str_split(exts ? exts : "", ',', &ne);
+	for (usize i = 0; i < n && !found; i++) {
+		const char *p = str_trim(lines[i]);
+		if (*p != '/')
+			continue;
+		bool ok = !exts;
+		for (usize k = 0; k < ne && !ok; k++)
+			ok = str_eq_nocase(path_ext(p), str_trim(want[k]));
+		if (ok)
+			found = str_dup(p);
+	}
+	str_split_free(lines, n);
+	str_split_free(want, ne);
+	return found;
+}
+
 bool ui_needs_frame(const Ui *ui)
 {
 	return ui->redraw;
