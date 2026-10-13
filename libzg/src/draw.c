@@ -1,5 +1,8 @@
 /* Shapes, shadows, blur and image blits built on the rasterizer. */
 #include "zg.h"
+/* SSE2 intrinsics without the C library: their header would pull in malloc.h */
+#define _MM_MALLOC_H_INCLUDED
+#include <emmintrin.h>
 
 static Rect clip_of(const Canvas *c)
 {
@@ -221,27 +224,107 @@ void draw_shadow(Canvas *c, Rect r, f32 radius, f32 blur, f32 dx, f32 dy, Color 
 
 /* ---- Blits -------------------------------------------------------------------------------- */
 
+/* Four premultiplied pixels over four, at coverage k (0..256), with SSE2
+ * (every x86-64 has it): what moving and fading windows spend their time on. */
+static inline __m128i blend4(__m128i d, __m128i s, __m128i k16)
+{
+	__m128i z = _mm_setzero_si128(), c255 = _mm_set1_epi16(255), c128 = _mm_set1_epi16(128);
+	__m128i sl = _mm_srli_epi16(_mm_mullo_epi16(_mm_unpacklo_epi8(s, z), k16), 8);
+	__m128i sh = _mm_srli_epi16(_mm_mullo_epi16(_mm_unpackhi_epi8(s, z), k16), 8);
+	__m128i al = _mm_shufflehi_epi16(_mm_shufflelo_epi16(sl, 0xff), 0xff);
+	__m128i ah = _mm_shufflehi_epi16(_mm_shufflelo_epi16(sh, 0xff), 0xff);
+	__m128i tl = _mm_add_epi16(_mm_mullo_epi16(_mm_unpacklo_epi8(d, z), _mm_sub_epi16(c255, al)), c128);
+	__m128i th = _mm_add_epi16(_mm_mullo_epi16(_mm_unpackhi_epi8(d, z), _mm_sub_epi16(c255, ah)), c128);
+	tl = _mm_srli_epi16(_mm_add_epi16(tl, _mm_srli_epi16(tl, 8)), 8);
+	th = _mm_srli_epi16(_mm_add_epi16(th, _mm_srli_epi16(th, 8)), 8);
+	return _mm_packus_epi16(_mm_add_epi16(sl, tl), _mm_add_epi16(sh, th));
+}
+
+/* A row of src over dst at coverage k: four at a time, opaque ones copied, clear ones skipped. */
+static void blend_row(u32 *d, const u32 *s, int n, u32 k)
+{
+	__m128i z = _mm_setzero_si128(), opaque = _mm_set1_epi32(255), k16 = _mm_set1_epi16((short)k);
+	int x = 0;
+	for (; x + 4 <= n; x += 4) {
+		__m128i sv = _mm_loadu_si128((const __m128i *)(s + x));
+		if (_mm_movemask_epi8(_mm_cmpeq_epi32(sv, z)) == 0xffff)
+			continue;
+		if (k == 256 && _mm_movemask_epi8(_mm_cmpeq_epi32(_mm_srli_epi32(sv, 24), opaque)) == 0xffff) {
+			_mm_storeu_si128((__m128i *)(d + x), sv);
+			continue;
+		}
+		_mm_storeu_si128((__m128i *)(d + x), blend4(_mm_loadu_si128((const __m128i *)(d + x)), sv, k16));
+	}
+	for (; x < n; x++) {
+		u32 p = s[x];
+		if (!p)
+			continue;
+		d[x] = k == 256 && (p >> 24) == 255 ? p : blend_premul(d[x], p, k);
+	}
+}
+
 void blit(Canvas *c, const Canvas *src, int dx, int dy, f32 opacity)
 {
 	Rect clip = clip_of(c);
 	int x0 = MAX(dx, (int)clip.x), y0 = MAX(dy, (int)clip.y);
 	int x1 = MIN(dx + src->width, (int)(clip.x + clip.w)), y1 = MIN(dy + src->height, (int)(clip.y + clip.h));
 	u32 k = (u32)(clampf(opacity, 0, 1) * 256 + 0.5f);
-	if (!k)
+	if (!k || x1 <= x0)
 		return;
-	for (int y = y0; y < y1; y++) {
-		u32 *d = canvas_row(c, y);
-		const u32 *s = canvas_row(src, y - dy) - dx;
-		for (int x = x0; x < x1; x++) {
-			u32 p = s[x];
-			if (!p)
-				continue;
-			if (k == 256 && (p >> 24) == 255)
-				d[x] = p;
-			else
-				d[x] = blend_premul(d[x], p, k);
-		}
+	for (int y = y0; y < y1; y++)
+		blend_row(canvas_row(c, y) + x0, canvas_row(src, y - dy) - dx + x0, x1 - x0, k);
+}
+
+/* Two premultiplied pixels mixed, w/256 of the second (both pairs of channels at once). */
+static inline u32 lerp_px(u32 a, u32 b, u32 w)
+{
+	u32 iw = 256 - w;
+	u32 rb = ((((a & 0xff00ffu) * iw + (b & 0xff00ffu) * w)) >> 8) & 0xff00ffu;
+	u32 ag = (((a >> 8) & 0xff00ffu) * iw + ((b >> 8) & 0xff00ffu) * w) & 0xff00ff00u;
+	return rb | ag;
+}
+
+/* A picture stretched into an axis-aligned rectangle, smoothly (bilinear),
+ * without the general rasterizer: windows growing, shrinking and flying to
+ * the taskbar in their animations. Edges land on whole pixels. */
+static void blit_scaled_fast(Canvas *c, const Canvas *src, Rect sr, Rect dst, f32 opacity)
+{
+	Rect clip = clip_of(c);
+	int x0 = MAX((int)floorf(dst.x + 0.5f), (int)clip.x), x1 = MIN((int)floorf(dst.x + dst.w + 0.5f), (int)(clip.x + clip.w));
+	int y0 = MAX((int)floorf(dst.y + 0.5f), (int)clip.y), y1 = MIN((int)floorf(dst.y + dst.h + 0.5f), (int)(clip.y + clip.h));
+	u32 k = (u32)(clampf(opacity, 0, 1) * 256 + 0.5f);
+	if (x1 <= x0 || y1 <= y0 || !k)
+		return;
+	f32 fx = sr.w / dst.w, fy = sr.h / dst.h;
+	int minx = CLAMP((int)sr.x, 0, src->width - 1), maxx = CLAMP((int)ceilf(sr.x + sr.w) - 1, 0, src->width - 1);
+	int miny = CLAMP((int)sr.y, 0, src->height - 1), maxy = CLAMP((int)ceilf(sr.y + sr.h) - 1, 0, src->height - 1);
+	/* the columns are the same on every row: worked out once */
+	int n = x1 - x0;
+	int *xa = mem_alloc(sizeof(int) * (usize)n * 2);
+	int *xb = xa + n;
+	u8 *wx = mem_alloc((usize)n);
+	u32 *line = mem_alloc(sizeof(u32) * (usize)n);
+	for (int i = 0; i < n; i++) {
+		f32 u = ((f32)(x0 + i) + 0.5f - dst.x) * fx + sr.x - 0.5f, uf = floorf(u);
+		xa[i] = CLAMP((int)uf, minx, maxx);
+		xb[i] = CLAMP((int)uf + 1, minx, maxx);
+		wx[i] = (u8)((u - uf) * 256);
 	}
+	for (int y = y0; y < y1; y++) {
+		f32 v = ((f32)y + 0.5f - dst.y) * fy + sr.y - 0.5f, vf = floorf(v);
+		u32 wy = (u32)((v - vf) * 256);
+		const u32 *ra = canvas_row(src, CLAMP((int)vf, miny, maxy)), *rb = canvas_row(src, CLAMP((int)vf + 1, miny, maxy));
+		if (wy == 0)
+			for (int i = 0; i < n; i++)
+				line[i] = lerp_px(ra[xa[i]], ra[xb[i]], wx[i]);
+		else
+			for (int i = 0; i < n; i++)
+				line[i] = lerp_px(lerp_px(ra[xa[i]], ra[xb[i]], wx[i]), lerp_px(rb[xa[i]], rb[xb[i]], wx[i]), wy);
+		blend_row(canvas_row(c, y) + x0, line, n, k);
+	}
+	mem_free(xa);
+	mem_free(wx);
+	mem_free(line);
 }
 
 void copy_pixels(Canvas *c, const Canvas *src, int sx, int sy, int dx, int dy, int w, int h)
@@ -286,7 +369,19 @@ static void blit_scaled_impl(Canvas *c, const Canvas *src, Rect sr, Rect dst, f3
 
 void blit_scaled(Canvas *c, const Canvas *src, Rect sr, Rect dst, f32 opacity)
 {
-	blit_scaled_impl(c, src, sr, dst, 0, opacity);
+	if (rect_empty(dst) || rect_empty(sr))
+		return;
+	/* shrinking a lot: a box-filtered copy first, so it doesn't shimmer */
+	f32 sx = dst.w / sr.w, sy = dst.h / sr.h;
+	if (sx < 0.5f || sy < 0.5f) {
+		int tw = MAX(1, (int)ceilf((f32)src->width * sx)), th = MAX(1, (int)ceilf((f32)src->height * sy));
+		Canvas *tmp = canvas_resize(src, tw, th);
+		f32 kx = (f32)tw / (f32)src->width, ky = (f32)th / (f32)src->height;
+		blit_scaled_fast(c, tmp, rect(sr.x * kx, sr.y * ky, sr.w * kx, sr.h * ky), dst, opacity);
+		canvas_free(tmp);
+		return;
+	}
+	blit_scaled_fast(c, src, sr, dst, opacity);
 }
 
 void blit_scaled_round(Canvas *c, const Canvas *src, Rect sr, Rect dst, f32 radius, f32 opacity)
