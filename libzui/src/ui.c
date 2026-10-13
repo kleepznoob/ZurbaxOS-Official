@@ -158,11 +158,17 @@ f32 ui_fade(Ui *ui, UiId id, bool on, f32 seconds)
 
 /* ---- Input ------------------------------------------------------------------------------ */
 
+static bool point_in(Ui *ui, Rect r, f32 x, f32 y);
+
 bool ui_mouse_in(Ui *ui, Rect r)
 {
 	if (!ui->pointer_inside)
 		return false;
-	f32 x = ui->mx, y = ui->my;
+	return point_in(ui, r, ui->mx, ui->my);
+}
+
+static bool point_in(Ui *ui, Rect r, f32 x, f32 y)
+{
 	Rect abs = { r.x + ui->ox, r.y + ui->oy, r.w, r.h };
 	if (!rect_contains(abs, x, y) || !rect_contains(ui->clip, x, y))
 		return false;
@@ -182,8 +188,10 @@ UiInteract ui_interact(Ui *ui, UiId id, Rect r)
 		ui->hot = id;
 		it.hovered = true;
 	}
-	if (inside && ui->pressed[BUTTON_LEFT]) {
+	/* where the press happened counts, though the pointer may have moved on since */
+	if (ui->pressed[BUTTON_LEFT] && point_in(ui, r, ui->press_x, ui->press_y)) {
 		ui->active = id;
+		ui->pressed_owner = id;
 		it.pressed_now = true;
 	}
 	if (ui->active == id) {
@@ -197,8 +205,10 @@ UiInteract ui_interact(Ui *ui, UiId id, Rect r)
 			it.held = false;
 		}
 	}
-	if (inside && ui->released[BUTTON_RIGHT])
+	if (inside && ui->released[BUTTON_RIGHT]) {
 		it.right_clicked = true;
+		ui->right_owner = id;
+	}
 	/* A click usually changes state that was already drawn this frame. */
 	if (it.clicked || it.right_clicked || it.pressed_now)
 		ui->redraw = true;
@@ -651,6 +661,9 @@ void ui_free(Ui *ui)
 	mem_free(ui->clipboard_out);
 	mem_free(ui->paste_in);
 	mem_free(ui->drop_paths);
+	mem_free(ui->drag_out);
+	canvas_free(ui->drag_out_thumb);
+	mem_free(ui->clip_files);
 	mem_free(ui);
 }
 
@@ -700,6 +713,7 @@ void ui_input_pointer(Ui *ui, u32 kind, f32 x, f32 y, u32 button, u32 mods)
 			ui->pressed[button] = true;
 		}
 		if (button == BUTTON_LEFT) {
+			ui->press_x = x, ui->press_y = y;
 			f64 t = (f64)time_mono_ns() / 1e9;
 			bool near = fabsf(x - last_click_x) < 5 && fabsf(y - last_click_y) < 5;
 			ui->click_count = (t - last_click_time < 0.4 && near) ? ui->click_count + 1 : 1;
@@ -920,6 +934,50 @@ void ui_input_drop(Ui *ui, const char *paths)
 	ui->redraw = true;
 }
 
+/* ---- Drag and drop ------------------------------------------------------------------ */
+
+bool ui_drag_threshold(Ui *ui, UiInteract in)
+{
+	if (!in.held || ui->drag_out)
+		return false;
+	f32 dx = ui->mx - ui->press_x, dy = ui->my - ui->press_y;
+	return dx * dx + dy * dy > 6 * 6;
+}
+
+void ui_drag_files(Ui *ui, const char *paths, int count, const Canvas *thumb)
+{
+	if (!paths || !*paths || count <= 0)
+		return;
+	mem_free(ui->drag_out);
+	canvas_free(ui->drag_out_thumb);
+	ui->drag_out = str_dup(paths);
+	ui->drag_out_count = count;
+	ui->drag_out_thumb = NULL;
+	if (thumb) {
+		/* a small copy: it travels to the desktop with the files */
+		f32 k = minf(1, 96.0f / (f32)MAX(thumb->width, thumb->height));
+		ui->drag_out_thumb = canvas_resize(thumb, MAX(1, (int)((f32)thumb->width * k)), MAX(1, (int)((f32)thumb->height * k)));
+	}
+	/* the desktop has the pointer now: the press is over here */
+	ui->active = 0;
+	ui->down[BUTTON_LEFT] = false;
+	ui->redraw = true;
+}
+
+bool ui_drop_hover(Ui *ui, Rect r)
+{
+	if (!ui->drag_over)
+		return false;
+	Rect abs = { r.x + ui->ox, r.y + ui->oy, r.w, r.h };
+	return rect_contains(abs, ui->drag_x, ui->drag_y) && rect_contains(ui->clip, ui->drag_x, ui->drag_y);
+}
+
+void ui_drop_highlight(Ui *ui, Rect r, f32 radius)
+{
+	ui_round(ui, r, radius, color_with_alpha(ui->theme.accent, 0x26));
+	ui_border(ui, r, radius, 2, ui->theme.accent);
+}
+
 bool ui_needs_frame(const Ui *ui)
 {
 	return ui->redraw;
@@ -986,7 +1044,20 @@ bool ui_frame(Ui *ui, void (*draw)(Ui *ui))
 	if (pad_dirs && ui->now >= ui->pad_repeat_at)
 		ui->pad_repeat_at = ui->now + 0.09;
 
+	ui->pressed_owner = ui->right_owner = 0;
+	ui->header_move = ui->header_max = ui->header_menu = false;
 	draw(ui);
+	/* the header bar moves the window only if no widget on it took the press */
+	if (ui->header_id) {
+		if (ui->pressed_owner == ui->header_id) {
+			if (ui->header_move)
+				ui->begin_move = true;
+			if (ui->header_max)
+				ui->action = ACTION_TOGGLE_MAXIMIZE;
+		}
+		if (ui->header_menu && ui->right_owner == ui->header_id)
+			ui->action = ACTION_SHOW_MENU;
+	}
 	if (pad_dirs && ui->pad_keys & 15)
 		if (!ui->wake_at || ui->pad_repeat_at < ui->wake_at)
 			ui->wake_at = ui->pad_repeat_at;
@@ -1019,5 +1090,7 @@ bool ui_frame(Ui *ui, void (*draw)(Ui *ui))
 	ui->drop_paths = NULL;
 	mem_free(ui->paste_in);
 	ui->paste_in = NULL;
+	mem_free(ui->clip_files);
+	ui->clip_files = NULL;
 	return ui->redraw;
 }

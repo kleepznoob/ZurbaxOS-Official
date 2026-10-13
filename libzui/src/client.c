@@ -152,6 +152,21 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		break;
 	case MSG_CLIPBOARD_DATA: {
 		const MsgClipboard *m = (const MsgClipboard *)buf;
+		if (str_eq(m->mime, CLIPBOARD_FILES)) {
+			/* files asked for with ui_clipboard_files_request */
+			mem_free(ui->clip_files);
+			ui->clip_files = NULL;
+			if (nfds > 0 && m->size && m->size < (16u << 20)) {
+				char *text = mem_alloc(m->size + 1);
+				long n = sys_pread(fds[0], text, m->size, 0);
+				text[n > 0 ? n : 0] = 0;
+				ui->clip_files = text;
+			} else {
+				ui->clip_files = str_dup("");
+			}
+			c->dirty = true;
+			break;
+		}
 		/* Only text can be pasted into text fields. */
 		if (nfds > 0 && m->size < (64u << 20) && (str_starts(m->mime, "text/") || !m->mime[0])) {
 			char *text = mem_alloc(m->size + 1);
@@ -192,8 +207,26 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		break;
 	case MSG_DROP_FILES: {
 		const MsgDropFiles *m = (const MsgDropFiles *)buf;
-		ui->mx = m->x, ui->my = m->y;
-		ui_input_drop(ui, m->paths);
+		ui->drag_over = false;
+		if (nfds > 0 && m->size && m->size < (16u << 20)) {
+			char *paths = mem_alloc(m->size + 1);
+			long n = sys_pread(fds[0], paths, m->size, 0);
+			paths[n > 0 ? n : 0] = 0;
+			ui->mx = m->x, ui->my = m->y;
+			ui->drop_mods = m->mods;
+			ui_input_drop(ui, paths);
+			mem_free(paths);
+		}
+		c->dirty = true;
+		break;
+	}
+	case MSG_DRAG_OVER: {
+		const MsgDragOver *m = (const MsgDragOver *)buf;
+		ui->drag_over = m->kind != DRAG_LEAVE;
+		ui->drag_x = m->x, ui->drag_y = m->y;
+		ui->drag_count = (int)m->count;
+		ui->mods = m->mods;
+		str_copy(ui->drag_first, m->first, sizeof ui->drag_first);
 		c->dirty = true;
 		break;
 	}
@@ -258,6 +291,34 @@ static void process_requests(Client *c)
 		ui_clipboard_set(ui, ui->clipboard_out);
 		mem_free(ui->clipboard_out);
 		ui->clipboard_out = NULL;
+	}
+	if (ui->drag_out) {
+		usize n = strlen(ui->drag_out);
+		int fds[2] = { (int)sys_memfd_create("zui-drag", MFD_CLOEXEC), -1 };
+		MsgDragStart m = { .count = (u32)ui->drag_out_count, .size = (u32)n };
+		if (fds[0] >= 0) {
+			write_all(fds[0], ui->drag_out, n);
+			Canvas *t = ui->drag_out_thumb;
+			if (t && (fds[1] = (int)sys_memfd_create("zui-drag-picture", MFD_CLOEXEC)) >= 0) {
+				for (int y = 0; y < t->height; y++)
+					write_all(fds[1], canvas_row(t, y), (usize)t->width * 4);
+				m.thumb_w = (u32)t->width, m.thumb_h = (u32)t->height;
+			}
+			send_msg(c, &m, MSG_DRAG_START, sizeof m, fds, fds[1] >= 0 ? 2 : 1);
+		}
+		for (int i = 0; i < 2; i++)
+			if (fds[i] >= 0)
+				sys_close(fds[i]);
+		mem_free(ui->drag_out);
+		ui->drag_out = NULL;
+		canvas_free(ui->drag_out_thumb);
+		ui->drag_out_thumb = NULL;
+	}
+	if (ui->want_files) {
+		MsgClipboard m = { .size = 0 };
+		str_copy(m.mime, CLIPBOARD_FILES, sizeof m.mime);
+		send_msg(c, &m, MSG_CLIPBOARD_GET, sizeof m, NULL, 0);
+		ui->want_files = false;
 	}
 	if (ui->want_paste) {
 		MsgClipboard m = { .size = 0 };
@@ -438,6 +499,19 @@ void ui_clipboard_set_data(Ui *ui, const char *mime, const void *data, usize n)
 void ui_clipboard_set(Ui *ui, const char *text)
 {
 	ui_clipboard_set_data(ui, "text/plain", text, strlen(text));
+}
+
+void ui_clipboard_set_files(Ui *ui, const char *paths, bool cut)
+{
+	char *data = str_fmt("%s\n%s", cut ? "cut" : "copy", paths);
+	ui_clipboard_set_data(ui, CLIPBOARD_FILES, data, strlen(data));
+	mem_free(data);
+}
+
+void ui_clipboard_files_request(Ui *ui)
+{
+	ui->want_files = true;
+	ui->redraw = true;
 }
 
 void ui_screenshot_request(Ui *ui, u32 mode)

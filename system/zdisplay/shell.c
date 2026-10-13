@@ -501,7 +501,7 @@ void shell_services_tick(void)
 	while ((pid = sys_wait4(-1, &st, WNOHANG, NULL)) > 0) {
 		if (pid == zportal_pid)
 			zportal_pid = 0;
-		else
+		else if (!desktop_reaped((int)pid, st))
 			gnome_reaped((int)pid, st);
 	}
 	/* in a GNOME session GNOME's own portals answer */
@@ -738,6 +738,7 @@ static void shell_frame(Ui *ui)
 			launcher_draw(ui);
 		topbar_draw(ui);
 		taskbar_draw(ui);
+		desktop_menu_draw(ui);
 		notifications_draw(ui);
 		controlcenter_draw(ui);
 		if (S.switcher_open)
@@ -774,6 +775,7 @@ void shell_init(void)
 	ui_set_theme(ui, &S.theme);
 	ui->window_focused = true;
 	shell_reload_apps();
+	desktop_init();
 	S.brightness = -1;
 	S.battery = -1;
 	S.volume = S.volume ? S.volume : 60;
@@ -859,6 +861,8 @@ static bool shell_wants_pointer(void)
 	if (S.setup_mode)
 		return false;
 	if (S.locked || S.launcher_open || S.notifications_open || S.session_menu_open || S.switcher_open || S.dock_menu[0])
+		return true;
+	if (desktop_wants_pointer())
 		return true;
 	if (S.py < shell_panel_height())
 		return true;
@@ -1005,6 +1009,11 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 			}
 			return true;
 		}
+		if (desktop_wants_keys() && !S.launcher_open) {
+			ui_input_key(ui, code, state, mods, text);
+			shell_mark_dirty();
+			return true;
+		}
 		if (S.launcher_open) {
 			launcher_key(ui, code, mods, text);
 			ui_input_key(ui, code, state, mods, text);
@@ -1135,6 +1144,8 @@ void shell_tick(void)
 	}
 	game_mode_update();
 	screentime_tick();
+	desktop_tick();
+	dnd_tick();
 	/* Slide the dock in or out. */
 	static f64 last_dock_tick;
 	f32 dock_dt = minf((f32)(S.now - last_dock_tick), 0.05f);
@@ -1172,6 +1183,8 @@ bool shell_animating(void)
 	if (S.osd_until && now_s() < S.osd_until + 0.3)
 		return true;
 	if (S.shutdown_k != (S.shutting_down ? 1.0f : 0.0f))
+		return true;
+	if (dnd_animating())
 		return true;
 	for (int i = 0; i < S.nnotices; i++)
 		if (S.notices[i].slide < 1 && !S.notices[i].dismissed)

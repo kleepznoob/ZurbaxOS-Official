@@ -206,16 +206,49 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 			}
 		}
 		break;
-	case MSG_CLIPBOARD_GET:
-		if (S.clipboard) {
-			int fd = (int)sys_memfd_create("clipboard", MFD_CLOEXEC);
-			if (fd >= 0) {
-				write_all(fd, S.clipboard, S.clipboard_len);
-				MsgClipboard r = { .size = (u32)S.clipboard_len };
-				str_copy(r.mime, S.clipboard_mime, sizeof r.mime);
-				server_send(c, &r, MSG_CLIPBOARD_DATA, sizeof r, h->win, &fd, 1);
-				sys_close(fd);
+	case MSG_CLIPBOARD_GET: {
+		/* Files asked for: whatever files are there, or nothing. Text asked
+		 * for: the text, or the files' paths. */
+		bool want_files = len >= sizeof(MsgClipboard) && str_eq(((const MsgClipboard *)buf)->mime, CLIPBOARD_FILES);
+		bool have_files = S.clipboard && str_eq(S.clipboard_mime, CLIPBOARD_FILES);
+		const char *data = S.clipboard;
+		usize n = S.clipboard_len;
+		if (want_files && !have_files)
+			data = "", n = 0;
+		else if (!want_files && have_files) {
+			const char *nl = str_chr(S.clipboard, '\n');
+			data = nl ? nl + 1 : "";
+			n = strlen(data);
+		}
+		if (!data && !want_files)
+			break;
+		int fd = (int)sys_memfd_create("clipboard", MFD_CLOEXEC);
+		if (fd >= 0) {
+			if (n)
+				write_all(fd, data, n);
+			MsgClipboard r = { .size = (u32)n };
+			str_copy(r.mime, want_files ? CLIPBOARD_FILES : have_files ? "text/plain" : S.clipboard_mime, sizeof r.mime);
+			server_send(c, &r, MSG_CLIPBOARD_DATA, sizeof r, h->win, &fd, 1);
+			sys_close(fd);
+		}
+		break;
+	}
+	case MSG_DRAG_START:
+		if (w && nfds > 0 && len >= sizeof(MsgDragStart)) {
+			const MsgDragStart *m = (const MsgDragStart *)buf;
+			if (!m->size || m->size > (16u << 20))
+				break;
+			char *paths = mem_alloc(m->size + 1);
+			long got = sys_pread(fds[0], paths, m->size, 0);
+			paths[got > 0 ? got : 0] = 0;
+			Canvas *thumb = NULL;
+			if (nfds > 1 && m->thumb_w && m->thumb_h && m->thumb_w <= 512 && m->thumb_h <= 512) {
+				thumb = canvas_new((int)m->thumb_w, (int)m->thumb_h);
+				for (u32 y = 0; y < m->thumb_h; y++)
+					sys_pread(fds[1], canvas_row(thumb, (int)y), (usize)m->thumb_w * 4, (i64)((u64)y * m->thumb_w * 4));
 			}
+			dnd_start(w, paths, (int)m->count, thumb);
+			mem_free(paths);
 		}
 		break;
 	case MSG_LAUNCH:

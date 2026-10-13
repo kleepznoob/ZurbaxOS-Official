@@ -103,6 +103,7 @@ void wallpaper_reload(void)
 	S.wallpaper_blur = canvas_new(S.frame->width, S.frame->height);
 	blit_scaled(S.wallpaper_blur, small, rect(0, 0, (f32)bw, (f32)bh), rect(0, 0, (f32)S.frame->width, (f32)S.frame->height), 1);
 	canvas_free(small);
+	desktop_invalidate();
 	damage_all();
 }
 
@@ -399,6 +400,7 @@ void compose_frame(void)
 	if (n == 0)
 		return;
 
+	const Canvas *bg = desktop_background();
 	for (int i = 0; i < n; i++) {
 		Rect d = rects[i];
 		canvas_clip(frame, d);
@@ -406,7 +408,7 @@ void compose_frame(void)
 			splash_draw(frame);
 			continue;
 		}
-		copy_pixels(frame, S.wallpaper, (int)d.x, (int)d.y, (int)d.x, (int)d.y, (int)d.w, (int)d.h);
+		copy_pixels(frame, bg, (int)d.x, (int)d.y, (int)d.x, (int)d.y, (int)d.w, (int)d.h);
 		if (!S.locked || S.lock_k < 1) {
 			for (int k = 0; k < S.nwin; k++) {
 				Window *w = S.windows[k];
@@ -419,6 +421,7 @@ void compose_frame(void)
 			}
 		}
 		shell_draw(frame);
+		dnd_draw(frame);
 		if (S.splash)
 			splash_draw(frame);
 		if (!S.hw_cursor)

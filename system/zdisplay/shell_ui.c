@@ -582,6 +582,12 @@ void taskbar_draw(Ui *ui)
 		int count = app_window_count(ids[i], &first);
 		bool focused = first && S.focus && str_eq(S.focus->app_id, ids[i]) && !S.focus->minimized;
 		UiInteract it = bar_button(ui, slot, "task", focused, &l, 4);
+		/* files held over it: they'll open in this app */
+		if (dnd_hover_app[0] && str_eq(dnd_hover_app, ids[i])) {
+			Rect hl = rect_inset(slot, 2, 4);
+			ui_round(ui, hl, 8, color_with_alpha(t->accent, 0x50));
+			ui_border(ui, hl, 8, 1.5f, t->accent);
+		}
 		const AppInfo *app = shell_app(ids[i]);
 		f32 size = tb.icon;
 		if (it.held && it.hovered)

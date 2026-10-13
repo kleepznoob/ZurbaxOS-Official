@@ -97,6 +97,19 @@ typedef struct Ui {
 	bool held[256];         /* keys down right now, by code (games) */
 	bool window_focused;
 	char *drop_paths;       /* newline-separated files dropped this frame, or NULL */
+	u32 drop_mods;          /* keys held as they were let go: MOD_CTRL asks for a copy */
+	/* files being dragged over the window right now (from anywhere) */
+	bool drag_over;
+	f32 drag_x, drag_y;
+	int drag_count;
+	char drag_first[256];   /* the first one's path */
+	f32 press_x, press_y;   /* where the left button last went down */
+	/* requests: a drag out of this window, files from the clipboard */
+	char *drag_out;
+	int drag_out_count;
+	Canvas *drag_out_thumb;
+	bool want_files;
+	char *clip_files;       /* the clipboard's files that arrived this frame: "copy" or "cut", then a path per line */
 	/* game controllers */
 	struct {
 		bool connected;
@@ -113,6 +126,9 @@ typedef struct Ui {
 
 	/* widget bookkeeping */
 	UiId hot, active, focus;
+	UiId pressed_owner, right_owner; /* the topmost widget that took this frame's press, right-click */
+	UiId header_id;         /* the header bar: what it does with a press waits for the widgets on it */
+	bool header_move, header_max, header_menu;
 	UiId last_id;
 	Rect last_rect;         /* absolute rect of the last interactive widget */
 	bool focus_claimed;     /* a widget took keyboard focus this frame */
@@ -338,6 +354,19 @@ bool ui_file_dialog(Ui *ui, const char *id, char *out_path, usize cap);
 bool ui_file_dialog_is_open(Ui *ui, const char *id); /* false once picked from or cancelled */
 const char *ui_file_icon(const char *name, bool is_dir); /* symbolic icon for a file type */
 
+/* File operations (files.c), for Vault and the desktop. Deleted items go to
+ * the freedesktop.org Trash in ~/.local/share/Trash. */
+char *files_unique_path(const char *dir, const char *name); /* "photo.jpg", then "photo (2).jpg"... */
+bool files_copy_tree(const char *from, const char *to);
+bool files_move(const char *from, const char *to);          /* across drives too */
+bool files_inside(const char *path, const char *dir);       /* path is dir or within it */
+bool files_same_drive(const char *a, const char *b);
+bool files_trash(const char *path);
+char *files_trash_dir(const char *which);                   /* "files" or "info" */
+/* Copies or moves every path in `list` (one per line) into dir under free
+ * names; returns how many failed. last gets the last new path. */
+int files_paste(const char *list, const char *dir, bool move, char *last, usize cap);
+
 /* Wallpapers: built-in names, or an absolute path to a picture. */
 #define WALLPAPER_DEFAULT "silk"
 extern const char *const WALLPAPER_NAMES[];
@@ -400,6 +429,20 @@ void ui_session(Ui *ui, u32 action);
 u32 ui_account_update(Ui *ui, u32 flags, const char *full_name, const char *old_password, const char *new_password);
 void ui_clipboard_set(Ui *ui, const char *text);
 void ui_clipboard_set_data(Ui *ui, const char *mime, const void *data, usize len);
+/* Files on the clipboard: put there (cut: they move when pasted), or asked
+ * for; what's there arrives in ui->clip_files a frame or two later. */
+void ui_clipboard_set_files(Ui *ui, const char *paths, bool cut);  /* paths one per line */
+void ui_clipboard_files_request(Ui *ui);
+
+/* Drag and drop of files. ui_drag_threshold says when a press on a widget
+ * has moved far enough to become a drag; ui_drag_files then hands the files
+ * to the desktop, which carries them to wherever they're let go: a window,
+ * the desktop, an app on the taskbar. Files dragged over a window show in
+ * ui->drag_over, and arrive in ui->drop_paths. */
+bool ui_drag_threshold(Ui *ui, UiInteract in);
+void ui_drag_files(Ui *ui, const char *paths, int count, const Canvas *thumb);  /* paths one per line */
+bool ui_drop_hover(Ui *ui, Rect r);       /* files are over r right now */
+void ui_drop_highlight(Ui *ui, Rect r, f32 radius); /* the accent frame of a place files can go */
 /* Asks the desktop for a screenshot (SCREENSHOT_SCREEN, _WINDOW or _AREA). When it
  * arrives, ui->screenshot_ready is set and ui->screenshot holds the picture (or NULL). */
 void ui_screenshot_request(Ui *ui, u32 mode);

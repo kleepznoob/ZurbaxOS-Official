@@ -186,6 +186,10 @@ void input_pointer_abs(f32 x, f32 y)
 	S.px = nx;
 	S.py = ny;
 	cursor_update();
+	if (dnd_active()) {
+		dnd_motion();
+		return;
+	}
 	if (shell_pointer(POINTER_MOTION, 0))
 		return;
 	wm_pointer_motion();
@@ -210,6 +214,10 @@ void input_button(u32 button, bool pressed)
 		S.buttons |= 1u << button;
 	else
 		S.buttons &= ~(1u << button);
+	if (dnd_active()) {
+		dnd_button(button, pressed);
+		return;
+	}
 	if (shell_pointer(pressed ? POINTER_DOWN : POINTER_UP, button))
 		return;
 	wm_pointer_button(button, pressed);
@@ -263,6 +271,8 @@ void input_key(u32 code, bool pressed, bool repeat)
 	update_mods(code, pressed);
 	const char *text = pressed ? keymap_text(code, S.mods) : "";
 	u32 state = !pressed ? KEY_RELEASED : repeat ? KEY_REPEATED : KEY_PRESSED;
+	if (dnd_key(code, state))
+		return;
 	if (shell_key(code, state, S.mods, text))
 		return;
 	/* Media and brightness keys are handled by the shell even without focus. */
@@ -275,5 +285,7 @@ void input_key(u32 code, bool pressed, bool repeat)
 		case KEY_BRIGHTNESSDOWN: set_brightness(S.brightness - 8); return;
 		}
 	}
+	if (!S.focus && desktop_key(code, state, S.mods, text))
+		return;
 	server_key_event(S.focus, code, state, text);
 }

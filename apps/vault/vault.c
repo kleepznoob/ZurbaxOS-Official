@@ -29,10 +29,11 @@ typedef struct {
 	StrBuf search;
 	int anchor;             /* for shift-selection */
 	int cursor;
-	/* clipboard */
-	char **clip;
-	int nclip;
-	bool clip_cut;
+	/* clipboard: a paste waits for the files to arrive from the desktop */
+	bool paste_pending;
+	/* drag and drop: the folder (item, or place in the sidebar) under files being dragged */
+	int drop_item;
+	char drop_place[1024];
 	/* dialogs */
 	StrBuf rename_text, newfolder_text;
 	int rename_index;
@@ -48,12 +49,12 @@ static Vault vt;
 
 static char *trash_files(void)
 {
-	return str_fmt("%s/.local/share/Trash/files", home_dir());
+	return files_trash_dir("files");
 }
 
 static char *trash_info(void)
 {
-	return str_fmt("%s/.local/share/Trash/info", home_dir());
+	return files_trash_dir("info");
 }
 
 static bool in_trash(void)
@@ -189,67 +190,6 @@ static void select_only(int i)
 
 /* ---- File operations ---------------------------------------------------------------- */
 
-static bool copy_tree(const char *from, const char *to)
-{
-	struct stat st;
-	if (sys_lstat(from, &st) < 0)
-		return false;
-	if (S_ISDIR(st.st_mode)) {
-		if (sys_mkdir(to, (int)(st.st_mode & 07777)) < 0 && !dir_exists(to))
-			return false;
-		DirList list = { 0 };
-		if (!dir_list(from, &list, false))
-			return false;
-		bool ok = true;
-		vec_each(&list, e) {
-			char *a = path_join(from, e->name), *b = path_join(to, e->name);
-			ok = copy_tree(a, b) && ok;
-			mem_free(a);
-			mem_free(b);
-		}
-		dir_list_free(&list);
-		return ok;
-	}
-	return file_copy(from, to);
-}
-
-/* A free name in `dir`: "photo.jpg", then "photo (2).jpg", ... */
-static char *unique_path(const char *dir, const char *name)
-{
-	char *p = path_join(dir, name);
-	struct stat st;
-	if (sys_lstat(p, &st) < 0)
-		return p;
-	mem_free(p);
-	const char *ext = path_ext(name);
-	usize stem = strlen(name) - (*ext ? strlen(ext) + 1 : 0);
-	for (int n = 2; n < 1000; n++) {
-		char buf[512];
-		if (*ext)
-			fmt(buf, sizeof buf, "%.*s (%d).%s", (int)stem, name, n, ext);
-		else
-			fmt(buf, sizeof buf, "%s (%d)", name, n);
-		p = path_join(dir, buf);
-		if (sys_lstat(p, &st) < 0)
-			return p;
-		mem_free(p);
-	}
-	return path_join(dir, name);
-}
-
-static bool move_path(const char *from, const char *to)
-{
-	long r = sys_rename(from, to);
-	if (r == 0)
-		return true;
-	if (r != -EXDEV)
-		return false;
-	/* Different drive: copy, then remove the original. */
-	if (!copy_tree(from, to))
-		return false;
-	return path_remove_all(from);
-}
-
 static void trash_selected(Ui *ui)
 {
 	char *tf = trash_files(), *ti = trash_info();
@@ -267,21 +207,7 @@ static void trash_selected(Ui *ui)
 			sys_unlink(info);
 			mem_free(info);
 		} else {
-			char *dst = unique_path(tf, vt.items[i].name);
-			/* Remember where it came from, so Restore can put it back. */
-			Civil c;
-			civil_local(time_unix(), &c);
-			char *info = str_fmt("%s/%s.trashinfo", ti, path_base(dst));
-			char *body = str_fmt("[Trash Info]\nPath=%s\nDeletionDate=%04d-%02d-%02dT%02d:%02d:%02d\n", src, c.year, c.month,
-					     c.day, c.hour, c.min, c.sec);
-			file_write(info, body, strlen(body));
-			if (!move_path(src, dst)) {
-				failed++;
-				sys_unlink(info);
-			}
-			mem_free(info);
-			mem_free(body);
-			mem_free(dst);
+			failed += !files_trash(src);
 		}
 		mem_free(src);
 	}
@@ -308,8 +234,8 @@ static void restore_selected(Ui *ui)
 			char *src = item_path(i);
 			char *odir = path_dir(orig);
 			dir_make(odir, 0755);
-			char *dst = unique_path(odir, path_base(orig));
-			if (move_path(src, dst))
+			char *dst = files_unique_path(odir, path_base(orig));
+			if (files_move(src, dst))
 				sys_unlink(info);
 			else
 				show_error(ui, "The item couldn't be restored.");
@@ -337,47 +263,103 @@ static void empty_trash(void)
 	reload();
 }
 
-static void clip_selected(Ui *ui, bool cut)
+/* The selection's paths, one per line. */
+static char *selected_paths(int *count)
 {
-	for (int i = 0; i < vt.nclip; i++)
-		mem_free(vt.clip[i]);
-	mem_free(vt.clip);
-	vt.clip = NEW_ARRAY(char *, (usize)vt.nitems + 1);
-	vt.nclip = 0;
-	StrBuf uris = { 0 };
+	StrBuf sb = { 0 };
+	int n = 0;
 	for (int i = 0; i < vt.nitems; i++)
 		if (vt.items[i].selected) {
-			vt.clip[vt.nclip] = item_path(i);
-			sb_fmt(&uris, "%s\n", vt.clip[vt.nclip]);
-			vt.nclip++;
+			char *p = item_path(i);
+			sb_fmt(&sb, "%s\n", p);
+			mem_free(p);
+			n++;
 		}
-	vt.clip_cut = cut;
-	/* Also put the paths on the system clipboard as text. */
-	if (uris.len)
-		ui_clipboard_set(ui, sb_str(&uris));
-	sb_free(&uris);
+	if (count)
+		*count = n;
+	char *r = str_dup(sb_str(&sb));
+	sb_free(&sb);
+	return r;
+}
+
+/* Cut and copy go through the desktop's clipboard, so files can be pasted
+ * on the desktop or in another Vault window too. */
+static void clip_selected(Ui *ui, bool cut)
+{
+	char *paths = selected_paths(NULL);
+	if (*paths)
+		ui_clipboard_set_files(ui, paths, cut);
+	mem_free(paths);
 }
 
 static void paste(Ui *ui)
 {
-	int failed = 0;
-	for (int i = 0; i < vt.nclip; i++) {
-		char *dst = unique_path(vt.dir, path_base(vt.clip[i]));
-		/* Never copy a folder into itself. */
-		if (str_starts(dst, vt.clip[i]) && dst[strlen(vt.clip[i])] == '/') {
-			failed++;
-			mem_free(dst);
-			continue;
-		}
-		bool ok = vt.clip_cut ? move_path(vt.clip[i], dst) : copy_tree(vt.clip[i], dst);
-		failed += !ok;
-		mem_free(dst);
-	}
-	if (vt.clip_cut)
-		vt.nclip = 0;
+	vt.paste_pending = true;
+	ui_clipboard_files_request(ui);
+}
+
+/* Files into a folder: moved within a drive unless Ctrl asks for a copy,
+ * copied from another drive. */
+static void bring_files(Ui *ui, const char *list, const char *dir, int how)
+{
+	if (in_trash() && str_eq(dir, vt.dir))
+		return;
+	char first[1024] = "";
+	const char *nl = str_chr(list, '\n');
+	fmt(first, sizeof first, "%.*s", (int)(nl ? (usize)(nl - list) : strlen(list)), list);
+	bool move = how == 1 || (how == 0 && files_same_drive(first, dir));
+	int failed = files_paste(list, dir, move, NULL, 0);
 	if (failed)
-		show_error(ui, "Some items couldn't be pasted here.");
+		show_error(ui, move ? "Some items couldn't be moved here." : "Some items couldn't be copied here.");
 	reload();
+}
+
+/* The clipboard's files arrived: paste them here. */
+static void paste_arrived(Ui *ui)
+{
+	if (!vt.paste_pending || !ui->clip_files)
+		return;
+	vt.paste_pending = false;
+	const char *nl = str_chr(ui->clip_files, '\n');
+	if (!nl || !nl[1])
+		return;
+	bool cut = str_starts(ui->clip_files, "cut");
+	bring_files(ui, nl + 1, vt.dir, cut ? 1 : 2);
+	/* cut files moved once; the clipboard doesn't keep pointing at their old place */
+	if (cut)
+		ui_clipboard_set(ui, "");
+}
+
+/* Drags the selection (with item i in it) out to wherever it's let go. */
+static void drag_selection(Ui *ui, int i)
+{
+	if (!vt.items[i].selected)
+		select_only(i);
+	int n = 0;
+	char *paths = selected_paths(&n);
+	ui_drag_files(ui, paths, n, n == 1 ? vt.items[i].thumb : NULL);
+	mem_free(paths);
+}
+
+/* Are files being dragged (or just dropped) at r? */
+static bool drop_at(Ui *ui, Rect r)
+{
+	if (ui->drop_paths) {
+		Rect abs = { r.x + ui->ox, r.y + ui->oy, r.w, r.h };
+		return rect_contains(abs, ui->mx, ui->my) && rect_contains(ui->clip, ui->mx, ui->my);
+	}
+	return ui_drop_hover(ui, r);
+}
+
+/* Is the drag made of this folder's own selected items? */
+static bool dragging_own(Ui *ui, int i)
+{
+	if (!vt.items[i].selected || !ui->drag_first[0])
+		return false;
+	char *parent = path_dir(ui->drag_first);
+	bool own = str_eq(parent, vt.dir);
+	mem_free(parent);
+	return own;
 }
 
 static void open_item(Ui *ui, int i)
@@ -446,6 +428,10 @@ static void handle_click(Ui *ui, int i, UiInteract it)
 {
 	if (it.clicked || it.right_clicked)
 		vt.item_hit = true;
+	if (ui_drag_threshold(ui, it)) {
+		drag_selection(ui, i);
+		return;
+	}
 	if (it.clicked) {
 		if (ui->mods & MOD_CTRL) {
 			vt.items[i].selected = !vt.items[i].selected;
@@ -493,7 +479,11 @@ static f32 draw_grid(Ui *ui, Rect r)
 		ui_push_id(ui, i);
 		UiInteract in = ui_interact(ui, ui_id(ui, "item"), rect_inset(cell, 4, 2));
 		ui_pop_id(ui);
-		if (it->selected)
+		bool target = it->dir && !dragging_own(ui, i) && drop_at(ui, rect_inset(cell, 4, 2));
+		if (target) {
+			vt.drop_item = i;
+			ui_drop_highlight(ui, rect_inset(cell, 4, 2), 8);
+		} else if (it->selected)
 			ui_round(ui, rect_inset(cell, 4, 2), 8, color_with_alpha(t->accent, 0x30));
 		else if (in.hovered)
 			ui_round(ui, rect_inset(cell, 4, 2), 8, t->hover);
@@ -572,6 +562,10 @@ static void draw_list(Ui *ui, Rect r)
 		ui_push_id(ui, i);
 		UiInteract in = ui_row(ui, row, ui_id(ui, "row"), it->selected);
 		ui_pop_id(ui);
+		if (it->dir && !dragging_own(ui, i) && drop_at(ui, row)) {
+			vt.drop_item = i;
+			ui_drop_highlight(ui, rect_inset(row, 2, 1), 6);
+		}
 		ui_icon(ui, rect(row.x + 16, row.y + 8, 18, 18), ui_file_icon(it->name, it->dir), it->dir ? t->accent : t->text_dim);
 		ui_push_clip(ui, rect(cx[0], row.y, cx[1] - cx[0] - 12, row.h));
 		ui_text(ui, ui_font(ui, 13, 400), cx[0], row.y + 22, it->name, t->text);
@@ -683,7 +677,12 @@ static void sidebar(Ui *ui, Rect r)
 		else
 			str_copy(p, home_dir(), sizeof p);
 		ui_push_id(ui, (i64)i);
-		if (ui_sidebar_item(ui, cut_top(&s, 32), places[i].icon, places[i].label, str_eq(vt.dir, p)))
+		Rect pr = cut_top(&s, 32);
+		if (drop_at(ui, pr) && !str_eq(vt.dir, p)) {
+			str_copy(vt.drop_place, p, sizeof vt.drop_place);
+			ui_drop_highlight(ui, pr, 6);
+		}
+		if (ui_sidebar_item(ui, pr, places[i].icon, places[i].label, str_eq(vt.dir, p)))
 			go(p, true);
 		ui_pop_id(ui);
 	}
@@ -692,7 +691,12 @@ static void sidebar(Ui *ui, Rect r)
 	bool full = dir_list(tf, &tl, false) && tl.len > 0;
 	dir_list_free(&tl);
 	ui_push_id(ui, 50);
-	if (ui_sidebar_item(ui, cut_top(&s, 32), "trash", full ? "Trash (full)" : "Trash", in_trash())) {
+	Rect trash_r = cut_top(&s, 32);
+	if (drop_at(ui, trash_r) && !in_trash()) {
+		str_copy(vt.drop_place, tf, sizeof vt.drop_place);
+		ui_drop_highlight(ui, trash_r, 6);
+	}
+	if (ui_sidebar_item(ui, trash_r, "trash", full ? "Trash (full)" : "Trash", in_trash())) {
 		dir_make(tf, 0700);
 		go(tf, true);
 	}
@@ -750,7 +754,7 @@ static void context_menu(Ui *ui)
 			sb_adds(&vt.newfolder_text, "New Folder");
 			ui_dialog_open(ui, "newfolder");
 		}
-		if (vt.nclip && ui_menu_item(ui, cut_top(&c, 34), "edit-paste", "Paste", "Ctrl+V")) {
+		if (ui_menu_item(ui, cut_top(&c, 34), "edit-paste", "Paste", "Ctrl+V")) {
 			ui_popover_close(ui);
 			paste(ui);
 		}
@@ -844,7 +848,7 @@ static void dialogs(Ui *ui)
 		if (ui_button(ui, cut_right(&b, 90), "Cancel"))
 			ui_dialog_close(ui);
 		if (go_ && vt.newfolder_text.len) {
-			char *p = unique_path(vt.dir, sb_str(&vt.newfolder_text));
+			char *p = files_unique_path(vt.dir, sb_str(&vt.newfolder_text));
 			if (sys_mkdir(p, 0755) < 0)
 				show_error(ui, "The folder couldn't be created here.");
 			mem_free(p);
@@ -915,7 +919,7 @@ static void keys(Ui *ui)
 		clip_selected(ui, false);
 	if (ui_key_pressed(ui, KEY_X, MOD_CTRL) && selection_count())
 		clip_selected(ui, true);
-	if (ui_key_pressed(ui, KEY_V, MOD_CTRL) && vt.nclip)
+	if (ui_key_pressed(ui, KEY_V, MOD_CTRL))
 		paste(ui);
 	if (ui_key_pressed(ui, KEY_H, MOD_CTRL)) {
 		vt.show_hidden = !vt.show_hidden;
@@ -968,6 +972,9 @@ static void frame(Ui *ui)
 			reload();
 	}
 	ui->wake_at = ui->now + 1.05;
+	paste_arrived(ui);
+	vt.drop_item = -1;
+	vt.drop_place[0] = 0;
 	keys(ui);
 	ui_window_background(ui, t->window);
 	Rect win = rect(0, 0, ui->width, ui->height);
@@ -1051,11 +1058,40 @@ static void frame(Ui *ui)
 		fmt(txt, sizeof txt, vt.nitems == 1 ? "1 item" : "%d items", vt.nitems);
 		ui_text(ui, ui_font(ui, 12, 500), status.x + 14, status.y + 18, txt, t->text_dim);
 	}
-	if (vt.nclip) {
-		char cb[64];
-		fmt(cb, sizeof cb, "%d %s on the clipboard", vt.nclip, vt.clip_cut ? "to move" : "to copy");
-		Font f = ui_font(ui, 12, 500);
-		ui_text(ui, f, status.x + status.w - 14 - ui_text_width(ui, f, cb), status.y + 18, cb, t->text_faint);
+	/* files from outside dragged over the folder: it lights up */
+	if (ui->drag_over && vt.drop_item < 0 && !vt.drop_place[0] && ui_drop_hover(ui, win)) {
+		char *parent = path_dir(ui->drag_first);
+		if (!str_eq(parent, vt.dir) && !in_trash())
+			ui_drop_highlight(ui, rect_inset(win, 3, 3), 8);
+		mem_free(parent);
+	}
+	/* files let go here: into the folder under them, or this one */
+	if (ui->drop_paths) {
+		char *trash = trash_files();
+		if (vt.drop_place[0] && str_eq(vt.drop_place, trash)) {
+			usize n;
+			char **lines = str_split(ui->drop_paths, '\n', &n);
+			int failed = 0;
+			for (usize i = 0; i < n; i++)
+				if (*str_trim(lines[i]) == '/')
+					failed += !files_trash(str_trim(lines[i]));
+			str_split_free(lines, n);
+			if (failed)
+				show_error(ui, "Some items couldn't be moved to the Trash.");
+			reload();
+		} else {
+			char target[1024];
+			if (vt.drop_place[0])
+				str_copy(target, vt.drop_place, sizeof target);
+			else if (vt.drop_item >= 0 && vt.drop_item < vt.nitems) {
+				char *p = item_path(vt.drop_item);
+				str_copy(target, p, sizeof target);
+				mem_free(p);
+			} else
+				str_copy(target, vt.dir, sizeof target);
+			bring_files(ui, ui->drop_paths, target, (ui->drop_mods & MOD_CTRL) ? 2 : 0);
+		}
+		mem_free(trash);
 	}
 	context_menu(ui);
 	dialogs(ui);

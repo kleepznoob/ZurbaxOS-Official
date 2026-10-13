@@ -168,6 +168,7 @@ void window_destroy(Window *w, bool animate)
 	if (w->closing)
 		return;
 	window_damage(w);
+	dnd_window_gone(w);
 	if (S.focus == w)
 		S.focus = NULL;
 	if (S.pointer_window == w)
@@ -241,6 +242,7 @@ void window_focus(Window *w)
 		window_damage(old);
 	}
 	if (w) {
+		desktop_unfocus();
 		w->focus_serial = ++S.focus_serial;
 		server_focus_event(w, true);
 		if (w->configured_once)
@@ -568,6 +570,10 @@ static void update_snap(void)
 
 void wm_pointer_motion(void)
 {
+	if (desktop_grabbing()) {
+		desktop_pointer(POINTER_MOTION, 0);
+		return;
+	}
 	Window *w = S.grab_window;
 	if (S.grab == GRAB_MOVE && w) {
 		f32 dx = S.px - S.grab_x, dy = S.py - S.grab_y;
@@ -626,6 +632,7 @@ void wm_pointer_motion(void)
 		S.pointer_window = NULL;
 		return;
 	}
+	desktop_pointer(under ? POINTER_LEAVE : POINTER_MOTION, 0);
 	if (under != S.pointer_window) {
 		if (S.pointer_window)
 			server_pointer_event(S.pointer_window, POINTER_LEAVE, 0);
@@ -643,6 +650,10 @@ void wm_pointer_motion(void)
 
 void wm_pointer_button(u32 button, bool pressed)
 {
+	if (!pressed && desktop_grabbing()) {
+		desktop_pointer(POINTER_UP, button);
+		return;
+	}
 	if (!pressed) {
 		if (S.grab == GRAB_MOVE && S.grab_window) {
 			Window *w = S.grab_window;
@@ -674,7 +685,15 @@ void wm_pointer_button(u32 button, bool pressed)
 	Window *w = window_at(S.px, S.py, &edges);
 	wl_pointer_press(w);
 	if (!w) {
-		/* Click on the desktop: drop focus from popups. */
+		/* Click on the desktop: drop focus from popups; the icons have it. */
+		for (int i = S.nwin - 1; i >= 0; i--) {
+			Window *p = S.windows[i];
+			if ((p->flags & WIN_POPUP) && p->client) {
+				MsgHeader m = { 0 };
+				server_send(p->client, &m, MSG_POPUP_DONE, sizeof m, p->client_win, NULL, 0);
+			}
+		}
+		desktop_pointer(POINTER_DOWN, button);
 		return;
 	}
 	if (!(w->flags & WIN_POPUP)) {

@@ -590,12 +590,10 @@ Rect ui_headerbar(Ui *ui, Rect r, const char *title, u32 flags)
 	/* Dragging the empty bar moves the window; double-click maximizes. */
 	UiId drag_id = ui_id(ui, "__headerbar");
 	UiInteract it = ui_interact(ui, drag_id, r);
-	if (it.pressed_now && ui->click_count < 2)
-		ui->begin_move = true;
-	if (it.pressed_now && ui->click_count >= 2 && !(flags & HEADER_NO_MAXIMIZE))
-		ui->action = ACTION_TOGGLE_MAXIMIZE;
-	if (it.right_clicked)
-		ui->action = ACTION_SHOW_MENU;
+	ui->header_id = drag_id;
+	ui->header_move = it.pressed_now && ui->click_count < 2;
+	ui->header_max = it.pressed_now && ui->click_count >= 2 && !(flags & HEADER_NO_MAXIMIZE);
+	ui->header_menu = it.right_clicked;
 
 	/* minimize, maximize and close, at the right */
 	f32 size = 24, gap = 10, x = r.x + r.w - 12 - size, y = r.y + roundf((r.h - size) / 2);
@@ -719,7 +717,7 @@ bool ui_menu_item(Ui *ui, Rect r, const char *icon, const char *label, const cha
 	if (icon)
 		ui_icon(ui, rect(x, r.y + (r.h - 16) / 2, 16, 16), icon, dim);
 	x += 26;
-	ui_text_in(ui, ui_font(ui, 13, 500), rect(x, r.y, r.w - (x - r.x) - 70, r.h), label, fg, ALIGN_START);
+	ui_text_in(ui, ui_font(ui, 13, 500), rect(x, r.y, r.w - (x - r.x) - (shortcut ? 84 : 8), r.h), label, fg, ALIGN_START);
 	if (shortcut)
 		ui_text_in(ui, ui_font(ui, 12, 400), rect(r.x + r.w - 80, r.y, 70, r.h), shortcut, dim, ALIGN_END);
 	if (it.clicked) {

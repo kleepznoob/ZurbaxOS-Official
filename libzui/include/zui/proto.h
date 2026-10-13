@@ -32,7 +32,7 @@ enum {
 	MSG_CURSOR,
 	MSG_NOTIFY,
 	MSG_CLIPBOARD_SET,  /* + memfd holding the data */
-	MSG_CLIPBOARD_GET,
+	MSG_CLIPBOARD_GET,  /* MsgClipboard with the kind wanted: "text/plain", CLIPBOARD_FILES */
 	MSG_LAUNCH,
 	MSG_SETTINGS_CHANGED,
 	MSG_SCREENSHOT,     /* + memfd to receive pixels */
@@ -40,6 +40,7 @@ enum {
 	MSG_WIN_SET_SIZE,   /* the app asks for a new size (e.g. switching modes) */
 	MSG_ACCOUNT,        /* change the user's name or password (Settings) */
 	MSG_RUMBLE,         /* shake a game controller (the focused app only) */
+	MSG_DRAG_START,     /* + memfd of paths (+ memfd of a picture): drag files out of a window */
 
 	/* server -> app */
 	MSG_WELCOME = 64,
@@ -58,6 +59,7 @@ enum {
 	MSG_REPLY,          /* result of a request such as MSG_ACCOUNT */
 	MSG_SCREENSHOT_DATA,/* + memfd with the pixels */
 	MSG_GAMEPAD,        /* a game controller's state changed */
+	MSG_DRAG_OVER,      /* files are being dragged over the window */
 };
 
 typedef struct {
@@ -198,6 +200,20 @@ typedef struct {
 	char new_password[128];
 } MsgAccount;
 
+/* Starts dragging files with the left button held: the paths one per line in
+ * the first memfd (size bytes), and optionally a picture of the first one
+ * (thumb_w x thumb_h premultiplied ARGB, rows packed) in a second. */
+typedef struct {
+	MsgHeader h;
+	u32 count;
+	u32 size;
+	u32 thumb_w, thumb_h;
+} MsgDragStart;
+
+/* The clipboard's kind for files: "copy" or "cut" on the first line, then one
+ * path per line. Text fields asking for text get the paths alone. */
+#define CLIPBOARD_FILES "x-zurbax/files"
+
 /* ---- server -> app ---------------------------------------------------------- */
 
 typedef struct {
@@ -300,12 +316,27 @@ typedef struct {
 	ThemeInfo theme;
 } MsgTheme;
 
+/* Files dropped on the window. The paths come one per line in the attached
+ * memfd (size bytes). */
 typedef struct {
 	MsgHeader h;
 	u32 count;
+	u32 size;
+	u32 mods;              /* held when dropped: MOD_CTRL asks for a copy */
 	f32 x, y;
-	char paths[3000];      /* newline-separated */
 } MsgDropFiles;
+
+enum { DRAG_ENTER = 1, DRAG_MOTION, DRAG_LEAVE };
+
+/* Files are being dragged over the window: for showing where they'd land. */
+typedef struct {
+	MsgHeader h;
+	u32 kind;              /* DRAG_* */
+	u32 count;
+	u32 mods;
+	f32 x, y;
+	char first[256];       /* the first file's path */
+} MsgDragOver;
 
 typedef struct {
 	MsgHeader h;

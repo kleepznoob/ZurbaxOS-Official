@@ -475,5 +475,36 @@ void wl_flip_complete(void);              /* the output finished a flip */
 /* wm.c: a window for a Wayland surface */
 Window *window_create_wl(void *surface, const char *title, const char *app_id, f32 w, f32 h, u32 flags, Window *parent, f32 x, f32 y);
 
+/* desktop.c: the files in ~/Desktop as icons on the wallpaper */
+void desktop_init(void);
+const Canvas *desktop_background(void);     /* the wallpaper with the icons on it, for composing */
+void desktop_invalidate(void);              /* the wallpaper, theme or size changed */
+bool desktop_pointer(u32 kind, u32 button); /* the pointer on the desktop itself; true: taken */
+bool desktop_grabbing(void);                /* a press on the desktop holds the pointer */
+bool desktop_key(u32 code, u32 state, u32 mods, const char *text);
+bool desktop_focused(void);
+void desktop_unfocus(void);
+void desktop_tick(void);
+bool desktop_reaped(int pid, int status);   /* a file helper finished */
+void desktop_menu_draw(Ui *ui);             /* its menus and renaming, in the shell overlay */
+bool desktop_wants_pointer(void);
+bool desktop_wants_keys(void);
+void desktop_drag_over(f32 x, f32 y, const char *paths, bool from_desktop); /* x < 0: not over it */
+void desktop_drop(const char *paths, f32 x, f32 y, u32 mods, bool from_desktop);
+const char *desktop_dir(void);
+Ui *desktop_aux_ui(Canvas *target, f32 w, f32 h); /* a drawing context for offscreen pictures */
+
+/* dnd.c: files dragged between windows, the desktop and the taskbar */
+void dnd_start(Window *source, const char *paths, int count, Canvas *thumb); /* source NULL: the desktop */
+bool dnd_active(void);
+void dnd_motion(void);
+void dnd_button(u32 button, bool pressed);
+bool dnd_key(u32 code, u32 state);
+void dnd_draw(Canvas *frame);
+void dnd_tick(void);
+bool dnd_animating(void);
+void dnd_window_gone(Window *w);
+extern char dnd_hover_app[48];              /* the taskbar button files are held over */
+
 /* headless.c: scripted control for automated tests */
 void headless_control_init(const char *socket_path);

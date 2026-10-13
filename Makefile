@@ -21,7 +21,7 @@ OPT     ?= -O2
 CFLAGS  := -std=gnu11 $(OPT) -g0 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
            -ffreestanding -fno-stack-protector -fno-pie -fno-plt -fno-math-errno \
            -fno-asynchronous-unwind-tables -fno-ident -ffunction-sections -fdata-sections \
-           -march=x86-64-v2 -mtune=generic \
+           -march=x86-64 -mtune=generic \
            -Ilibzr/include -Ilibzg/include -Ilibzg/src -Ilibzui/include -Ilibzd/include -Ilibzn/include -Ilibza/include
 LDFLAGS := -nostdlib -static -no-pie -Wl,--gc-sections -Wl,--build-id=none -s
 LDLIBS  := -lgcc
@@ -40,7 +40,11 @@ $(OUT)/lib/lib$(1).a: $$($(1)_OBJ)
 endef
 $(foreach l,$(LIBNAMES),$(eval $(call LIBRARY,$(l))))
 
-$(OUT)/obj/%.o: %.c
+# Everything is compiled again when the flags change (a different -march, say).
+FLAGS_STAMP := $(OUT)/obj/.flags
+$(shell mkdir -p $(OUT)/obj; [ "$$(cat $(FLAGS_STAMP) 2>/dev/null)" = '$(CC) $(CFLAGS)' ] || printf '%s' '$(CC) $(CFLAGS)' >$(FLAGS_STAMP))
+
+$(OUT)/obj/%.o: %.c $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	@echo "  CC    $<"
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@

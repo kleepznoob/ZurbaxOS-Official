@@ -10,6 +10,7 @@ typedef struct {
 	bool dragging;
 	f32 want_x;             /* preferred caret x for vertical movement */
 	bool reveal;            /* scroll the caret into view on the next layout */
+	f32 menu_x, menu_y;     /* where the right-click menu opened */
 } EditState;
 
 static bool is_word(u8 c)
@@ -207,6 +208,70 @@ static int edit_keys(Ui *ui, StrBuf *text, EditState *st, bool multiline, bool r
 		ui->paste_in = NULL;
 		events |= ENTRY_CHANGED;
 	}
+	return events;
+}
+
+/* A menu item that can't be used right now: shown, dimmed, not clickable. */
+static void menu_item_off(Ui *ui, Rect r, const char *icon, const char *label, const char *keys)
+{
+	Theme *t = &ui->theme;
+	ui_icon(ui, rect(r.x + 10, r.y + (r.h - 16) / 2, 16, 16), icon, t->text_faint);
+	ui_text_in(ui, ui_font(ui, 13, 500), rect(r.x + 36, r.y, r.w - 120, r.h), label, t->text_faint, ALIGN_START);
+	ui_text_in(ui, ui_font(ui, 12, 400), rect(r.x + r.w - 80, r.y, 70, r.h), keys, t->text_faint, ALIGN_END);
+}
+
+/* The right-click menu of a text field: Cut, Copy, Paste, Select All. */
+static int edit_menu(Ui *ui, UiId eid, UiInteract it, StrBuf *text, EditState *st, bool readonly, bool password)
+{
+	int events = 0;
+	ui_push_id(ui, (i64)eid);
+	if (it.right_clicked) {
+		ui->focus = eid;
+		st->menu_x = ui->mx - ui->ox, st->menu_y = ui->my - ui->oy;
+		if (!ui_popover_is_open(ui, "__edit"))
+			ui_popover_toggle(ui, "__edit");
+	}
+	Rect c;
+	if (ui_popover_begin(ui, "__edit", rect(st->menu_x, st->menu_y - 6, 1, 1), 220, 12 + 34 * 4 + 9, &c)) {
+		bool sel = st->cursor != st->anchor;
+		Rect r = cut_top(&c, 34);
+		if (sel && !readonly && !password) {
+			if (ui_menu_item(ui, r, "edit-cut", "Cut", "Ctrl+X")) {
+				mem_free(ui->clipboard_out);
+				ui->clipboard_out = selection_text(text, st);
+				delete_selection(text, st);
+				events |= ENTRY_CHANGED;
+			}
+		} else {
+			menu_item_off(ui, r, "edit-cut", "Cut", "Ctrl+X");
+		}
+		r = cut_top(&c, 34);
+		if (sel && !password) {
+			if (ui_menu_item(ui, r, "edit-copy", "Copy", "Ctrl+C")) {
+				mem_free(ui->clipboard_out);
+				ui->clipboard_out = selection_text(text, st);
+			}
+		} else {
+			menu_item_off(ui, r, "edit-copy", "Copy", "Ctrl+C");
+		}
+		r = cut_top(&c, 34);
+		if (!readonly) {
+			if (ui_menu_item(ui, r, "edit-paste", "Paste", "Ctrl+V"))
+				ui->want_paste = true;
+		} else {
+			menu_item_off(ui, r, "edit-paste", "Paste", "Ctrl+V");
+		}
+		Rect sp = cut_top(&c, 9);
+		ui_separator(ui, sp.x + 8, sp.y + 4, sp.x + sp.w - 8);
+		if (ui_menu_item(ui, cut_top(&c, 34), "selection-mode", "Select All", "Ctrl+A")) {
+			st->anchor = 0;
+			st->cursor = text->len;
+		}
+		ui_popover_end(ui);
+	}
+	ui_pop_id(ui);
+	if (events)
+		st->blink_start = ui->now;
 	return events;
 }
 
@@ -409,6 +474,7 @@ int ui_entry(Ui *ui, Rect r, const char *id, StrBuf *text, const char *placehold
 	}
 	ui_pop_clip(ui);
 	sb_free(&tmp);
+	events |= edit_menu(ui, eid, it, text, st, false, password);
 	return events;
 }
 
@@ -613,5 +679,6 @@ int ui_textarea(Ui *ui, Rect r, const char *id, StrBuf *text, f32 font_size, u32
 	}
 	vec_free(&lines);
 	#undef HIT
+	events |= edit_menu(ui, eid, it, text, st, readonly, false);
 	return events;
 }
