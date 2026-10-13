@@ -271,7 +271,7 @@ static void page_appearance(Ui *ui, Rect r)
 			ui_shadow(ui, pic, 8, 8, 3, color_hex("#00000030"));
 			ui_image(ui, pic, thumb_for(wi), 8, true);
 			/* a little window in the theme's style and accent */
-			Rect win = rect(pic.x + 12, pic.y + 14, pic.w * 0.55f, pic.h - 28);
+			Rect win = rect(pic.x + 10, pic.y + 12, pic.w * 0.3f, pic.h - 24);
 			ui_round(ui, win, 5, THEMES[i].dark ? color_hex("#2a2b30f0") : color_hex("#fafafaf0"));
 			ui_round(ui, rect(win.x + 8, win.y + win.h - 16, 34, 9), 4.5f, theme_accent_named(THEMES[i].accent));
 			ui_round(ui, rect(win.x + 8, win.y + 9, win.w - 16, 5), 2.5f, THEMES[i].dark ? color_hex("#ffffff30") : color_hex("#00000020"));
