@@ -3,7 +3,7 @@
 gen-modules-config.py: writes kernel/modules.config, the drivers Ember
 builds as modules: every one a PC or laptop can have.
 
-    tools/gen-modules-config.py REFERENCE.config KERNEL_SOURCE > kernel/modules.config
+    tools/gen-modules-config.py REFERENCE.config KERNEL_SOURCE BUILTIN.config > kernel/modules.config
 
 REFERENCE is a general-purpose distribution's configuration for the same
 kernel series (Arch Linux's linux-lts config.x86_64, which builds nearly
@@ -11,8 +11,11 @@ every driver); its modules are kept when the Kconfig file that defines them
 sits in a part of the kernel for PCs. What is left out is hardware a PC
 doesn't have (data-centre fabrics and NICs, industrial converters, phone
 and board chips, CAN and amateur radio buses, device-side USB) and test or
-debugging code. kernel/zurbax.config is applied after this file, so the
-drivers it builds in stay built in.
+debugging code. Nor does it name what Ember builds in: BUILTIN is
+x86_64_defconfig with kernel/zurbax.config merged (make O=DIR
+x86_64_defconfig, merge_config.sh, make olddefconfig), and whatever is =y
+there stays out of this list, so the CD drive, the PS/2 mouse and the rest
+that starting needs aren't turned into modules.
 """
 import os
 import re
@@ -57,9 +60,14 @@ NOT_THESE = re.compile(r"(^|_)(TEST|TESTS|KUNIT|SAMPLE|SAMPLES|DEBUG|DEBUGFS|KPR
 
 
 def main():
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         sys.exit(__doc__)
-    reference, src = sys.argv[1], sys.argv[2]
+    reference, src, builtin_cfg = sys.argv[1], sys.argv[2], sys.argv[3]
+    builtin = set()
+    for line in open(builtin_cfg):
+        m = re.match(r"CONFIG_([A-Z0-9_]+)=y$", line.strip())
+        if m:
+            builtin.add(m.group(1))
     where = {}
     for root, _, files in os.walk(src):
         for f in files:
@@ -79,7 +87,7 @@ def main():
             continue
         sym = m.group(1)
         path = where.get(sym)
-        if not path or NOT_THESE.search(sym):
+        if not path or NOT_THESE.search(sym) or sym in builtin:
             continue
         if sym not in KEEP_ANYWAY:
             if not path.startswith(KEEP_UNDER) or path.startswith(LEAVE_OUT):
