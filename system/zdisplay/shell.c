@@ -733,10 +733,12 @@ static void shell_frame(Ui *ui)
 	if (S.locked || S.lock_k > 0)
 		lockscreen_draw(ui);
 	if (!S.locked && !S.setup_mode) {
-		/* the launcher fills the screen between the bars */
+		/* Start covers the whole screen and the top bar; the taskbar stays */
+		/* under a settled Start screen the top bar mustn't catch clicks */
+		if (!S.launcher_open || S.launcher_k < 0.98f)
+			topbar_draw(ui);
 		if (S.launcher_open || S.launcher_k > 0)
 			launcher_draw(ui);
-		topbar_draw(ui);
 		taskbar_draw(ui);
 		desktop_menu_draw(ui);
 		clip_history_draw(ui);
