@@ -48,6 +48,7 @@
     <button class="spooky" type="button" aria-label="Halloween look" aria-pressed="false" title="Halloween look"><svg class="pumpkin" viewBox="0 0 120 112" aria-hidden="true"><path d="M58 26c-1-9 3-17 12-20l3 6c-6 2-8 7-8 14z" fill="#3f6b2a"/><ellipse cx="34" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="86" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="46" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="74" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="60" cy="68" rx="27" ry="42" fill="#ff8f26"/><path d="M33.5 62.9h18.3l-9.1-16.3zM86.5 62.9H68.2l9.1-16.3zM60 67l-4.6 7.6h9.2zM29.4 76.7Q60 86.4 90.6 76.7l-8.2 12.7-6.1-5.1-7.6 10.2-7.2-6.1-7.6 7.1-6.6-9.1-8.7 5.1z" fill="#ffd84a"/></svg></button>
     <a href="#tour">Tour</a>
     <a href="#play">Games</a>
+    <a href="#security">Security</a>
     <a href="#install">Install</a>
     <a href="/guide">Guide</a>
     <a class="get" href="#download">Download</a>
@@ -155,6 +156,21 @@
       <tr><td>NVIDIA, older</td><td>GeForce GTX 600 to 10</td><td>nouveau</td><td>NVK</td></tr>
     </tbody>
   </table>
+</section>
+
+<section id="security" class="secure">
+  <div class="play-head">
+    <h2 class="section-title">Safe by design. Supported to 2028.</h2>
+    <p class="lede">Zurbax 2.1 is a long-term support release. Security updates arrive every two weeks until October 2028, signed and checked before they install, and one restart finishes them.</p>
+  </div>
+  <ul class="guards">
+    <li class="rise"><span>Every 2 weeks</span><h3>Security updates</h3><p>The newest long-term Linux kernel and fixes for the system, every other Tuesday. They install on their own.</p></li>
+    <li class="rise"><span>Signed</span><h3>Checked before they install</h3><p>Each update is signed by Zurbax and every file checked against its fingerprint. A tampered one is thrown away.</p></li>
+    <li class="rise"><span>Lockdown</span><h3>A kernel nothing can change</h3><p>Not even the administrator can rewrite the running kernel or read its memory.</p></li>
+    <li class="rise"><span>ASLR</span><h3>Nothing in the same place twice</h3><p>Every program loads at a random address, with stack canaries and zeroed memory to stop attacks early.</p></li>
+    <li class="rise"><span>Sandbox</span><h3>Apps kept apart</h3><p>Apps can't read each other's memory, and Flatpak apps get only what they're given.</p></li>
+    <li class="rise"><span>Private</span><h3>Nothing collected</h3><p>No telemetry, no ads, no account needed, and nothing on Zurbax listens to the network.</p></li>
+  </ul>
 </section>
 
 <section id="install" class="install">

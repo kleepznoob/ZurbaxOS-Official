@@ -1,0 +1,135 @@
+# Zurbax's security updates, every two weeks (see system/zupdate).
+#
+# Every other Tuesday it moves the kernel to the newest release of Linux's
+# long-term branch, builds the system as the next update (2.1.N), signs its
+# description and publishes it: the files to the Internet Archive item
+# zurbax-2.1.N, and the signed description to zurbax-updates-2.1, which
+# https://www.zurbax.com/updates/2.1/ forwards to. Installed computers find
+# it within a day.
+#
+# It needs three repository secrets (Settings > Secrets and variables >
+# Actions): ZURBAX_UPDATE_KEY, the private signing key matching
+# data/update-keys/*.pub, and IA_ACCESS_KEY and IA_SECRET_KEY for the
+# Internet Archive. Without them it builds and tests the update but doesn't
+# publish it.
+name: security-update
+
+on:
+  schedule:
+    - cron: "17 6 * * 2"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Publish now, even off the two-week schedule"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: security-update
+  cancel-in-progress: false
+
+env:
+  RELEASE: "2.1"
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Is this an update week?
+        id: when
+        run: |
+          # every 14 days from the first update, 27 October 2026
+          days=$(( ( $(date -u +%s) - $(date -u -d 2026-10-27 +%s) ) / 86400 ))
+          if [ "${{ inputs.force }}" = "true" ] || [ $(( days % 14 )) -lt 7 ]; then
+            echo "go=1" >>"$GITHUB_OUTPUT"
+          else
+            echo "Not an update week; the next one is in $(( 14 - days % 14 )) days."
+          fi
+
+      - name: Newest long-term kernel
+        if: steps.when.outputs.go
+        run: |
+          branch=$(sed -n 's/^KVER=\([0-9]*\.[0-9]*\)\..*/\1/p' kernel/build.sh)
+          newest=$(curl -fsSL https://www.kernel.org/releases.json |
+            jq -r --arg b "$branch." '[.releases[] | select(.version | startswith($b)) | .version][0] // empty')
+          if [ -n "$newest" ]; then sed -i "s/^KVER=.*/KVER=$newest/" kernel/build.sh; fi
+          echo "KVER=$(sed -n 's/^KVER=//p' kernel/build.sh)" >>"$GITHUB_ENV"
+
+      - name: Next update number
+        if: steps.when.outputs.go
+        run: |
+          current=$(curl -fsSL "https://www.zurbax.com/updates/$RELEASE/release" 2>/dev/null | sed -n 's/^version //p' || true)
+          case $current in "$RELEASE".*) n=$(( ${current##*.} + 1 )) ;; *) n=1 ;; esac
+          echo "UPDATE=$n" >>"$GITHUB_ENV"
+          echo "VERSION=$RELEASE.$n" >>"$GITHUB_ENV"
+          echo "Building $RELEASE.$n with Linux $KVER"
+
+      - name: Install build tools
+        if: steps.when.outputs.go
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc make bc flex bison libelf-dev libssl-dev cpio xz-utils squashfs-tools jq
+
+      - name: Cache the Wi-Fi and GPU firmware
+        if: steps.when.outputs.go
+        uses: actions/cache@v4
+        with:
+          path: build/firmware
+          key: firmware-${{ hashFiles('tools/fetch-firmware.py', 'kernel/gpu-firmware.txt') }}
+
+      - name: Build and test
+        if: steps.when.outputs.go
+        run: |
+          make -j"$(nproc)" OS_UPDATE="$UPDATE"
+          make OS_UPDATE="$UPDATE" test
+          make -j"$(nproc)" OS_UPDATE="$UPDATE" system-efi
+          ls -l build/downloads/zurbax.efi
+
+      - name: Sign
+        if: steps.when.outputs.go
+        env:
+          KEY: ${{ secrets.ZURBAX_UPDATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then echo "No ZURBAX_UPDATE_KEY secret: the update is built but not published."; exit 0; fi
+          umask 077
+          printf '%s\n' "$KEY" >"$RUNNER_TEMP/key.pem"
+          tools/update-publish.sh "$RUNNER_TEMP/key.pem" "$VERSION" "https://archive.org/download/zurbax-$VERSION/" \
+            "Linux $KVER and the latest security fixes for Zurbax." build/update build/downloads/zurbax.efi
+          rm -f "$RUNNER_TEMP/key.pem"
+
+      - name: Publish
+        if: steps.when.outputs.go
+        env:
+          IA_ACCESS: ${{ secrets.IA_ACCESS_KEY }}
+          IA_SECRET: ${{ secrets.IA_SECRET_KEY }}
+        run: |
+          if [ ! -f build/update/release.sig ] || [ -z "$IA_ACCESS" ]; then echo "Not published (no signature or no Internet Archive keys)."; exit 0; fi
+          put() { # ITEM FILE [TITLE]
+            curl -fsS --retry 5 --retry-delay 20 -X PUT -T "$2" \
+              -H "authorization: LOW $IA_ACCESS:$IA_SECRET" -H "x-amz-auto-make-bucket: 1" \
+              -H "x-archive-meta-mediatype: software" -H "x-archive-meta-collection: opensource_media" \
+              -H "x-archive-meta-title: ${3:-$1}" -H "x-archive-keep-old-version: 0" \
+              "https://s3.us.archive.org/$1/$(basename "$2")"
+          }
+          put "zurbax-$VERSION" build/downloads/zurbax.efi "Zurbax $VERSION security update"
+          # the files first, the description last: nobody is told about files that aren't there yet
+          sleep 120
+          put "zurbax-updates-$RELEASE" build/update/release "Zurbax $RELEASE update channel"
+          put "zurbax-updates-$RELEASE" build/update/release.sig "Zurbax $RELEASE update channel"
+          echo "Published $VERSION"
+          echo "PUBLISHED=1" >>"$GITHUB_ENV"
+
+      - name: Keep the kernel version in the repository
+        if: env.PUBLISHED == '1'
+        run: |
+          git config user.name "Zurbax security updates"
+          git config user.email "updates@zurbax.com"
+          git add kernel/build.sh
+          git diff --cached --quiet || git commit -m "Security update $VERSION: Linux $KVER"
+          git push

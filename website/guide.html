@@ -67,6 +67,7 @@
       <li><a href="#games">Games</a></li>
       <li><a href="#desktops">Two desktops</a></li>
       <li><a href="#settings">Settings</a></li>
+      <li><a href="#security">Updates and security</a></li>
       <li><a href="#trouble">When something's wrong</a></li>
       <li><a href="#remove">Removing Zurbax</a></li>
       <li><a href="#utm">Try it on an iPad or Mac</a></li>
@@ -221,8 +222,21 @@
         <li><b>Network and Bluetooth:</b> Wi-Fi networks, wired connections, and pairing headphones, mice and controllers.</li>
         <li><b>Display and Sound:</b> resolution and scale, night light, outputs and volume.</li>
         <li><b>Users:</b> your name, picture and password.</li>
+        <li><b>Privacy &amp; Security:</b> updates, how long your version is supported, the protections that are on, clipboard history and locking when the computer sleeps.</li>
         <li><b>Date &amp; Time, Keyboard, Mouse &amp; Touchpad, Screen Time</b> and <b>About</b>, which shows the version and your computer's parts.</li>
       </ul>
+    </section>
+
+    <section id="security" class="g-sec">
+      <h2>Updates and security</h2>
+      <p>Zurbax 2.1 is a long-term support (LTS) release: it gets security updates every two weeks until <b>October 2028</b>. Each one brings the newest kernel from Linux's long-term branch and fixes for Zurbax itself.</p>
+      <ul class="g-list">
+        <li><b>They install on their own.</b> Zurbax checks once a day, downloads an update in the background and tells you when it's ready. Restart to finish; your apps, files and settings stay as they are.</li>
+        <li><b>Only real updates install.</b> Every update is signed by Zurbax, and every file in it is checked against its fingerprint before it goes in. Anything else is thrown away.</li>
+        <li><b>The version before is kept</b> next to the new one when there's room, as ZURBAX.OLD on the startup partition.</li>
+        <li><b>To check yourself,</b> open Settings, then Privacy &amp; Security, and choose Check Now. You can turn automatic updates off there too.</li>
+      </ul>
+      <p>What protects the computer, all on from the start: a kernel nothing can change while it runs (not even the administrator), programs that load at a random place each time, stack canaries and zeroed memory, apps that can't read each other's memory, sandboxed Flatpak apps, and nothing that listens to the network. Zurbax collects nothing about you.</p>
     </section>
 
     <section id="trouble" class="g-sec">

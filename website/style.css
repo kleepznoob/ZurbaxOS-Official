@@ -171,6 +171,24 @@ h1 .line { display: block; overflow: hidden; padding-bottom: .1em; margin-bottom
 .steps h3 { font-size: 24px; margin: 18px 0 10px; font-variation-settings: "wdth" 110; }
 .steps p { margin: 0; color: var(--ink-2); font-size: 16px; }
 
+/* security */
+.secure { padding: 140px var(--gutter) 0; }
+.guards { list-style: none; padding: 0; margin: 64px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 2px solid var(--ink); }
+.guards li { padding: 26px 24px 30px 0; border-bottom: 1px solid var(--rule); }
+.guards li:not(:nth-child(3n+1)) { padding-left: 24px; border-left: 2px solid var(--ink); }
+.guards span { font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+.guards h3 { font-size: 24px; margin: 12px 0 10px; font-variation-settings: "wdth" 110; }
+.guards p { margin: 0; color: var(--ink-2); font-size: 16px; }
+@media (max-width: 960px) {
+  .guards { grid-template-columns: 1fr 1fr; }
+  .guards li:not(:nth-child(3n+1)) { padding-left: 0; border-left: 0; }
+  .guards li:nth-child(even) { padding-left: 24px; border-left: 2px solid var(--ink); }
+}
+@media (max-width: 560px) {
+  .guards { grid-template-columns: 1fr; }
+  .guards li:nth-child(even) { padding-left: 0; border-left: 0; }
+}
+
 /* download */
 .download { margin-top: 140px; background: var(--paper); color: var(--ink); padding: 110px var(--gutter) 90px; border-top: 2px solid var(--ink); }
 .dl-inner h2 { font-size: clamp(64px, 11vw, 168px); font-variation-settings: "wdth" 125; letter-spacing: -.035em; line-height: .86; }
@@ -432,3 +450,4 @@ html.halloween {
 @media (max-width: 560px) {
   .halloween .hero-copy > .pumpkin { width: 50px; bottom: auto; top: -16px; }
 }
+.halloween .guards span { color: var(--pumpkin); }

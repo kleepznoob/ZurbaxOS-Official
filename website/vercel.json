@@ -38,6 +38,22 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
         }
       ]
     }
@@ -46,6 +62,16 @@
     {
       "source": "/download/2.0/:file",
       "destination": "https://archive.org/download/zurbax-2.0/:file",
+      "permanent": false
+    },
+    {
+      "source": "/download/2.1/:file",
+      "destination": "https://archive.org/download/zurbax-2.1/:file",
+      "permanent": false
+    },
+    {
+      "source": "/updates/:release/:file",
+      "destination": "https://archive.org/download/zurbax-updates-:release/:file",
       "permanent": false
     }
   ]
