@@ -13,6 +13,14 @@ static f32 window_radius(Ui *ui)
 
 typedef enum { BTN_NORMAL, BTN_SUGGESTED, BTN_DESTRUCTIVE, BTN_FLAT } ButtonKind;
 
+/* The liquid finish: a sheen over the top of a control and light along its
+ * rim, as on a drop of glass. */
+static void liquid(Ui *ui, Rect r, f32 radius, f32 strength)
+{
+	ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.6f), radius, color_scale_alpha(COLOR_WHITE, strength), COLOR_CLEAR);
+	ui_border(ui, r, radius, 1, color_scale_alpha(COLOR_WHITE, strength * 1.3f));
+}
+
 static void button_frame(Ui *ui, Rect r, ButtonKind kind, UiInteract it, f32 hover)
 {
 	Theme *t = &ui->theme;
@@ -24,14 +32,17 @@ static void button_frame(Ui *ui, Rect r, ButtonKind kind, UiInteract it, f32 hov
 			ui_round(ui, r, CTL_RADIUS, color_scale_alpha(t->hover, hover));
 		return;
 	}
-	/* Flat: one solid fill, a shade deeper under the pointer and deeper
-	 * still while pressed. No bevels, no borders. */
+	/* A capsule of colour with the liquid finish, a shade deeper under the
+	 * pointer and deeper still, with the sheen gone, while pressed. */
 	Color base = kind == BTN_NORMAL ? t->button_top : kind == BTN_SUGGESTED ? t->accent : t->danger;
 	Color hot = kind == BTN_NORMAL ? color_lighten(base, t->dark ? 0.07f : -0.045f) : color_lighten(base, t->dark ? 0.08f : 0.06f);
 	Color fill = color_mix(base, hot, hover);
 	if (down)
 		fill = kind == BTN_NORMAL ? color_lighten(base, t->dark ? 0.12f : -0.09f) : color_lighten(base, -0.1f);
-	ui_round(ui, r, CTL_RADIUS, fill);
+	f32 radius = minf(r.h / 2, 16);
+	ui_round(ui, r, radius, fill);
+	if (!down)
+		liquid(ui, r, radius, kind == BTN_NORMAL ? (t->dark ? 0.07f : 0.35f) : 0.16f);
 }
 
 static bool button_impl(Ui *ui, Rect r, const char *label, const char *icon, ButtonKind kind)
@@ -117,10 +128,14 @@ bool ui_switch(Ui *ui, Rect r, bool *on)
 	Color off = t->dark ? color_hex("#47484d") : color_hex("#d6d6d3");
 	Color bg = color_mix(off, t->accent, k);
 	ui_round(ui, track, 12, bg);
-	f32 kx = track.x + 2 + k * 20;
-	Rect knob = { kx, track.y + 2, 20, 20 };
-	ui_shadow(ui, knob, 10, 2, 1, color_hex("#00000035"));
-	ui_circle(ui, kx + 10, track.y + 12, 10, COLOR_WHITE);
+	liquid(ui, track, 12, 0.10f);
+	/* the knob is a drop that stretches while it's held */
+	f32 stretch = ui_anim(ui, id + 1, it.held ? 1.0f : 0.0f, 20) * 6;
+	f32 kw = 20 + stretch, kx = track.x + 2 + k * (40 - kw);
+	Rect knob = { kx, track.y + 2, kw, 20 };
+	ui_shadow(ui, knob, 10, 3, 1, color_hex("#00000040"));
+	ui_round(ui, knob, 10, COLOR_WHITE);
+	ui_gradient(ui, rect(knob.x, knob.y + 10, knob.w, 10), 10, COLOR_CLEAR, color_hex("#00000012"));
 	return it.clicked;
 }
 
@@ -314,9 +329,11 @@ void ui_vseparator(Ui *ui, f32 x, f32 y0, f32 y1)
 void ui_card(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	ui_shadow(ui, r, 12, 6, 1, color_hex(t->dark ? "#00000050" : "#0000000f"));
-	ui_round(ui, r, 12, t->card);
-	ui_border(ui, r, 12, 1, t->border);
+	ui_shadow(ui, r, 14, 8, 2, color_hex(t->dark ? "#00000050" : "#00000012"));
+	ui_round(ui, r, 14, t->card);
+	ui_border(ui, r, 14, 1, t->border);
+	/* light along the top edge */
+	ui_gradient(ui, rect(r.x, r.y, r.w, minf(r.h, 28)), 14, color_hex(t->dark ? "#ffffff0a" : "#ffffff60"), COLOR_CLEAR);
 }
 
 void ui_badge(Ui *ui, f32 cx, f32 cy, const char *text)

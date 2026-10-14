@@ -58,6 +58,7 @@ void settings_load(void)
 	s->topbar = conf_get_bool(c, "topbar", true);
 	s->taskbar_size = CLAMP((int)conf_get_int(c, "taskbar_size", 1), 0, 2);
 	s->taskbar_center = str_eq(conf_get(c, "taskbar_align", "left"), "center");
+	s->taskbar_float = conf_get_bool(c, "taskbar_float", true);
 	s->taskbar_labels = conf_get_bool(c, "taskbar_labels", false);
 	s->taskbar_search = conf_get_bool(c, "taskbar_search", true);
 	s->taskbar_desktop = conf_get_bool(c, "taskbar_desktop", true);

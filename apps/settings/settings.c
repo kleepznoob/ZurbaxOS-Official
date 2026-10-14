@@ -1458,8 +1458,22 @@ static void load_about(void)
 	mem_free(v);
 	mem_free(pn);
 	struct utsname u;
-	if (sys_uname(&u) == 0)
-		fmt(st.kernel, sizeof st.kernel, "Linux %s", u.release);
+	if (sys_uname(&u) == 0) {
+		/* Ember, Zurbax's kernel, says so in /proc/version; its release is Linux's */
+		char *pv = file_read_line("/proc/version");
+		char base[64];
+		str_copy(base, u.release, sizeof base);
+		char *dash = (char *)str_chr(base, '-');
+		if (dash)
+			*dash = 0;
+		if (pv && str_starts(pv, "Ember version ")) {
+			const char *ver = pv + 14, *end = str_chr(ver, ' ');
+			fmt(st.kernel, sizeof st.kernel, "Ember %.*s (Linux %s)", (int)(end ? end - ver : (long)strlen(ver)), ver, base);
+		} else {
+			fmt(st.kernel, sizeof st.kernel, "Linux %s", u.release);
+		}
+		mem_free(pv);
+	}
 	char link[256];
 	long n = sys_readlink("/sys/class/drm/card0/device/driver", link, sizeof link - 1);
 	if (n > 0) {

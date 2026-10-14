@@ -367,7 +367,11 @@ static void tile_face(Ui *ui, const Tile *t, Rect r, f32 alpha)
 		ui_text(ui, ui_font(ui, 13, 400), r.x + 10, r.y + r.h - 10, "Desktop", white);
 		return;
 	}
-	ui_fill(ui, r, color_scale_alpha(bg, alpha));
+	/* the tile's colour with a liquid finish: a sheen over its top half and
+	 * light catching its upper edge */
+	ui_round(ui, r, 6, color_scale_alpha(bg, alpha));
+	ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.55f), 6, color_scale_alpha(color_hex("#ffffff2e"), alpha), COLOR_CLEAR);
+	ui_border(ui, r, 6, 1, color_scale_alpha(color_hex("#ffffff30"), alpha));
 	Civil c;
 	civil_local(time_unix(), &c);
 	bool small = t->size == T_SMALL;
@@ -1135,7 +1139,7 @@ void launcher_draw(Ui *ui)
 	Rect full = rect(0, 0, S.sw, S.sh), d = ui_to_device(ui, full);
 	shell_surface(full);
 	/* the desktop's picture behind it, softened, as Windows 8.1 can show */
-	blit_scaled(ui->canvas, S.wallpaper_blur, rect(0, 0, (f32)S.wallpaper_blur->width, (f32)S.wallpaper_blur->height), d, k);
+	blit_scaled(ui->canvas, S.wallpaper_blur, rect(0, 0, (f32)S.wallpaper_blur->width, (f32)S.wallpaper_blur->height), d, k > 0.97f ? 1 : k);
 	ui_fill(ui, full, color_scale_alpha(color_mix(color_hex("#0b0b12"), ui->theme.accent, 0.18f), 0.55f * k));
 	/* tiles fly in from the right */
 	f32 intro = S.set.reduce_motion ? 0 : (1 - ease_out_cubic(clampf((f32)(S.now - opened_at) * 2.6f, 0, 1))) * 220;

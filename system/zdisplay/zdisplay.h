@@ -154,6 +154,7 @@ typedef struct {
 	bool topbar;                /* the bar across the top: app menu, clock, status */
 	int taskbar_size;           /* 0 small, 1 medium, 2 large */
 	bool taskbar_center;        /* the buttons centred, or from the left */
+	bool taskbar_float;         /* a pane of glass off the screen's edges */
 	bool taskbar_labels;        /* app names beside the icons */
 	bool taskbar_search;        /* the search box */
 	bool taskbar_desktop;       /* the show-desktop button at the far right */
@@ -399,6 +400,11 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text);
 void shell_tick(void);
 bool shell_animating(void);
 f64 shell_next_wake(void);
+/* glass.c: the shell's material */
+void glass_panel(Ui *ui, Rect r, f32 radius, f32 alpha);
+void glass_card(Ui *ui, Rect r, f32 radius, f32 alpha);
+void glass_panel_style(Ui *ui, Rect r, f32 radius, f32 alpha, bool dark);
+void glass_card_style(Ui *ui, Rect r, f32 radius, f32 alpha, bool dark);
 Notice *shell_notify(const char *app, const char *icon, const char *title, const char *body); /* NULL when held back */
 void shell_osd(const char *icon, f32 value);
 void shell_lock(void);

@@ -635,9 +635,15 @@ f32 shell_taskbar_height(void)
 	return TASKBAR_H[CLAMP(S.set.taskbar_size, 0, 2)];
 }
 
+/* The taskbar floats a little off the screen's edges, a pane of glass. */
+static f32 taskbar_gap(void)
+{
+	return S.set.taskbar_float && !S.setup_mode ? 8 : 0;
+}
+
 f32 shell_taskbar_reserved(void)
 {
-	return S.set.dock_autohide || S.setup_mode ? 0 : shell_taskbar_height();
+	return S.set.dock_autohide || S.setup_mode ? 0 : shell_taskbar_height() + taskbar_gap();
 }
 
 int shell_dock_items(char ids[][48], int max)
@@ -697,9 +703,10 @@ void shell_taskbar(Taskbar *t)
 	t->n = shell_dock_items(ids, 32);
 	f32 h = shell_taskbar_height();
 	t->icon = TASKBAR_ICON[CLAMP(S.set.taskbar_size, 0, 2)];
-	t->bar = rect(0, S.sh - h, S.sw, h);
+	f32 gap = taskbar_gap();
+	t->bar = rect(gap, S.sh - h - gap, S.sw - 2 * gap, h);
 	/* the tray, from the right edge */
-	f32 x = S.sw;
+	f32 right = S.sw - gap, x = right;
 	if (S.set.taskbar_desktop) {
 		t->desktop = rect(x - 10, t->bar.y, 10, h);
 		x -= 10;
@@ -715,7 +722,7 @@ void shell_taskbar(Taskbar *t)
 	}
 	t->bell = rect(x - 40, t->bar.y, 40, h);
 	x -= 40;
-	t->tray = rect(x - 4, t->bar.y, S.sw - x + 4, h);
+	t->tray = rect(x - 4, t->bar.y, right - x + 4, h);
 	/* Start, search and the task buttons */
 	f32 room = t->tray.x - 12;
 	f32 start_w = h + 4;
@@ -737,8 +744,8 @@ void shell_taskbar(Taskbar *t)
 	if (group > room)
 		t->slot_w = floorf(maxf(28, (room - start_w - 6) / (f32)MAX(t->n, 1)));
 	group = start_w + (search_w ? search_w + 8 : 0) + 6 + (f32)t->n * t->slot_w;
-	f32 x0 = S.set.taskbar_center ? roundf(minf((S.sw - group) / 2, room - group)) : 4;
-	t->start = rect(maxf(4, x0), t->bar.y, start_w, h);
+	f32 x0 = S.set.taskbar_center ? roundf(minf((S.sw - group) / 2, room - group)) : gap + 4;
+	t->start = rect(maxf(gap + 4, x0), t->bar.y, start_w, h);
 	f32 ax = t->start.x + start_w + 4;
 	if (search_w) {
 		f32 sh = roundf(h * 0.66f);
@@ -759,8 +766,8 @@ Rect shell_dock_slot(int n, int i)
 /* Is (x, y) on the taskbar? */
 static bool dock_hit(f32 x, f32 y)
 {
-	UNUSED(x);
-	return y >= S.sh - shell_taskbar_height();
+	f32 gap = taskbar_gap();
+	return y >= S.sh - shell_taskbar_height() - gap && y < S.sh - gap && x >= gap && x < S.sw - gap;
 }
 
 Rect shell_dock_icon_rect(const char *app_id)

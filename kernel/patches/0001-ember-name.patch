@@ -1,0 +1,38 @@
+Ember: the kernel's own name in its boot banner and /proc/version
+
+Zurbax's kernel is called Ember. uname keeps "Linux" and the Linux release
+number, which programs check to know what they run on.
+
+--- a/init/version-timestamp.c
++++ b/init/version-timestamp.c
+@@ -7,6 +7,9 @@
+ #include <linux/uts.h>
+ #include <linux/utsname.h>
+ 
++/* Zurbax's kernel: Ember, built on Linux. */
++#define EMBER_VERSION "1.0"
++
+ struct uts_namespace init_uts_ns = {
+ 	.ns.ns_type = ns_common_type(&init_uts_ns),
+ 	.ns.__ns_ref = REFCOUNT_INIT(2),
+@@ -27,5 +30,5 @@
+ 
+ /* FIXED STRINGS! Don't touch! */
+ const char linux_banner[] =
+-	"Linux version " UTS_RELEASE " (" LINUX_COMPILE_BY "@"
++	"Ember version " EMBER_VERSION " (Linux " UTS_RELEASE ") (" LINUX_COMPILE_BY "@"
+ 	LINUX_COMPILE_HOST ") (" LINUX_COMPILER ") " UTS_VERSION "\n";
+--- a/init/version.c
++++ b/init/version.c
+@@ -32,8 +32,10 @@
+ }
+ early_param("hostname", early_hostname);
+ 
++/* Ember, Zurbax's kernel; the system name and release stay Linux's, so
++ * programs that ask which kernel they run on still get the answer they know. */
+ const char linux_proc_banner[] =
+-	"%s version %s"
++	"Ember version 1.0 (%s %s)"
+ 	" (" LINUX_COMPILE_BY "@" LINUX_COMPILE_HOST ")"
+ 	" (" LINUX_COMPILER ") %s\n";
+ 

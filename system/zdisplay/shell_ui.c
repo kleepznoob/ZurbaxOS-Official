@@ -55,27 +55,10 @@ static f32 smooth(f32 k)
 	return k * k * (3 - 2 * k);
 }
 
-/* Dark glass: the blurred wallpaper behind r under a dark tint. */
-static void dark_glass(Ui *ui, Rect r, f32 radius, f32 tint)
-{
-	Rect d = ui_to_device(ui, r);
-	if (radius > 0.5f) {
-		blit_scaled_round(ui->canvas, S.wallpaper_blur, d, d, radius * S.scale, 1);
-		ui_round(ui, r, radius, color_scale_alpha(color_hex("#0b0c10"), tint));
-	} else {
-		blit_scaled(ui->canvas, S.wallpaper_blur, d, d, 1);
-		ui_fill(ui, r, color_scale_alpha(color_hex("#0b0c10"), tint));
-	}
-}
-
-/* A panel of the shell's own, in the theme's colors. */
+/* A panel of the shell's own: glass. */
 static void shell_card(Ui *ui, Rect r, f32 radius, f32 k)
 {
-	Theme *t = &ui->theme;
-	Color bg = t->dark ? color_hex("#232427") : color_hex("#fbfbfa");
-	ui_shadow(ui, r, radius, 26, 8, color_scale_alpha(color_hex(t->dark ? "#00000080" : "#00000036"), k));
-	ui_round(ui, r, radius, color_scale_alpha(bg, k));
-	ui_border(ui, r, radius, 1, color_scale_alpha(color_hex(t->dark ? "#ffffff14" : "#00000012"), k));
+	glass_card(ui, r, radius, k);
 }
 
 /* A panel opening from a bar: under the top bar, or above the taskbar
@@ -159,12 +142,10 @@ static BarLook bar_look(Ui *ui, bool follow_style)
 	return l;
 }
 
-/* A bar's background: the blurred wallpaper under the bar color. */
+/* A bar's background: glass. */
 static void bar_background(Ui *ui, Rect r, const BarLook *l, f32 alpha)
 {
-	Rect d = ui_to_device(ui, r);
-	blit_scaled(ui->canvas, S.wallpaper_blur, d, d, 1);
-	ui_fill(ui, r, color_scale_alpha(l->bg, alpha));
+	glass_panel_style(ui, r, 0, alpha > 0.5f ? 1 : alpha * 2, l->dark);
 }
 
 /* A button on a bar: a rounded highlight under the pointer, a firmer one while active. */
@@ -212,8 +193,7 @@ static void tooltip_at(Ui *ui, f32 cx, f32 y, bool above, const char *text)
 	f32 w = ui_text_width(ui, f, text) + 18;
 	Rect tip = rect(roundf(clampf(cx - w / 2, 4, S.sw - w - 4)), roundf(above ? y - 34 : y + 6), w, 26);
 	shell_surface(tip);
-	ui_shadow(ui, tip, 6, 10, 2, color_hex("#00000040"));
-	ui_round(ui, tip, 6, color_hex("#202023f4"));
+	glass_card_style(ui, tip, 8, 1, true);
 	ui_text_in(ui, f, tip, text, COLOR_WHITE, ALIGN_CENTER);
 }
 
@@ -414,9 +394,7 @@ static void previews_draw(Ui *ui, Rect slot, const char *id, const BarLook *l)
 	Rect r = rect(roundf(clampf(slot.x + slot.w / 2 - w / 2, 6, S.sw - w - 6)), roundf(slot.y - h - 8), w, h);
 	preview_rect = r;
 	shell_surface(r);
-	ui_shadow(ui, r, 10, 18, 5, color_hex("#00000060"));
-	ui_round(ui, r, 10, color_scale_alpha(l->bg, 0.97f));
-	ui_border(ui, r, 10, 1, l->dark ? color_hex("#ffffff14") : color_hex("#00000014"));
+	glass_card_style(ui, r, 14, 1, l->dark);
 	for (int i = 0; i < n; i++) {
 		Window *win = list[i];
 		Rect cell = rect(r.x + 8 + (f32)i * (tw + gap), r.y + 8, tw, th + 30);
@@ -527,7 +505,7 @@ void taskbar_draw(Ui *ui)
 {
 	Theme *t = &ui->theme;
 	shell_taskbar(&tb);
-	tb_dy = roundf(smooth(S.dock_hide_k) * (tb.bar.h + 2));
+	tb_dy = roundf(smooth(S.dock_hide_k) * (S.sh - tb.bar.y + 2));
 	if (S.dock_hide_k >= 0.999f && !S.dock_menu[0]) {
 		preview_app[0] = 0;
 		return;
@@ -535,9 +513,11 @@ void taskbar_draw(Ui *ui)
 	BarLook l = bar_look(ui, S.set.taskbar_light);
 	Rect bar = tb.bar;
 	bar.y += tb_dy;
-	shell_surface(bar);
-	bar_background(ui, bar, &l, l.dark ? 0.86f : 0.9f);
-	ui_fill(ui, rect(0, bar.y, S.sw, 1), l.dark ? color_hex("#ffffff12") : color_hex("#00000014"));
+	shell_surface(rect_inset(bar, -24, -24));
+	if (S.set.taskbar_float)
+		glass_card_style(ui, bar, 16, 1, l.dark);
+	else
+		glass_panel_style(ui, bar, 0, 1, l.dark);
 	const char *tip = NULL;
 	f32 tip_x = 0;
 
@@ -1205,9 +1185,7 @@ void switcher_draw(Ui *ui)
 	f32 cell = 104, w = minf((f32)n * cell + 32, S.sw - 32), h = 168;
 	Rect r = center_in(rect(0, 0, S.sw, S.sh), w, h);
 	shell_surface(r);
-	ui_shadow(ui, r, 24, 30, 8, color_hex("#00000070"));
-	dark_glass(ui, r, 24, 0.62f);
-	ui_border(ui, r, 24, 1, color_hex("#ffffff1c"));
+	glass_card_style(ui, r, 24, 1, true);
 	f32 x0 = r.x + 16 - maxf(0, (f32)(sel + 1) * cell - (w - 32));   /* keep the selection in view */
 	ui_push_clip(ui, pad(r, 8));
 	for (int i = 0; i < n; i++) {

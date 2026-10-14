@@ -1,0 +1,22 @@
+Ember: split-lock detection off by default
+
+In its default "warn" mode the kernel also slows a program that takes a
+split lock down on purpose. The programs that still do are mostly older
+Windows games under Proton; split_lock_detect=warn turns it back on.
+
+--- a/arch/x86/kernel/cpu/bus_lock.c
++++ b/arch/x86/kernel/cpu/bus_lock.c
+@@ -110,7 +110,12 @@
+ 
+ static void __init sld_state_setup(void)
+ {
+-	enum split_lock_detect_state state = sld_warn;
++	/*
++	 * Ember: off unless asked for (split_lock_detect=warn). Warning about a
++	 * split lock also slows the program down on purpose, and the programs
++	 * that still take them are mostly older Windows games under Proton.
++	 */
++	enum split_lock_detect_state state = sld_off;
+ 	char arg[20];
+ 	int i, ret;
+ 

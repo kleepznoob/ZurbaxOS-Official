@@ -179,9 +179,7 @@ void clip_history_draw(Ui *ui)
 	}
 	f32 w = 440, h = minf(minf(520, S.sh - shell_panel_height() - shell_taskbar_reserved() - 40), 14 + 34 + 8 + maxf(content, 170) + 14);
 	Rect r = rect(roundf((S.sw - w) / 2), S.sh - shell_taskbar_reserved() - h - 14, w, h);
-	ui_shadow(ui, r, 14, 26, 10, color_hex("#00000060"));
-	ui_round(ui, r, 14, t->card);
-	ui_border(ui, r, 14, 1, t->border);
+	glass_card(ui, r, 16, 1);
 	shell_surface(r);
 	Rect c = pad(r, 14);
 	Rect head = cut_top(&c, 34);

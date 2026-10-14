@@ -1186,10 +1186,8 @@ void desktop_menu_draw(Ui *ui)
 	else
 		h = 12 + 34 * 8 + 9 * 2;
 	Rect r = rect(clampf(menu_x, 6, S.sw - w - 6), clampf(menu_y, shell_panel_height() + 6, S.sh - h - 6), w, h);
-	ui_shadow(ui, r, 12, 22, 8, color_hex("#00000055"));
-	ui_round(ui, r, 12, t->card);
-	ui_border(ui, r, 12, 1, t->border);
-	shell_surface(r);
+	glass_card(ui, r, 14, 1);
+	shell_surface(rect_inset(r, -30, -30));
 	Rect c = pad(r, 6);
 	int col, row;
 	cell_at(menu_x, menu_y, &col, &row);

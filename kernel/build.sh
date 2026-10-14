@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds the Zurbax kernel: upstream Linux LTS + kernel/zurbax.config.
+# Builds Ember, the Zurbax kernel: upstream Linux LTS with kernel/patches and
+# kernel/zurbax.config.
 #
 #   kernel/build.sh                 build bzImage with no embedded system
 #   kernel/build.sh system.cpio     embed system.cpio -> one bootable EFI file
@@ -20,6 +21,14 @@ if [ ! -f "$SRC/Makefile" ]; then
 	curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz" |
 		tar -xJ -C "$(dirname "$SRC")"
 fi
+
+# Ember: Zurbax's own changes to the kernel (kernel/patches), each applied once
+for p in "$ROOT"/kernel/patches/*.patch; do
+	[ -e "$p" ] || continue
+	patch -d "$SRC" -p1 -R -f -s --dry-run <"$p" >/dev/null 2>&1 && continue # already in
+	echo ">> applying $(basename "$p")"
+	patch -d "$SRC" -p1 -f -s <"$p"
+done
 
 mkdir -p "$OUT"
 # Reconfigure whenever the configuration files' contents change.
