@@ -1,3 +1,6 @@
 build/
 *.o
 *.a
+# kconfig merge_config.sh temporaries, left when a build is stopped
+.tmp.config.*
+.merge_tmp.config.*
