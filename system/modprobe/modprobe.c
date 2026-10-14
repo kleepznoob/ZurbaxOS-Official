@@ -318,10 +318,13 @@ static bool is_loaded(const char *name)
 	return live;
 }
 
-/* framebuffer drivers: not for devices; the GPUs' DRM drivers have the screen */
+/* Not for devices, though they match: framebuffer drivers (the GPUs' DRM
+ * drivers have the screen) and the PC speaker's (a beep at every error in a
+ * terminal). Asked for by name, they still load. */
 static bool unwanted(const Mod *m)
 {
-	return str_find(m->path, "/drivers/video/fbdev/") != NULL;
+	const char *b = path_base(m->path);
+	return str_find(m->path, "/drivers/video/fbdev/") != NULL || str_eq(b, "pcspkr.ko") || str_eq(b, "snd-pcsp.ko");
 }
 
 static bool load(const char *want, const char *params, bool for_device, int depth);
