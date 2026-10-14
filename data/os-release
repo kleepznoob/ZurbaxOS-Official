@@ -1,7 +1,9 @@
 NAME="Zurbax"
-VERSION="2.0"
-VERSION_ID="2.0"
-PRETTY_NAME="Zurbax 2.0"
+VERSION="2.1 LTS"
+VERSION_ID="2.1"
+PRETTY_NAME="Zurbax 2.1 LTS"
 ID=zurbax
 LOGO=zurbax-logo
-HOME_URL="https://github.com/kleepznoob/i-really-wanna-impress-me-parents-by-making-money"
+HOME_URL="https://www.zurbax.com/"
+SUPPORT_URL="https://www.zurbax.com/guide#security"
+SUPPORT_END=2028-10-31

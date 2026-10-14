@@ -9,7 +9,7 @@
 
 enum {
 	PAGE_APPEARANCE, PAGE_DESKTOP, PAGE_NETWORK, PAGE_BLUETOOTH, PAGE_DISPLAY, PAGE_SOUND, PAGE_INPUT,
-	PAGE_KEYBOARD, PAGE_USERS, PAGE_DATETIME, PAGE_GAMING, PAGE_SCREENTIME, PAGE_ABOUT, PAGE_COUNT
+	PAGE_KEYBOARD, PAGE_USERS, PAGE_DATETIME, PAGE_GAMING, PAGE_SCREENTIME, PAGE_SECURITY, PAGE_ABOUT, PAGE_COUNT
 };
 
 static const struct {
@@ -27,6 +27,7 @@ static const struct {
 	{ "Date & Time", "clock", "time zone 24 hour clock date", "System" },
 	{ "Gaming", "gamepad", "game mode performance fps windows exe", "System" },
 	{ "Screen Time", "hourglass", "screen time limits usage parental", "System" },
+	{ "Privacy & Security", "shield", "privacy security updates lts support protection clipboard lockdown firewall", "System" },
 	{ "About", "info", "about version hardware system update computer", "System" },
 };
 
@@ -1164,13 +1165,253 @@ static void about_row(Ui *ui, Rect *rows, const char *label, const char *value, 
 	ui_text(ui, f, r.x + r.w - ui_text_width(ui, f, value), r.y + 27, value, t->text);
 }
 
+/* ---- Privacy & Security --------------------------------------------------------------- */
+
+/* zupdate, the system's updater, reads requests from a socket and writes how
+ * it's going to a status file (see system/zupdate). */
+static void update_command(const char *cmd)
+{
+	int fd = (int)sys_socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	if (fd < 0)
+		return;
+	struct sockaddr_un a = { .sun_family = AF_UNIX };
+	str_copy(a.sun_path, "/run/zurbax/update.sock", sizeof a.sun_path);
+	sys_sendto(fd, cmd, strlen(cmd), 0, &a, sizeof a);
+	sys_close(fd);
+}
+
+static void month_year(const char *date, char *out, usize cap)
+{
+	static const char *const MONTHS[] = { "January", "February", "March", "April", "May", "June", "July",
+					      "August", "September", "October", "November", "December" };
+	int y = (int)str_to_int(date, &date), m = *date == '-' ? (int)str_to_int(date + 1, NULL) : 0;
+	if (m >= 1 && m <= 12)
+		fmt(out, cap, "%s %d", MONTHS[m - 1], y);
+	else
+		str_copy(out, date, cap);
+}
+
+/* Live checks: what the running kernel actually has on. */
+static bool proc_value_at_least(const char *path, int want)
+{
+	char *v = file_read_line(path);
+	bool ok = v && str_to_int(v, NULL) >= want;
+	mem_free(v);
+	return ok;
+}
+
+static int network_listeners(void)
+{
+	/* sockets in LISTEN (0A) on anything but the loopback address */
+	static const char *const FILES[] = { "/proc/net/tcp", "/proc/net/tcp6" };
+	int n = 0;
+	for (usize f = 0; f < ARRAY_LEN(FILES); f++) {
+		char *t = file_read(FILES[f], NULL);
+		for (char *line = t ? (char *)str_chr(t, '\n') : NULL; line && line[1];) {
+			line++;
+			char *nl = (char *)str_chr(line, '\n');
+			if (nl)
+				*nl = 0;
+			char local[64] = "", st_[8] = "";
+			const char *q = str_chr(line, ':');
+			if (q) {
+				q++;
+				while (*q == ' ')
+					q++;
+				usize i = 0;
+				while (*q && *q != ' ' && i + 1 < sizeof local)
+					local[i++] = *q++;
+				local[i] = 0;
+				while (*q == ' ')
+					q++;
+				while (*q && *q != ' ')
+					q++; /* remote */
+				while (*q == ' ')
+					q++;
+				str_copy(st_, q, 3);
+			}
+			bool loopback = str_starts(local, "0100007F") || str_starts(local, "00000000000000000000000001000000");
+			if (str_eq(st_, "0A") && !loopback)
+				n++;
+			line = nl;
+		}
+		mem_free(t);
+	}
+	return n;
+}
+
+static void check_row(Ui *ui, Rect *rows, bool ok, const char *label, const char *sub, bool last)
+{
+	Rect r = cut_top(rows, 58);
+	if (!last)
+		ui_separator(ui, r.x, r.y + r.h, r.x + r.w);
+	ui_icon(ui, rect(r.x, r.y + 18, 22, 22), ok ? "shield-check" : "shield", ok ? color_hex("#3fb950") : color_hex("#e3a21a"));
+	row_label(ui, rect(r.x + 36, r.y, r.w - 36, r.h), label, sub);
+}
+
+static void page_security(Ui *ui, Rect r)
+{
+	Theme *t = &ui->theme;
+	Rect b = page_body(r);
+	f32 y0 = ui_scroll_begin(ui, r, "page-scroll");
+	b.y = y0 + 26;
+	b.h = 100000;
+	f32 top = b.y;
+	Conf *u = conf_load("/run/zurbax/update.status");
+	const char *state = conf_get(u, "state", "");
+	const char *until = conf_get(u, "until", OS_SUPPORT_END);
+	char until_text[40], sub[160];
+	month_year(until, until_text, sizeof until_text);
+	fmt(sub, sizeof sub, OS_NAME " " OS_VERSION " LTS gets security updates every two weeks until %s.", until_text);
+	page_title(ui, &b, "Privacy & Security", sub);
+
+	/* updates */
+	Rect card = cut_top(&b, 128);
+	ui_card(ui, card);
+	Rect in = pad(card, 18);
+	const char *available = conf_get(u, "available", ""), *message = conf_get(u, "message", "");
+	f32 progress = (f32)conf_get_float(u, "progress", 0);
+	char title[120], line[240];
+	const char *icon = "shield-check";
+	Color ic = color_hex("#3fb950");
+	line[0] = 0;
+	i64 checked = conf_get_int(u, "checked", 0);
+	char ago[48] = "not yet";
+	if (checked) {
+		i64 d = time_unix() - checked;
+		if (d < 120)
+			str_copy(ago, "just now", sizeof ago);
+		else if (d < 7200)
+			fmt(ago, sizeof ago, "%d minutes ago", (int)(d / 60));
+		else if (d < 2 * 86400)
+			fmt(ago, sizeof ago, "%d hours ago", (int)(d / 3600));
+		else
+			fmt(ago, sizeof ago, "%d days ago", (int)(d / 86400));
+	}
+	const char *action = NULL, *cmd = NULL;
+	if (str_eq(state, "checking")) {
+		str_copy(title, "Checking for updates…", sizeof title);
+		fmt(line, sizeof line, "You have " OS_NAME " %s.", OS_FULL_VERSION);
+	} else if (str_eq(state, "available")) {
+		fmt(title, sizeof title, OS_NAME " %s is available", available);
+		str_copy(line, conf_get(u, "notes", "Security fixes."), sizeof line);
+		action = "Download and Install", cmd = "install";
+		icon = "shield", ic = t->accent;
+	} else if (str_eq(state, "downloading")) {
+		fmt(title, sizeof title, "Downloading " OS_NAME " %s… %d%%", available, (int)(progress * 100));
+		str_copy(line, conf_get(u, "notes", ""), sizeof line);
+		icon = "download", ic = t->accent;
+	} else if (str_eq(state, "ready")) {
+		fmt(title, sizeof title, OS_NAME " %s is ready", available);
+		str_copy(line, "Restart to finish. Your apps, files and settings stay as they are.", sizeof line);
+		action = "Restart Now", cmd = "restart";
+	} else if (str_eq(state, "error")) {
+		str_copy(title, "The last check didn't finish", sizeof title);
+		str_copy(line, message, sizeof line);
+		action = "Try Again", cmd = "check";
+		icon = "shield", ic = color_hex("#e3a21a");
+	} else if (str_eq(state, "live")) {
+		str_copy(title, "Updates start once Zurbax is installed", sizeof title);
+		str_copy(line, "This is the live session from the install stick.", sizeof line);
+		icon = "shield", ic = t->text_dim;
+	} else if (!state[0]) {
+		str_copy(title, "The updater isn't running", sizeof title);
+		str_copy(line, "It starts with Zurbax; restarting the computer brings it back.", sizeof line);
+		icon = "shield", ic = color_hex("#e3a21a");
+	} else {
+		str_copy(title, "You're up to date", sizeof title);
+		if (message[0])
+			str_copy(line, message, sizeof line);
+		else
+			fmt(line, sizeof line, OS_NAME " %s. Last checked %s.", OS_FULL_VERSION, ago);
+	}
+	ui_icon(ui, rect(in.x, in.y + 4, 36, 36), icon, ic);
+	ui_text(ui, ui_font(ui, 16, 600), in.x + 52, in.y + 18, title, t->text);
+	ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(in.x + 52, in.y + 26, in.w - 52, 34), line, t->text_dim, ALIGN_START);
+	if (str_eq(state, "downloading"))
+		ui_progress(ui, rect(in.x + 52, in.y + 66, in.w - 52, 6), progress);
+	Rect btns = rect(in.x + 52, in.y + in.h - 34, in.w - 52, 34);
+	if (action && ui_button_suggested(ui, cut_left(&btns, 200), action)) {
+		if (str_eq(cmd, "restart"))
+			ui_session(ui, SESSION_RESTART);
+		else
+			update_command(cmd);
+	}
+	if (action)
+		cut_left(&btns, 10);
+	bool working = str_eq(state, "checking") || str_eq(state, "downloading");
+	if (!working && !str_eq(state, "live") && state[0] && ui_button(ui, cut_left(&btns, 160), "Check Now"))
+		update_command("check");
+	if (working)
+		ui->redraw = true;
+	cut_top(&b, 14);
+	Rect rows = card_rows(ui, &b, 1, 64);
+	{
+		Rect row = cut_top(&rows, 64);
+		row_label(ui, row, "Install security updates automatically", "They're downloaded and checked on their own; a restart finishes them");
+		bool on = conf_get_int(u, "auto", 1) != 0;
+		if (ui_switch(ui, center_in(cut_right(&row, 52), 46, 26), &on))
+			update_command(on ? "auto on" : "auto off");
+	}
+
+	/* long-term support */
+	section(ui, &b, "Long-Term Support");
+	rows = card_rows(ui, &b, 4, 44);
+	about_row(ui, &rows, "Release", OS_NAME " " OS_VERSION " LTS", false);
+	about_row(ui, &rows, "Installed version", OS_FULL_VERSION, false);
+	about_row(ui, &rows, "Security updates", "Every two weeks", false);
+	about_row(ui, &rows, "Supported until", until_text, true);
+
+	/* what's protecting this computer, checked live */
+	section(ui, &b, "Protections");
+	char *lockdown = file_read_line("/sys/kernel/security/lockdown");
+	bool locked = lockdown && (str_find(lockdown, "[integrity]") || str_find(lockdown, "[confidentiality]"));
+	mem_free(lockdown);
+	int listeners = network_listeners();
+	char lsub[120];
+	if (listeners)
+		fmt(lsub, sizeof lsub, "%d program%s accept%s connections from other computers", listeners, listeners == 1 ? "" : "s",
+		    listeners == 1 ? "s" : "");
+	else
+		str_copy(lsub, "Nothing on this computer accepts connections from the network", sizeof lsub);
+	rows = card_rows(ui, &b, 7, 58);
+	check_row(ui, &rows, true, "Verified updates", "Every update is signed by Zurbax and checked before it's installed", false);
+	check_row(ui, &rows, locked, "Kernel lockdown", locked ? "Nothing can change the running kernel, not even the administrator" : "Off on this computer", false);
+	check_row(ui, &rows, proc_value_at_least("/proc/sys/kernel/randomize_va_space", 2), "Address randomization",
+		  "Programs and their memory load at a different random place each time", false);
+	check_row(ui, &rows, proc_value_at_least("/proc/sys/kernel/yama/ptrace_scope", 1), "Apps kept apart",
+		  "An app can't read another app's memory or watch what it does", false);
+	check_row(ui, &rows, true, "Memory protection", "Stack canaries, zeroed memory and hardened allocators catch attacks early", false);
+	check_row(ui, &rows, true, "Sandboxed Linux apps", "Flatpak apps run in a sandbox with only what they're given", false);
+	check_row(ui, &rows, listeners == 0, "Closed to the network", lsub, true);
+
+	/* privacy */
+	section(ui, &b, "Privacy");
+	rows = card_rows(ui, &b, 3, 64);
+	check_row(ui, &rows, true, "Nothing is collected", "No telemetry, no ads and no account needed. What you do stays on this computer", false);
+	{
+		Rect row = cut_top(&rows, 64);
+		ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
+		row_label(ui, row, "Clipboard history", "Super+V shows what you copied; it's kept in memory only, never saved");
+		bool on = get_bool("clipboard_history", true);
+		ui_push_id_str(ui, "clipboard_history");
+		if (ui_switch(ui, center_in(cut_right(&row, 52), 46, 26), &on))
+			set_bool(ui, "clipboard_history", on);
+		ui_pop_id(ui);
+	}
+	switch_row(ui, &rows, 64, true, "Lock when the computer sleeps", "With a password set, it's asked for when you come back",
+		   "lock_on_sleep", true);
+	conf_free(u);
+	ui_scroll_end(ui, b.y - top + 40);
+}
+
 static void page_about(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
 	Rect b = page_body(r);
 	Rect top = cut_top(&b, 180);
 	ui_app_icon(ui, center_in(cut_top(&top, 110), 100, 100), "zurbax");
-	ui_text_in(ui, ui_font(ui, 28, 300), cut_top(&top, 40), OS_NAME " " OS_VERSION, t->text, ALIGN_CENTER);
+	ui_text_in(ui, ui_font(ui, 28, 300), cut_top(&top, 40), OS_NAME " " OS_VERSION " LTS", t->text, ALIGN_CENTER);
 	ui_text_in(ui, ui_font(ui, 12, 400), cut_top(&top, 18), "Built from scratch on the Linux kernel", t->text_dim, ALIGN_CENTER);
 	Rect rows = card_rows(ui, &b, 6, 44);
 	char mem[32], disk[64], tot[32], fr[32];
@@ -1186,7 +1427,7 @@ static void page_about(Ui *ui, Rect r)
 	about_row(ui, &rows, "Kernel", st.kernel, true);
 	Rect btns = cut_top(&b, 34);
 	if (ui_button(ui, cut_left(&btns, 170), "Check for Updates"))
-		ui_launch(ui, "harbor", "updates");
+		st.page = PAGE_SECURITY;
 	cut_left(&btns, 10);
 	if (ui_button(ui, cut_left(&btns, 150), "System Monitor"))
 		ui_launch(ui, "pulse", NULL);
@@ -1294,6 +1535,7 @@ static void frame(Ui *ui)
 	case PAGE_DATETIME: page_datetime(ui, win); break;
 	case PAGE_GAMING: page_gaming(ui, win); break;
 	case PAGE_SCREENTIME: page_screentime(ui, win); break;
+	case PAGE_SECURITY: page_security(ui, win); break;
 	case PAGE_ABOUT: page_about(ui, win); break;
 	}
 	ui_pop_id(ui);
@@ -1337,7 +1579,8 @@ static void init(Ui *ui)
 	if (start_page)
 		for (int i = 0; i < PAGE_COUNT; i++)
 			if (str_eq_nocase(PAGES[i].title, start_page) || (str_eq(start_page, "users") && i == PAGE_USERS) ||
-			    ((str_eq(start_page, "network") || str_eq(start_page, "wifi")) && i == PAGE_NETWORK) || (str_eq(start_page, "about") && i == PAGE_ABOUT))
+			    ((str_eq(start_page, "network") || str_eq(start_page, "wifi")) && i == PAGE_NETWORK) || (str_eq(start_page, "about") && i == PAGE_ABOUT) ||
+			    ((str_eq(start_page, "security") || str_eq(start_page, "updates")) && i == PAGE_SECURITY))
 				st.page = i;
 }
 

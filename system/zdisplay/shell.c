@@ -517,12 +517,54 @@ void shell_services_tick(void)
 	mem_free(path);
 }
 
+/* ---- Updates ----------------------------------------------------------------------------- */
+
+/* zupdate (a system service) says how updating goes in a status file; the
+ * desktop tells the person when an update is ready or has been installed. */
+static void update_watch(void)
+{
+	static f64 last;
+	static i64 seen_mtime;
+	static char told[64];
+	if (S.now - last < 5)
+		return;
+	last = S.now;
+	struct stat st;
+	if (sys_stat("/run/zurbax/update.status", &st) < 0 || st.st_mtime == seen_mtime)
+		return;
+	seen_mtime = st.st_mtime;
+	Conf *c = conf_load("/run/zurbax/update.status");
+	const char *state = conf_get(c, "state", ""), *available = conf_get(c, "available", "");
+	const char *message = conf_get(c, "message", "");
+	char key[64];
+	if (str_eq(state, "ready") && available[0]) {
+		fmt(key, sizeof key, "ready %s", available);
+		if (!str_eq(key, told)) {
+			char body[200];
+			fmt(body, sizeof body, "Zurbax %s is installed. Restart to finish; your apps and files stay as they are.", available);
+			Notice *n = shell_notify("settings", "shield-check", "Security update ready", body);
+			if (n)
+				str_copy(n->arg, "Privacy & Security", sizeof n->arg);
+		}
+		str_copy(told, key, sizeof told);
+	} else if (str_eq(state, "current") && str_starts(message, "Zurbax was updated")) {
+		fmt(key, sizeof key, "done %s", conf_get(c, "version", ""));
+		if (!str_eq(key, told)) {
+			Notice *n = shell_notify("settings", "shield-check", "Zurbax is up to date", message);
+			if (n)
+				str_copy(n->arg, "Privacy & Security", sizeof n->arg);
+		}
+		str_copy(told, key, sizeof told);
+	}
+	conf_free(c);
+}
+
 /* ---- Notifications ------------------------------------------------------------------- */
 
-void shell_notify(const char *app, const char *icon, const char *title, const char *body)
+Notice *shell_notify(const char *app, const char *icon, const char *title, const char *body)
 {
 	if (S.set.do_not_disturb && !str_eq(app, "system"))
-		return;
+		return NULL;
 	if (S.nnotices >= (int)ARRAY_LEN(S.notices)) {
 		memmove(&S.notices[0], &S.notices[1], sizeof(Notice) * (usize)(S.nnotices - 1));
 		S.nnotices--;
@@ -543,6 +585,7 @@ void shell_notify(const char *app, const char *icon, const char *title, const ch
 	if (S.gaming)
 		n->dismissed = true;
 	shell_mark_dirty();
+	return n;
 }
 
 void shell_osd(const char *icon, f32 value)
@@ -1183,6 +1226,11 @@ void shell_tick(void)
 	screentime_tick();
 	desktop_tick();
 	dnd_tick();
+	update_watch();
+	if (S.sleep_at && S.now >= S.sleep_at) {
+		S.sleep_at = 0;
+		file_write_str("/sys/power/state", "mem");
+	}
 	/* Slide the dock in or out. */
 	static f64 last_dock_tick;
 	f32 dock_dt = minf((f32)(S.now - last_dock_tick), 0.05f);
@@ -1286,7 +1334,13 @@ void shell_session_action(u32 action)
 		shell_mark_dirty();
 		break;
 	case SESSION_SLEEP:
-		file_write_str("/sys/power/state", "mem");
+		if (S.set.lock_on_sleep && S.set.has_password && !S.locked) {
+			/* locked first, so waking up never shows the desktop */
+			shell_lock();
+			S.sleep_at = S.now + 0.4;
+		} else {
+			file_write_str("/sys/power/state", "mem");
+		}
 		break;
 	}
 	request_frame();

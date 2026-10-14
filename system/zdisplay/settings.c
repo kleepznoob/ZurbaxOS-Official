@@ -71,6 +71,8 @@ void settings_load(void)
 	str_copy(s->timezone, conf_get(c, "timezone", ""), sizeof s->timezone);
 	s->game_mode = conf_get_bool(c, "game_mode", true);
 	s->show_fps = conf_get_bool(c, "show_fps", false);
+	s->clip_history = conf_get_bool(c, "clipboard_history", true);
+	s->lock_on_sleep = conf_get_bool(c, "lock_on_sleep", true);
 	s->mouse_accel = conf_get_bool(c, "mouse_accel", true);
 	s->pad_rumble = conf_get_bool(c, "pad_rumble", true);
 	s->alert_sounds = conf_get_bool(c, "alert_sounds", true);

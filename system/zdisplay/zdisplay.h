@@ -125,6 +125,7 @@ typedef struct {
 	char icon[256];
 	char title[128];
 	char body[512];
+	char arg[96];          /* what the app opens to when the notice is clicked */
 	i64 time;
 	f64 shown_at;
 	f32 slide;                  /* 0..1 entering */
@@ -171,6 +172,8 @@ typedef struct {
 	char password_hash[160];
 	bool game_mode;
 	bool show_fps;
+	bool clip_history;      /* Super+V keeps what was copied */
+	bool lock_on_sleep;     /* the lock screen is up on waking */
 	bool mouse_accel;
 	bool pad_rumble;            /* controllers may vibrate */
 	bool alert_sounds;
@@ -263,6 +266,7 @@ typedef struct {
 	bool wifi_radio, wifi_available;   /* from the network service */
 	char wifi_state[16];               /* off, idle, connecting, connected */
 	bool shutting_down;
+	f64 sleep_at;               /* sleep once the lock screen has been drawn */
 	u32 shutdown_action;
 	f32 shutdown_k;
 	bool headless;
@@ -395,7 +399,7 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text);
 void shell_tick(void);
 bool shell_animating(void);
 f64 shell_next_wake(void);
-void shell_notify(const char *app, const char *icon, const char *title, const char *body);
+Notice *shell_notify(const char *app, const char *icon, const char *title, const char *body); /* NULL when held back */
 void shell_osd(const char *icon, f32 value);
 void shell_lock(void);
 void shell_launch(const char *app_id, const char *arg);

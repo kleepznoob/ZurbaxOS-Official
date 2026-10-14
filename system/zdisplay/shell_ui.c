@@ -869,7 +869,7 @@ void notifications_draw(Ui *ui)
 				n->dismissed = true;
 				n->read = true;
 				if (shell_app(n->app))
-					shell_launch(n->app, NULL);
+					shell_launch(n->app, n->arg[0] ? n->arg : NULL);
 			}
 			ui_pop_id(ui);
 			y += top ? 84 : -84;
@@ -911,7 +911,7 @@ void notifications_draw(Ui *ui)
 			memmove(&S.notices[i], &S.notices[i + 1], sizeof(Notice) * (usize)(S.nnotices - i - 1));
 			S.nnotices--;
 		} else if (it.clicked && shell_app(n->app)) {
-			shell_launch(n->app, NULL);
+			shell_launch(n->app, n->arg[0] ? n->arg : NULL);
 			S.notifications_open = false;
 		}
 		ui_pop_id(ui);

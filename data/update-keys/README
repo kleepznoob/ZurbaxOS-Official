@@ -1,0 +1,5 @@
+Keys Zurbax trusts to sign system updates: one *.pub file each, holding the
+hex of an uncompressed P-256 public key (65 bytes: 04 || X || Y). zupdate
+installs an update only when its description (release) carries a signature
+(release.sig) from one of them. tools/update-publish.sh --new-key makes a key;
+its private half never goes in this repository.

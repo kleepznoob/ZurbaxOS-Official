@@ -44,6 +44,12 @@ static void drop_item(int i)
 
 void clip_history_add(const char *mime, const char *data, usize len)
 {
+	/* turned off in Settings: nothing is kept, and what was is forgotten */
+	if (!S.set.clip_history) {
+		while (nitems)
+			drop_item(0);
+		return;
+	}
 	bool files = str_eq(mime, CLIPBOARD_FILES);
 	if (!data || !len || len > CLIP_TEXT_MAX || (!files && !str_starts(mime, "text/") && mime[0]))
 		return;
@@ -186,7 +192,11 @@ void clip_history_draw(Ui *ui)
 			drop_item(0);
 	}
 	cut_top(&c, 8);
-	if (!nitems) {
+	if (!S.set.clip_history) {
+		while (nitems)
+			drop_item(0);
+		ui_placeholder(ui, c, "edit-paste", "Clipboard history is off", "Turn it on in Settings, under Privacy & Security.");
+	} else if (!nitems) {
 		ui_placeholder(ui, c, "edit-paste", "Nothing copied yet", "Text and files you copy show up here.");
 	} else {
 		f32 y = ui_scroll_begin(ui, c, "clip-scroll");
