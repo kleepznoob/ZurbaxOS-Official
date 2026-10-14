@@ -101,6 +101,26 @@ static bool find_icon(const char *share, const char *name, char *out, usize cap)
 	return file_exists(out);
 }
 
+/* Apps made for one desktop only (GNOME Settings needs a GNOME session's
+ * services) are left out of this one, as the desktop entry spec asks. */
+static bool shown_here(const char *only, const char *not)
+{
+	bool listed = false;
+	usize n;
+	char **parts = str_split(only ? only : "", ';', &n);
+	for (usize i = 0; i < n; i++)
+		listed |= str_eq_nocase(str_trim(parts[i]), "Zurbax");
+	str_split_free(parts, n);
+	if (only && *only && !listed)
+		return false;
+	parts = str_split(not ? not : "", ';', &n);
+	bool excluded = false;
+	for (usize i = 0; i < n; i++)
+		excluded |= str_eq_nocase(str_trim(parts[i]), "Zurbax");
+	str_split_free(parts, n);
+	return !excluded;
+}
+
 /* The menu entries in share/applications: what they're called, their icon,
  * their command and the files they open. */
 static void load_desktop_entries(const char *share)
@@ -123,7 +143,7 @@ static void load_desktop_entries(const char *share)
 		if (!text)
 			continue;
 		const char *keys[] = { "Type", "Name", "GenericName", "Comment", "Exec", "Icon", "NoDisplay", "Hidden", "Categories",
-				       "Keywords", "MimeType" };
+				       "Keywords", "MimeType", "OnlyShowIn", "NotShowIn" };
 		const char *vals[ARRAY_LEN(keys)] = { 0 };
 		bool entry = false;
 		usize n = 0;
@@ -144,7 +164,8 @@ static void load_desktop_entries(const char *share)
 					vals[k] = val;
 		}
 		bool show = vals[0] && str_eq(vals[0], "Application") && vals[1] && vals[4] &&
-			    !(vals[6] && str_eq(vals[6], "true")) && !(vals[7] && str_eq(vals[7], "true"));
+			    !(vals[6] && str_eq(vals[6], "true")) && !(vals[7] && str_eq(vals[7], "true")) &&
+			    shown_here(vals[11], vals[12]);
 		if (show) {
 			AppInfo *a = &S.apps[S.napps];
 			memset(a, 0, sizeof *a);

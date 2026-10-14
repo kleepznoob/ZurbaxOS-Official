@@ -454,10 +454,16 @@ image() {
 	say "packing $out"
 	# library search paths that name this build (meson's for private
 	# libraries, like GNOME Shell's to mutter's) get it taken out
-	local f rp
+	# and libraries named by their path here (one built without a SONAME)
+	# are named the way the loader finds them
+	local f rp n so
 	while IFS= read -r f; do
 		rp=$(patchelf --print-rpath "$f" 2>/dev/null) || continue
 		case $rp in *"$ROOT"*) patchelf --set-rpath "${rp//$ROOT/}" "$f" ;; esac
+		for n in $(patchelf --print-needed "$f" 2>/dev/null | grep -F "$ROOT/" || true); do
+			so=$(patchelf --print-soname "$n" 2>/dev/null || true)
+			patchelf --replace-needed "$n" "${so:-$(basename "$n")}" "$f"
+		done
 	done < <(grep -rlF --exclude-dir=include "$ROOT" "$ROOT/usr/bin" "$ROOT/usr/lib" "$ROOT/usr/libexec" 2>/dev/null || true)
 	# libtool's .la files are only for building against: they go
 	find "$ROOT/usr/lib" "$ROOT/usr/lib32" -name '*.la' -delete 2>/dev/null || true

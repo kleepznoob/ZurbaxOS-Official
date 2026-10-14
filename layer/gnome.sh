@@ -324,7 +324,9 @@ pkg_startup_notification() { unpack startup-notification; lf_cv_sane_realloc=yes
 
 pkg_sqlite() {
 	unpack sqlite
-	autobuild --enable-fts5 --enable-math --disable-readline --disable-static
+	# --soname=legacy: the library gets its usual name (libsqlite3.so.0);
+	# without one, what links to it would name it by its path in this build
+	autobuild --enable-fts5 --enable-math --disable-readline --disable-static --soname=legacy
 }
 
 pkg_libusb() { unpack libusb; autobuild --disable-udev --disable-examples-build --disable-tests-build; }
