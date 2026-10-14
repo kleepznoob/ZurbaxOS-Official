@@ -10,7 +10,12 @@
 #   make iso-mini   build/zurbax-mini.iso, which downloads the rest as it installs
 #   make run        boot build/zurbax.img in QEMU with UEFI firmware
 #
+# Security updates are the same build with OS_UPDATE=N (make OS_UPDATE=3 ...),
+# published with tools/update-publish.sh.
+#
 # Every program is a static, freestanding binary: no C library, no outside code.
+# Each is also position-independent (the kernel loads it at a random address),
+# with stack canaries, stack-clash probes and zeroed locals (see libzr/src/start.c).
 
 CC      ?= gcc
 OUT     := build
@@ -19,11 +24,12 @@ OPT     ?= -O2
 .DEFAULT_GOAL := all
 
 CFLAGS  := -std=gnu11 $(OPT) -g0 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
-           -ffreestanding -fno-stack-protector -fno-pie -fno-plt -fno-math-errno \
+           -ffreestanding -fPIE -fno-plt -fno-math-errno \
+           -fstack-protector-strong -mstack-protector-guard=global -fstack-clash-protection -ftrivial-auto-var-init=zero \
            -fno-asynchronous-unwind-tables -fno-ident -ffunction-sections -fdata-sections \
-           -march=x86-64 -mtune=generic \
+           -march=x86-64 -mtune=generic $(if $(OS_UPDATE),-DOS_UPDATE=$(OS_UPDATE)) \
            -Ilibzr/include -Ilibzg/include -Ilibzg/src -Ilibzui/include -Ilibzd/include -Ilibzn/include -Ilibza/include
-LDFLAGS := -nostdlib -static -no-pie -Wl,--gc-sections -Wl,--build-id=none -s
+LDFLAGS := -nostdlib -static-pie -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--gc-sections -Wl,--build-id=none -s
 LDLIBS  := -lgcc
 
 # ---- Libraries ---------------------------------------------------------------

@@ -25,11 +25,13 @@ typedef struct {
 static char *const display_argv[] = { "zdisplay", NULL };
 static char *const net_argv[] = { "znet", NULL };
 static char *const audio_argv[] = { "zaudio", NULL };
+static char *const update_argv[] = { "zupdate", NULL };
 
 static Service services[] = {
 	{ "display", "/system/bin/zdisplay", display_argv, true },
 	{ "network", "/system/bin/znet", net_argv, true },
 	{ "audio", "/system/bin/zaudio", audio_argv, true },
+	{ "update", "/system/bin/zupdate", update_argv, true },
 };
 
 static Loop *loop;
@@ -551,6 +553,61 @@ static void start_test_hooks(void)
 	dir_list_free(&hooks);
 }
 
+/* Safer kernel settings than its defaults, each one written at boot:
+ * hidden kernel pointers and log, no reading other programs' memory unless
+ * they're your own children, no unprivileged BPF, protected links and files
+ * in shared folders, full address randomization, and a network stack that
+ * ignores redirects and source routes and resists SYN floods. */
+static void harden(void)
+{
+	static const char *const SETTINGS[][2] = {
+		{ "kernel/kptr_restrict", "2" },
+		{ "kernel/dmesg_restrict", "1" },
+		{ "kernel/yama/ptrace_scope", "1" },
+		{ "kernel/unprivileged_bpf_disabled", "1" },
+		{ "kernel/perf_event_paranoid", "2" },
+		{ "kernel/randomize_va_space", "2" },
+		{ "kernel/sysrq", "176" },              /* sync, remount read-only and reboot only */
+		{ "net/core/bpf_jit_harden", "2" },
+		{ "fs/protected_symlinks", "1" },
+		{ "fs/protected_hardlinks", "1" },
+		{ "fs/protected_fifos", "2" },
+		{ "fs/protected_regular", "2" },
+		{ "fs/suid_dumpable", "0" },
+		{ "vm/mmap_rnd_bits", "32" },
+		{ "vm/mmap_rnd_compat_bits", "16" },
+		{ "vm/unprivileged_userfaultfd", "0" },
+		{ "dev/tty/ldisc_autoload", "0" },
+		{ "net/ipv4/tcp_syncookies", "1" },
+		{ "net/ipv4/tcp_rfc1337", "1" },
+		{ "net/ipv4/icmp_echo_ignore_broadcasts", "1" },
+		{ "net/ipv4/icmp_ignore_bogus_error_responses", "1" },
+		{ "net/ipv4/conf/all/rp_filter", "2" },
+		{ "net/ipv4/conf/default/rp_filter", "2" },
+		{ "net/ipv4/conf/all/accept_redirects", "0" },
+		{ "net/ipv4/conf/default/accept_redirects", "0" },
+		{ "net/ipv4/conf/all/secure_redirects", "0" },
+		{ "net/ipv4/conf/default/secure_redirects", "0" },
+		{ "net/ipv4/conf/all/send_redirects", "0" },
+		{ "net/ipv4/conf/default/send_redirects", "0" },
+		{ "net/ipv4/conf/all/accept_source_route", "0" },
+		{ "net/ipv4/conf/default/accept_source_route", "0" },
+		{ "net/ipv6/conf/all/accept_redirects", "0" },
+		{ "net/ipv6/conf/default/accept_redirects", "0" },
+		{ "net/ipv6/conf/all/accept_source_route", "0" },
+		{ "net/ipv6/conf/default/accept_source_route", "0" },
+	};
+	int failed = 0;
+	for (usize i = 0; i < ARRAY_LEN(SETTINGS); i++) {
+		char path[128];
+		fmt(path, sizeof path, "/proc/sys/%s", SETTINGS[i][0]);
+		if (!file_write_str(path, SETTINGS[i][1]))
+			failed++;
+	}
+	if (failed)
+		log_msg("hardening: %d kernel settings could not be applied", failed);
+}
+
 int main(int argc, char **argv)
 {
 	UNUSED(argc), UNUSED(argv);
@@ -559,6 +616,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	mount_kernel_filesystems();
+	harden();
 	/* mounts made later (a USB stick zsys mounts for GNOME) reach the
 	 * Linux session's namespace, which follows this one */
 	sys_mount(NULL, "/", NULL, MS_REC | MS_SHARED, NULL);

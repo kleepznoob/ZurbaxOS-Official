@@ -43,6 +43,17 @@ typedef ptrdiff_t isize;
 #define OS_NAME "Zurbax"
 #define OS_VERSION "2.1"
 #define OS_PRETTY_NAME OS_NAME " " OS_VERSION
+/* Each release is long-term supported: security updates every two weeks
+ * until OS_SUPPORT_END, each one numbered (2.1.1, 2.1.2, ...). The update
+ * builds set OS_UPDATE. */
+#ifndef OS_UPDATE
+#define OS_UPDATE 0
+#endif
+#define OS_STR_(x) #x
+#define OS_STR(x) OS_STR_(x)
+#define OS_FULL_VERSION OS_VERSION "." OS_STR(OS_UPDATE)
+#define OS_SUPPORT_END "2028-10-31"
+#define OS_UPDATE_CHANNEL "https://www.zurbax.com/updates/" OS_VERSION "/"
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define NORETURN __attribute__((noreturn))
