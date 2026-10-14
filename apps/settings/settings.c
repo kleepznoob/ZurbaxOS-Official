@@ -1053,7 +1053,7 @@ static void page_gaming(Ui *ui, Rect r)
 	ui_icon(ui, rect(in.x, in.y + 4, 32, 32), "bridge", t->text_dim);
 	ui_text(ui, ui_font(ui, 14, 600), in.x + 48, in.y + 16, "Running .exe programs", t->text);
 	ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(in.x + 48, in.y + 24, in.w - 48, 40),
-			"Bridge runs Windows programs and games with Proton: open any .exe or installer from Files, or add it in Bridge.",
+			"Bridge runs Windows programs and games with Proton, keeps your Steam games on a shelf, and plays Fortnite and other games in the cloud.",
 			t->text_dim, ALIGN_START);
 	cut_top(&b, 14);
 	if (ui_button(ui, cut_left(&(Rect){ b.x, b.y, 200, 34 }, 200), "Open Bridge"))

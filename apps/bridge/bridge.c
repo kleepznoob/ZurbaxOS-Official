@@ -1,6 +1,10 @@
 /*
  * Bridge — Windows programs and games on Zurbax.
  *
+ * Three shelves: the Windows programs people add (here), the games Steam
+ * installed (steam.c) and games played in the cloud (cloud.c), for the few
+ * whose anti-cheat turns Linux away.
+ *
  * Inside it's Proton, in its GE build (the community's, with the newest
  * fixes), run in Valve's Steam Linux Runtime the way Steam runs it, through
  * layerrun in the Linux layer with an Xwayland of its own. DirectX goes
@@ -24,8 +28,7 @@
  *
  *     bridge [FILE.exe]      opens Bridge, and runs FILE in its bottle
  */
-#include "zui.h"
-#include "zn.h"
+#include "bridge.h"
 #include "pe.h"
 
 #define RUNTIME_URL "https://repo.steampowered.com/steamrt3/images/latest-container-runtime-public-beta/"
@@ -49,11 +52,12 @@ typedef struct {
 
 static App apps[128];
 static int napps;
-static char base[400];
+char bridge_base[400];
 static int sel = -1;
 static StrBuf name_edit;
+static int tab; /* the shelf: 0 Windows, 1 Steam, 2 Cloud */
 static char pending_run[512];   /* a file to run once Proton is ready */
-static char message[200];
+char bridge_msg[200];
 
 /* the download, on a thread of its own */
 static struct {
@@ -75,12 +79,7 @@ static char found[8][512];
 static int nfound;
 
 /* covers, loaded when first drawn */
-typedef struct {
-	char id[48];
-	Canvas *art, *icon;
-	bool loaded;
-} Cover;
-static Cover covers[160];
+static Cover covers[200];
 static int ncovers;
 
 /* finding a cover, on a thread of its own: one program at a time */
@@ -95,7 +94,7 @@ static struct {
 
 static char *path_in(const char *rel)
 {
-	return str_fmt("%s/%s", base, rel);
+	return str_fmt("%s/%s", bridge_base, rel);
 }
 
 /* The Linux layer, where Proton runs: /data/layers/steam on Zurbax. */
@@ -105,6 +104,52 @@ static bool have_layer(void)
 	bool ok = file_exists(p);
 	mem_free(p);
 	return ok;
+}
+
+bool layer_has(const char *path)
+{
+	char *p = str_fmt("%s/layers/steam%s", zurbax_data(), path);
+	bool ok = file_exists(p);
+	mem_free(p);
+	return ok;
+}
+
+/* what layer_start started, to collect when each ends */
+static int started[16];
+static int nstarted;
+
+int layer_start(char **args, bool new_session)
+{
+	char *layerrun = zurbax_path("bin/layerrun");
+	char *argv[24];
+	int n = 0;
+	argv[n++] = layerrun;
+	for (int i = 0; args[i] && n < 23; i++)
+		argv[n++] = args[i];
+	argv[n] = NULL;
+	SpawnOpts o = { .stdin_fd = -1, .stdout_fd = -1, .stderr_fd = -1, .new_session = new_session };
+	int pid = proc_spawn(layerrun, argv, environ, &o);
+	mem_free(layerrun);
+	if (pid > 0 && nstarted < (int)ARRAY_LEN(started))
+		started[nstarted++] = pid;
+	return pid;
+}
+
+void wake_within(Ui *ui, f64 secs)
+{
+	if (ui->wake_at <= ui->now || ui->wake_at > ui->now + secs)
+		ui->wake_at = ui->now + secs;
+}
+
+static void reap_started(void)
+{
+	for (int i = 0; i < nstarted;) {
+		int st;
+		if (proc_wait(started[i], &st, true) == started[i])
+			started[i] = started[--nstarted];
+		else
+			i++;
+	}
 }
 
 static bool have_runtime(void)
@@ -146,7 +191,7 @@ static bool steam_runtime(const char *name, char *out, usize cap)
 
 static void save_app(const App *a)
 {
-	char *path = str_fmt("%s/apps/%s.conf", base, a->id);
+	char *path = str_fmt("%s/apps/%s.conf", bridge_base, a->id);
 	Conf *c = conf_load(path);
 	conf_set(c, "name", a->name);
 	conf_set(c, "exe", a->exe);
@@ -257,14 +302,14 @@ static void bottle_of(const App *a, char *out, usize cap)
 {
 	char id[48];
 	str_copy(id, a->id, sizeof id);
-	char *path = str_fmt("%s/apps/%s.conf", base, a->id);
+	char *path = str_fmt("%s/apps/%s.conf", bridge_base, a->id);
 	Conf *c = conf_load(path);
 	const char *b = conf_get(c, "bottle", NULL);
 	if (b)
 		str_copy(id, b, sizeof id);
 	conf_free(c);
 	mem_free(path);
-	fmt(out, cap, "%s/bottles/%s", base, id);
+	fmt(out, cap, "%s/bottles/%s", bridge_base, id);
 }
 
 /* ---- Getting Proton and the runtime ------------------------------------------------------- */
@@ -549,15 +594,15 @@ static void play(Ui *ui, int i)
 		vars[nv++] = str_fmt(__VA_ARGS__);     \
 	} while (0)
 	VAR("STEAM_COMPAT_DATA_PATH=%s", bottle);
-	VAR("STEAM_COMPAT_CLIENT_INSTALL_PATH=%s", base);
+	VAR("STEAM_COMPAT_CLIENT_INSTALL_PATH=%s", bridge_base);
 	VAR("STEAM_COMPAT_INSTALL_PATH=%s", where);
 	VAR("STEAM_COMPAT_TOOL_PATHS=%s:%s", proton, runtime);
-	VAR("STEAM_COMPAT_LIBRARY_PATHS=%s:%s", where, base);
+	VAR("STEAM_COMPAT_LIBRARY_PATHS=%s:%s", where, bridge_base);
 	VAR("STEAM_COMPAT_APP_ID=0");
 	VAR("SteamAppId=0");
 	VAR("SteamGameId=bridge-%s", a->id);
 	VAR("PROTON_VERB=waitforexitandrun");
-	VAR("PRESSURE_VESSEL_FILESYSTEMS_RW=%s:%s", where, base);
+	VAR("PRESSURE_VESSEL_FILESYSTEMS_RW=%s:%s", where, bridge_base);
 	if (file_exists("/dev/ntsync"))
 		VAR("PROTON_USE_NTSYNC=1");
 	if (a->fsr)
@@ -610,9 +655,9 @@ static void play(Ui *ui, int i)
 		str_copy(play_id, a->id, sizeof play_id);
 		a->played = time_unix();
 		save_app(a);
-		fmt(message, sizeof message, "Starting %s… the first start of a bottle takes a minute.", a->name);
+		fmt(bridge_msg, sizeof bridge_msg, "Starting %s… the first start of a bottle takes a minute.", a->name);
 	} else {
-		fmt(message, sizeof message, "%s couldn't start.", a->name);
+		fmt(bridge_msg, sizeof bridge_msg, "%s couldn't start.", a->name);
 	}
 	if (extra)
 		str_split_free(extra, na);
@@ -674,9 +719,9 @@ static void after_install(void)
 
 /* ---- Covers ------------------------------------------------------------------------------ */
 
-static char *cover_path(const char *id, const char *suffix)
+char *cover_path(const char *id, const char *suffix)
 {
-	return str_fmt("%s/covers/%s%s", base, id, suffix);
+	return str_fmt("%s/covers/%s%s", bridge_base, id, suffix);
 }
 
 /* Letters and digits, lower case: "ELDEN RING™" and "eldenring" are one name. */
@@ -769,7 +814,7 @@ static u32 steam_find(const char *name, char *official, usize cap)
 }
 
 /* Steam's art for an app: the tall library picture, else the store banner. */
-static bool steam_art(u32 app, const char *path, char *src, usize cap)
+bool steam_art(u32 app, const char *path, char *src, usize cap)
 {
 	static const char *const kinds[] = { "library_600x900.jpg", "header.jpg" };
 	for (usize k = 0; k < ARRAY_LEN(kinds); k++) {
@@ -834,7 +879,7 @@ static void find_cover(void *arg)
 	atomic_store(&cj.busy, 2);
 }
 
-static void forget_cover(const char *id)
+void forget_cover(const char *id)
 {
 	for (int i = 0; i < ncovers; i++)
 		if (str_eq(covers[i].id, id)) {
@@ -847,16 +892,16 @@ static void forget_cover(const char *id)
 		}
 }
 
-static Cover *cover_of(const App *a)
+Cover *cover_slot(const char *key)
 {
 	for (int i = 0; i < ncovers; i++)
-		if (str_eq(covers[i].id, a->id))
+		if (str_eq(covers[i].id, key))
 			return &covers[i];
 	if (ncovers == (int)ARRAY_LEN(covers))
 		forget_cover(covers[0].id);
 	Cover *c = &covers[ncovers++];
 	memset(c, 0, sizeof *c);
-	str_copy(c->id, a->id, sizeof c->id);
+	str_copy(c->id, key, sizeof c->id);
 	return c;
 }
 
@@ -924,14 +969,14 @@ static void set_cover_file(App *a, const char *picked)
 		mem_free(path);
 		canvas_free(img);
 	} else {
-		fmt(message, sizeof message, "%s isn't a picture Bridge can show.", path_base(picked));
+		fmt(bridge_msg, sizeof bridge_msg, "%s isn't a picture Bridge can show.", path_base(picked));
 	}
 	mem_free(data);
 }
 
 /* ---- The window -------------------------------------------------------------------------- */
 
-static Color tile_color(const char *name)
+Color tile_color(const char *name)
 {
 	u32 h = 2166136261u;
 	for (const char *p = name; *p; p++)
@@ -939,10 +984,45 @@ static Color tile_color(const char *name)
 	return color_hsl((f32)(h % 360), 0.55f, 0.46f, 255);
 }
 
+/* A cover: tall art as it is; else one made of a banner, an icon or the initial, and the name. */
+void draw_cover_img(Ui *ui, Rect r, const Canvas *art, bool wide, const Canvas *icon, const char *name, Color tone, f32 radius)
+{
+	if (art && !wide) {
+		ui_image(ui, r, art, radius, true);
+		ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.4f), radius, color_hex("#ffffff1c"), COLOR_CLEAR);
+		ui_border(ui, r, radius, 1, color_hex("#ffffff26"));
+		return;
+	}
+	if (!tone)
+		tone = tile_color(name);
+	ui_gradient(ui, r, radius, color_lighten(tone, 0.08f), color_lighten(tone, -0.5f));
+	ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.5f), radius, color_hex("#ffffff2a"), COLOR_CLEAR);
+	f32 mid = r.y + r.h * 0.36f;
+	if (art) {
+		/* a store banner, across the middle */
+		f32 h = r.w * 215 / 460;
+		ui_shadow(ui, rect(r.x, mid - h / 2, r.w, h), 0, 18, 6, color_hex("#00000060"));
+		ui_image(ui, rect(r.x, mid - h / 2, r.w, h), art, 0, true);
+	} else if (icon) {
+		f32 s = roundf(r.w * 0.44f);
+		ui_shadow(ui, rect(r.x + (r.w - s) / 2 + s * 0.1f, mid - s / 2 + s * 0.1f, s * 0.8f, s * 0.8f), s * 0.2f, 18, 8, color_hex("#00000070"));
+		ui_image(ui, rect(roundf(r.x + (r.w - s) / 2), roundf(mid - s / 2), s, s), icon, 0, false);
+	} else {
+		char m[4] = { name[0] ? name[0] : '?', 0 };
+		if (m[0] >= 'a' && m[0] <= 'z')
+			m[0] = (char)(m[0] - 32);
+		ui_text_in(ui, ui_font(ui, r.w * 0.36f, 700), rect(r.x, mid - r.w * 0.25f, r.w, r.w * 0.5f), m, color_hex("#ffffffe0"), ALIGN_CENTER);
+	}
+	if (r.h >= 140)
+		ui_text_wrapped(ui, ui_font(ui, maxf(12, r.w * 0.095f), 700), rect(r.x + 12, r.y + r.h * 0.64f, r.w - 24, r.h * 0.3f), name,
+				COLOR_WHITE, ALIGN_CENTER);
+	ui_border(ui, r, radius, 1, color_hex("#ffffff30"));
+}
+
 /* A program's cover: art from Steam or the person; else one made of its icon, or initial, and its name. */
 static void draw_cover(Ui *ui, Rect r, const App *a, f32 radius)
 {
-	Cover *c = cover_of(a);
+	Cover *c = cover_slot(a->id);
 	if (!c->loaded) {
 		c->loaded = true;
 		char *art = cover_path(a->id, ""), *icon = cover_path(a->id, "-icon.png");
@@ -952,36 +1032,7 @@ static void draw_cover(Ui *ui, Rect r, const App *a, f32 radius)
 		mem_free(art);
 		mem_free(icon);
 	}
-	bool wide = str_starts(a->cover, "wide:");
-	if (c->art && !wide) {
-		ui_image(ui, r, c->art, radius, true);
-		ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.4f), radius, color_hex("#ffffff1c"), COLOR_CLEAR);
-		ui_border(ui, r, radius, 1, color_hex("#ffffff26"));
-		return;
-	}
-	Color tone = tile_color(a->name);
-	ui_gradient(ui, r, radius, color_lighten(tone, 0.08f), color_lighten(tone, -0.5f));
-	ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.5f), radius, color_hex("#ffffff2a"), COLOR_CLEAR);
-	f32 mid = r.y + r.h * 0.36f;
-	if (c->art) {
-		/* a store banner, across the middle */
-		f32 h = r.w * 215 / 460;
-		ui_shadow(ui, rect(r.x, mid - h / 2, r.w, h), 0, 18, 6, color_hex("#00000060"));
-		ui_image(ui, rect(r.x, mid - h / 2, r.w, h), c->art, 0, true);
-	} else if (c->icon) {
-		f32 s = roundf(r.w * 0.44f);
-		ui_shadow(ui, rect(r.x + (r.w - s) / 2 + s * 0.1f, mid - s / 2 + s * 0.1f, s * 0.8f, s * 0.8f), s * 0.2f, 18, 8, color_hex("#00000070"));
-		ui_image(ui, rect(roundf(r.x + (r.w - s) / 2), roundf(mid - s / 2), s, s), c->icon, 0, false);
-	} else {
-		char m[4] = { a->name[0] ? a->name[0] : '?', 0 };
-		if (m[0] >= 'a' && m[0] <= 'z')
-			m[0] = (char)(m[0] - 32);
-		ui_text_in(ui, ui_font(ui, r.w * 0.36f, 700), rect(r.x, mid - r.w * 0.25f, r.w, r.w * 0.5f), m, color_hex("#ffffffe0"), ALIGN_CENTER);
-	}
-	if (r.h >= 140)
-		ui_text_wrapped(ui, ui_font(ui, maxf(12, r.w * 0.095f), 700), rect(r.x + 12, r.y + r.h * 0.64f, r.w - 24, r.h * 0.3f), a->name,
-				COLOR_WHITE, ALIGN_CENTER);
-	ui_border(ui, r, radius, 1, color_hex("#ffffff30"));
+	draw_cover_img(ui, r, c->art, str_starts(a->cover, "wide:"), c->icon, a->name, 0, radius);
 }
 
 static bool option_row(Ui *ui, Rect *c, const char *label, const char *sub, bool *v)
@@ -1025,7 +1076,7 @@ static void details(Ui *ui, Rect r)
 	if (playing) {
 		if (ui_button_destructive(ui, cut_left(&btns, 130), "Stop")) {
 			sys_kill(-play_pid, SIGTERM);
-			str_copy(message, "Stopping…", sizeof message);
+			str_copy(bridge_msg, "Stopping…", sizeof bridge_msg);
 		}
 	} else if (ui_button_suggested(ui, cut_left(&btns, 130), looks_like_installer(a->exe) ? "Install" : "Play")) {
 		play(ui, sel);
@@ -1053,10 +1104,19 @@ static void details(Ui *ui, Rect r)
 	char ac[240];
 	fmt(ac, sizeof ac, "Anti-cheat: Easy Anti-Cheat %s, BattlEye %s. They work in games whose makers allow Linux.",
 	    eac ? "ready" : "not installed", be ? "ready" : "not installed");
-	ui_text_wrapped(ui, ui_font(ui, 11, 400), cut_top(&c, 34), ac, t->text_dim, ALIGN_START);
+	if (str_find_nocase(a->name, "fortnite") || str_find_nocase(a->exe, "fortnite")) {
+		/* Epic keeps Easy Anti-Cheat's Linux support off for Fortnite: it can't play here, only in the cloud */
+		ui_text_wrapped(ui, ui_font(ui, 11, 400), cut_top(&c, 34),
+				"Fortnite's anti-cheat turns every Linux system away, by Epic's choice. Play it free in the cloud instead.",
+				t->danger, ALIGN_START);
+		if (ui_button(ui, cut_top(&c, 32), "Play Fortnite in the Cloud"))
+			tab = 2;
+	} else {
+		ui_text_wrapped(ui, ui_font(ui, 11, 400), cut_top(&c, 34), ac, t->text_dim, ALIGN_START);
+	}
 	Rect bottom = cut_bottom(&c, 34);
 	if (ui_button_flat(ui, cut_right(&bottom, 150), "Remove from Bridge")) {
-		char *path = str_fmt("%s/apps/%s.conf", base, a->id);
+		char *path = str_fmt("%s/apps/%s.conf", bridge_base, a->id);
 		sys_unlink(path);
 		mem_free(path);
 		path = cover_path(a->id, "");
@@ -1109,28 +1169,23 @@ static void frame(Ui *ui)
 	Theme *t = &ui->theme;
 	ui_window_background(ui, t->window);
 	Rect win = rect(0, 0, ui->width, ui->height);
-	Rect tools = ui_headerbar(ui, cut_top(&win, 46), "Bridge", 0);
-	if (ui_button(ui, center_in(cut_right(&tools, 138), 130, 32), "Add Program"))
-		ui_file_dialog_open(ui, "bridge-add", FILE_OPEN, home_dir(), "exe,msi,bat", NULL);
-	char picked[512];
-	if (ui_file_dialog(ui, "bridge-add", picked, sizeof picked))
-		sel = add_app(picked, NULL);
-	char *dropped = ui_dropped_file(ui, "exe,msi,bat");
-	if (dropped) {
-		sel = add_app(dropped, NULL);
-		mem_free(dropped);
-	}
+	Rect head = cut_top(&win, 46);
+	Rect tools = ui_headerbar(ui, head, "", 0);
+	static const char *const tabs[] = { "Windows", "Steam", "Cloud" };
+	if (ui_segmented(ui, center_in(head, 300, 32), tabs, 3, &tab))
+		bridge_msg[0] = 0;
+	reap_started();
+	cover_tick(ui);
 	/* what's playing ended */
 	if (play_pid > 0) {
 		int st;
 		if (proc_wait(play_pid, &st, true) == play_pid) {
 			play_pid = -1;
-			message[0] = 0;
+			bridge_msg[0] = 0;
 			after_install();
 		}
 		ui->wake_at = ui->now + 1;
 	}
-	cover_tick(ui);
 	/* a program to run once everything's here */
 	if (pending_run[0] && !atomic_add(&job.busy, 0)) {
 		char proton[600];
@@ -1140,6 +1195,25 @@ static void frame(Ui *ui)
 			if (i >= 0)
 				play(ui, i);
 		}
+	}
+	if (tab == 1) {
+		steam_tools(ui, &tools);
+		steam_tab(ui, pad2(win, 24, 18));
+		return;
+	}
+	if (tab == 2) {
+		cloud_tab(ui, pad2(win, 24, 18));
+		return;
+	}
+	if (ui_button(ui, center_in(cut_right(&tools, 138), 130, 32), "Add Program"))
+		ui_file_dialog_open(ui, "bridge-add", FILE_OPEN, home_dir(), "exe,msi,bat", NULL);
+	char picked[512];
+	if (ui_file_dialog(ui, "bridge-add", picked, sizeof picked))
+		sel = add_app(picked, NULL);
+	char *dropped = ui_dropped_file(ui, "exe,msi,bat");
+	if (dropped) {
+		sel = add_app(dropped, NULL);
+		mem_free(dropped);
 	}
 	Rect b = pad2(win, 24, 18);
 	if (!have_layer()) {
@@ -1171,7 +1245,7 @@ static void frame(Ui *ui)
 				int k = add_app(found[i], NULL);
 				if (k >= 0) {
 					/* it lives in the installer's bottle */
-					char *path = str_fmt("%s/apps/%s.conf", base, apps[k].id);
+					char *path = str_fmt("%s/apps/%s.conf", bridge_base, apps[k].id);
 					Conf *cf = conf_load(path);
 					conf_set(cf, "bottle", owner);
 					conf_save(cf);
@@ -1219,8 +1293,8 @@ static void frame(Ui *ui)
 		ui_pop_id(ui);
 	}
 	ui_scroll_end(ui, 8 + (f32)((napps + per - 1) / per) * (th + gap));
-	if (message[0])
-		ui_text(ui, ui_font(ui, 12, 400), b.x, b.y + b.h - 4, message, t->text_dim);
+	if (bridge_msg[0])
+		ui_text(ui, ui_font(ui, 12, 400), b.x, b.y + b.h - 4, bridge_msg, t->text_dim);
 }
 
 static const char *open_arg;
@@ -1228,7 +1302,7 @@ static const char *open_arg;
 static void init(Ui *ui)
 {
 	UNUSED(ui);
-	fmt(base, sizeof base, "%s/.local/share/zurbax/bridge", home_dir());
+	fmt(bridge_base, sizeof bridge_base, "%s/.local/share/zurbax/bridge", home_dir());
 	char *dirs[] = { path_in("apps"), path_in("bottles"), path_in("proton"), path_in("runtime"), path_in("downloads"),
 			path_in("covers") };
 	for (usize i = 0; i < ARRAY_LEN(dirs); i++) {
