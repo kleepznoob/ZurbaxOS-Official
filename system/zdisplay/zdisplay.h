@@ -153,6 +153,7 @@ typedef struct {
 	bool dock_autohide;         /* the taskbar hides until the pointer reaches the bottom edge */
 	bool topbar;                /* the bar across the top: app menu, clock, status */
 	int taskbar_size;           /* 0 small, 1 medium, 2 large */
+	int taskbar_spacing;        /* the room between app icons: 0 close, 1 medium, 2 wide */
 	bool taskbar_center;        /* the buttons centred, or from the left */
 	bool taskbar_float;         /* a pane of glass off the screen's edges */
 	bool taskbar_labels;        /* app names beside the icons */

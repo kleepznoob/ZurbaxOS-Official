@@ -424,7 +424,7 @@ static void page_desktop(Ui *ui, Rect r)
 	f32 top = b.y;
 	page_title(ui, &b, "Desktop", "The taskbar, the top bar and locking.");
 	section(ui, &b, "Taskbar");
-	Rect rows = card_rows(ui, &b, 8, 60);
+	Rect rows = card_rows(ui, &b, 9, 60);
 	{
 		Rect row = cut_top(&rows, 60);
 		ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
@@ -433,6 +433,17 @@ static void page_desktop(Ui *ui, Rect r)
 		int size = (int)CLAMP(conf_get_int(st.conf, "taskbar_size", 1), 0, 2);
 		if (ui_segmented(ui, center_in(cut_right(&row, 290), 280, 32), sizes, 3, &size)) {
 			conf_set_int(st.conf, "taskbar_size", size);
+			commit(ui);
+		}
+	}
+	{
+		Rect row = cut_top(&rows, 60);
+		ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
+		row_label(ui, row, "Icon spacing", "How far apart the app icons sit");
+		static const char *const spacings[] = { "Close", "Medium", "Wide" };
+		int spacing = (int)CLAMP(conf_get_int(st.conf, "taskbar_spacing", 1), 0, 2);
+		if (ui_segmented(ui, center_in(cut_right(&row, 290), 280, 32), spacings, 3, &spacing)) {
+			conf_set_int(st.conf, "taskbar_spacing", spacing);
 			commit(ui);
 		}
 	}

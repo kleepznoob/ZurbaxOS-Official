@@ -594,6 +594,10 @@ static void harden(void)
 		{ "net/ipv6/conf/default/accept_redirects", "0" },
 		{ "net/ipv6/conf/all/accept_source_route", "0" },
 		{ "net/ipv6/conf/default/accept_source_route", "0" },
+		/* and for games, as SteamOS has it: room for the millions of memory
+		 * mappings some need, and no penalty for split locks */
+		{ "vm/max_map_count", "2147483642" },
+		{ "kernel/split_lock_mitigate", "0" },
 	};
 	int failed = 0;
 	for (usize i = 0; i < ARRAY_LEN(SETTINGS); i++) {

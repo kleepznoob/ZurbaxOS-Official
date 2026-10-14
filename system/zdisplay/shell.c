@@ -628,7 +628,9 @@ f32 shell_panel_height(void)
 	return S.set.topbar && !S.setup_mode ? PANEL_HEIGHT : 0;
 }
 
-static const f32 TASKBAR_H[] = { 40, 48, 56 }, TASKBAR_ICON[] = { 24, 28, 32 };
+static const f32 TASKBAR_H[] = { 40, 48, 56 }, TASKBAR_ICON[] = { 26, 32, 38 };
+/* the room between two app icons: close, medium, wide */
+static const f32 TASKBAR_SPACING[] = { 6, 14, 24 };
 
 f32 shell_taskbar_height(void)
 {
@@ -728,13 +730,14 @@ void shell_taskbar(Taskbar *t)
 	f32 start_w = h + 4;
 	f32 search_w = S.set.taskbar_search ? (S.set.taskbar_center ? 200 : 240) : 0;
 	t->labels = S.set.taskbar_labels;
-	t->slot_w = t->labels ? 172 : h + 4;
+	f32 icon_slot = t->icon + TASKBAR_SPACING[CLAMP(S.set.taskbar_spacing, 0, 2)];
+	t->slot_w = t->labels ? 172 : icon_slot;
 	f32 group = start_w + (search_w ? search_w + 8 : 0) + 6 + (f32)t->n * t->slot_w;
 	if (group > room && t->labels) {
-		t->slot_w = maxf(h + 4, floorf((room - start_w - search_w - 14) / (f32)MAX(t->n, 1)));
+		t->slot_w = maxf(icon_slot, floorf((room - start_w - search_w - 14) / (f32)MAX(t->n, 1)));
 		t->labels = t->slot_w >= 110;
 		if (!t->labels)
-			t->slot_w = h + 4;
+			t->slot_w = icon_slot;
 		group = start_w + (search_w ? search_w + 8 : 0) + 6 + (f32)t->n * t->slot_w;
 	}
 	if (group > room && search_w) {
