@@ -37,7 +37,10 @@ sig=$(cat "$ROOT/kernel/modules.config" "$ROOT/kernel/zurbax.config" ${ZURBAX_KE
 if [ ! -f "$OUT/.config" ] || [ "$(cat "$OUT/.zurbax-config-sig" 2>/dev/null)" != "$sig" ]; then
 	echo ">> configuring"
 	make -s -C "$SRC" O="$OUT" x86_64_defconfig
-	"$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "$ROOT/kernel/modules.config" "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} >"$OUT/merge.log"
+	# (from the build folder, where the merge keeps its temporary files)
+	extra=${ZURBAX_KEXTRA:+$(cd "$(dirname "$ZURBAX_KEXTRA")" && pwd)/$(basename "$ZURBAX_KEXTRA")}
+	(cd "$OUT" && "$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "$ROOT/kernel/modules.config" \
+		"$ROOT/kernel/zurbax.config" ${extra:+"$extra"} >"$OUT/merge.log")
 	make -s -C "$SRC" O="$OUT" olddefconfig
 	# Report any requested option that Kconfig refused (missing dependency, renamed symbol).
 	grep -E '^(CONFIG_[A-Z0-9_]+=|# CONFIG_[A-Z0-9_]+ is not set)' "$ROOT/kernel/zurbax.config" |
