@@ -13,17 +13,26 @@
  * Proton and the runtime are downloaded the first time (about 900 MB), each
  * checked against its published checksum.
  *
+ * Every program in the library has a cover. A game's comes from its store
+ * page on Steam, found by the name the program gives itself in its version
+ * information; anything else gets one made of its own icon, read from the
+ * .exe, and its name. People can choose a picture of their own instead.
+ *
  * In ~/.local/share/zurbax/bridge: apps/ID.conf (the library), bottles/ID,
- * proton/GE-Proton*, runtime/SteamLinuxRuntime_sniper.
+ * covers/ID and covers/ID-icon.png, proton/GE-Proton*,
+ * runtime/SteamLinuxRuntime_sniper.
  *
  *     bridge [FILE.exe]      opens Bridge, and runs FILE in its bottle
  */
 #include "zui.h"
 #include "zn.h"
+#include "pe.h"
 
 #define RUNTIME_URL "https://repo.steampowered.com/steamrt3/images/latest-container-runtime-public-beta/"
 #define RUNTIME_FILE "SteamLinuxRuntime_sniper.tar.xz"
 #define PROTON_API "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest"
+#define STEAM_SEARCH "https://store.steampowered.com/api/storesearch/?l=english&cc=us&term="
+#define STEAM_ART "https://cdn.cloudflare.steamstatic.com/steam/apps/"
 
 typedef struct {
 	char id[48];
@@ -32,6 +41,10 @@ typedef struct {
 	char args[256];
 	bool fsr, hud, nvapi, wayland;
 	i64 played;
+	/* where its cover came from: "steam:APPID" (portrait art), "wide:APPID"
+	 * (a store banner), "file" (the person's), "icon" or "none"; "" when
+	 * nobody has looked yet */
+	char cover[24];
 } App;
 
 static App apps[128];
@@ -60,6 +73,23 @@ static usize nbefore;
 static char install_id[48];
 static char found[8][512];
 static int nfound;
+
+/* covers, loaded when first drawn */
+typedef struct {
+	char id[48];
+	Canvas *art, *icon;
+	bool loaded;
+} Cover;
+static Cover covers[160];
+static int ncovers;
+
+/* finding a cover, on a thread of its own: one program at a time */
+static struct {
+	int busy; /* 1 looking, 2 done: the results wait to be taken */
+	char id[48], name[96], exe[512];
+	bool installer, named;
+	char found_name[96], src[24]; /* the name it goes by on Steam or calls itself, and the cover's source */
+} cj;
 
 /* ---- Places ------------------------------------------------------------------------------- */
 
@@ -126,6 +156,7 @@ static void save_app(const App *a)
 	conf_set_bool(c, "nvapi", a->nvapi);
 	conf_set_bool(c, "wayland", a->wayland);
 	conf_set_int(c, "played", a->played);
+	conf_set(c, "cover", a->cover);
 	conf_save(c);
 	conf_free(c);
 	mem_free(path);
@@ -163,6 +194,7 @@ static void load_library(void)
 			a->nvapi = conf_get_bool(c, "nvapi", true);
 			a->wayland = conf_get_bool(c, "wayland", false);
 			a->played = conf_get_int(c, "played", 0);
+			str_copy(a->cover, conf_get(c, "cover", ""), sizeof a->cover);
 			if (a->exe[0])
 				napps++;
 			conf_free(c);
@@ -640,6 +672,263 @@ static void after_install(void)
 	mem_free(now);
 }
 
+/* ---- Covers ------------------------------------------------------------------------------ */
+
+static char *cover_path(const char *id, const char *suffix)
+{
+	return str_fmt("%s/covers/%s%s", base, id, suffix);
+}
+
+/* Letters and digits, lower case: "ELDEN RING™" and "eldenring" are one name. */
+static void squash(const char *s, char *out, usize cap)
+{
+	usize n = 0;
+	for (; *s && n + 1 < cap; s++)
+		if ((*s >= 'a' && *s <= 'z') || (*s >= '0' && *s <= '9'))
+			out[n++] = *s;
+		else if (*s >= 'A' && *s <= 'Z')
+			out[n++] = (char)(*s + 32);
+	out[n] = 0;
+}
+
+/* Is a program's ProductName its name, or an engine's or installer's? */
+static bool real_product(const char *p)
+{
+	static const char *const generic[] = { "unrealgame", "ue4game", "ue5game", "epicgames", "unityplayer", "unity",
+					       "microsoftwindowsoperatingsystem", "windowsinstaller", "setup", "installer",
+					       "launcher", "game", "application", "app", "innosetup", "nsis", "electron" };
+	char q[96];
+	squash(p, q, sizeof q);
+	if (strlen(q) < 2 || strlen(p) > 60)
+		return false;
+	for (usize i = 0; i < ARRAY_LEN(generic); i++)
+		if (str_eq(q, generic[i]))
+			return false;
+	return true;
+}
+
+/* The name Bridge gave a program from its file name, before anyone renamed it. */
+static bool default_name(const App *a)
+{
+	char n[96];
+	name_from(a->exe, n, sizeof n);
+	return str_eq(n, a->name);
+}
+
+/* Without the trademark signs some names carry. */
+static void strip_marks(char *s)
+{
+	char *w = s;
+	for (const char *r = s; *r;) {
+		if (!memcmp(r, "\xe2\x84\xa2", 3))
+			r += 3;
+		else if (!memcmp(r, "\xc2\xae", 2) || !memcmp(r, "\xc2\xa9", 2))
+			r += 2;
+		else
+			*w++ = *r++;
+	}
+	*w = 0;
+	str_copy(s, str_trim(s), strlen(s) + 1);
+}
+
+/* A game on Steam by this name: its app id, or 0, and the name it has there. */
+static u32 steam_find(const char *name, char *official, usize cap)
+{
+	char want[96];
+	squash(name, want, sizeof want);
+	if (strlen(want) < 2)
+		return 0;
+	char *q = url_encode(name);
+	char *url = str_fmt(STEAM_SEARCH "%s", q);
+	HttpResponse *r = http_get(url);
+	mem_free(q);
+	mem_free(url);
+	u32 id = 0, close = 0;
+	Json *j = r->status == 200 && r->body ? json_parse((const char *)r->body, r->body_len) : NULL;
+	Json *items = j ? json_get(j, "items") : NULL;
+	for (usize i = 0; items && i < items->count && !id; i++) {
+		char got[96];
+		squash(json_str(json_get(items->items[i], "name"), ""), got, sizeof got);
+		u32 app = (u32)json_num(json_get(items->items[i], "id"), 0);
+		bool exact = str_eq(got, want);
+		/* "Hollow Knight" for "hollowknight_x64", say: a long enough start, most of the name */
+		bool near = !close && strlen(want) >= 6 && (str_starts(got, want) || str_starts(want, got)) &&
+			    MIN(strlen(got), strlen(want)) * 10 >= MAX(strlen(got), strlen(want)) * 7;
+		if (exact || near) {
+			if (exact)
+				id = app;
+			else
+				close = app;
+			str_copy(official, json_str(json_get(items->items[i], "name"), ""), cap);
+		}
+	}
+	if (j)
+		json_free(j);
+	http_response_free(r);
+	return id ? id : close;
+}
+
+/* Steam's art for an app: the tall library picture, else the store banner. */
+static bool steam_art(u32 app, const char *path, char *src, usize cap)
+{
+	static const char *const kinds[] = { "library_600x900.jpg", "header.jpg" };
+	for (usize k = 0; k < ARRAY_LEN(kinds); k++) {
+		char *url = str_fmt(STEAM_ART "%u/%s", app, kinds[k]);
+		HttpResponse *r = http_get(url);
+		mem_free(url);
+		Canvas *img = r->status == 200 && r->body ? image_decode(r->body, r->body_len) : NULL;
+		bool ok = img && file_write_atomic(path, r->body, r->body_len);
+		if (img)
+			canvas_free(img);
+		http_response_free(r);
+		if (ok) {
+			fmt(src, cap, "%s:%u", k == 0 ? "steam" : "wide", app);
+			return true;
+		}
+	}
+	return false;
+}
+
+static void find_cover(void *arg)
+{
+	UNUSED(arg);
+	PeInfo pi;
+	char product[96] = "";
+	cj.found_name[0] = 0;
+	bool icon = false;
+	if (pe_read(cj.exe, &pi)) {
+		if (real_product(pi.product))
+			str_copy(product, pi.product, sizeof product);
+		if (pi.icon) {
+			char *path = cover_path(cj.id, "-icon.png");
+			icon = png_save(pi.icon, path);
+			mem_free(path);
+		}
+		pe_info_free(&pi);
+	}
+	/* on Steam: by the name someone gave it; else the program's own, then its file's */
+	const char *tries[2];
+	int nt = 0;
+	if (cj.named) {
+		tries[nt++] = cj.name;
+	} else {
+		if (product[0])
+			tries[nt++] = product;
+		if (!cj.installer)
+			tries[nt++] = cj.name;
+	}
+	str_copy(cj.src, icon ? "icon" : "none", sizeof cj.src);
+	char *art = cover_path(cj.id, "");
+	for (int i = 0; i < nt; i++) {
+		char official[96] = "";
+		u32 app = steam_find(tries[i], official, sizeof official);
+		if (app && steam_art(app, art, cj.src, sizeof cj.src)) {
+			strip_marks(official);
+			str_copy(cj.found_name, official, sizeof cj.found_name);
+			break;
+		}
+	}
+	if (!cj.found_name[0])
+		str_copy(cj.found_name, product, sizeof cj.found_name);
+	mem_free(art);
+	atomic_store(&cj.busy, 2);
+}
+
+static void forget_cover(const char *id)
+{
+	for (int i = 0; i < ncovers; i++)
+		if (str_eq(covers[i].id, id)) {
+			if (covers[i].art)
+				canvas_free(covers[i].art);
+			if (covers[i].icon)
+				canvas_free(covers[i].icon);
+			covers[i] = covers[--ncovers];
+			return;
+		}
+}
+
+static Cover *cover_of(const App *a)
+{
+	for (int i = 0; i < ncovers; i++)
+		if (str_eq(covers[i].id, a->id))
+			return &covers[i];
+	if (ncovers == (int)ARRAY_LEN(covers))
+		forget_cover(covers[0].id);
+	Cover *c = &covers[ncovers++];
+	memset(c, 0, sizeof *c);
+	str_copy(c->id, a->id, sizeof c->id);
+	return c;
+}
+
+/* One program at a time, the next without a cover; then its results, here on the UI's thread. */
+static void cover_tick(Ui *ui)
+{
+	int st = atomic_add(&cj.busy, 0);
+	if (st == 2) {
+		int i = -1;
+		for (int k = 0; k < napps; k++)
+			if (str_eq(apps[k].id, cj.id))
+				i = k;
+		if (i >= 0) {
+			App *a = &apps[i];
+			if (cj.found_name[0] && default_name(a)) {
+				str_copy(a->name, cj.found_name, sizeof a->name);
+				if (sel == i) {
+					sb_clear(&name_edit);
+					sb_adds(&name_edit, a->name);
+				}
+			}
+			str_copy(a->cover, cj.src, sizeof a->cover);
+			save_app(a);
+			forget_cover(a->id);
+		}
+		atomic_store(&cj.busy, 0);
+		st = 0;
+	}
+	if (st == 0) {
+		for (int i = 0; i < napps; i++) {
+			App *a = &apps[i];
+			if (a->cover[0])
+				continue;
+			str_copy(cj.id, a->id, sizeof cj.id);
+			str_copy(cj.name, a->name, sizeof cj.name);
+			str_copy(cj.exe, a->exe, sizeof cj.exe);
+			cj.installer = looks_like_installer(a->exe);
+			cj.named = !default_name(a);
+			atomic_store(&cj.busy, 1);
+			if (thread_spawn(find_cover, NULL) < 0) {
+				atomic_store(&cj.busy, 0);
+				str_copy(a->cover, "none", sizeof a->cover);
+				save_app(a);
+			}
+			break;
+		}
+	}
+	if (atomic_add(&cj.busy, 0))
+		ui->wake_at = ui->now + 0.3;
+}
+
+/* A picture someone chose for a program. */
+static void set_cover_file(App *a, const char *picked)
+{
+	usize len;
+	char *data = file_read(picked, &len);
+	Canvas *img = data ? image_decode(data, len) : NULL;
+	if (img) {
+		char *path = cover_path(a->id, "");
+		if (file_write_atomic(path, data, len)) {
+			str_copy(a->cover, "file", sizeof a->cover);
+			save_app(a);
+			forget_cover(a->id);
+		}
+		mem_free(path);
+		canvas_free(img);
+	} else {
+		fmt(message, sizeof message, "%s isn't a picture Bridge can show.", path_base(picked));
+	}
+	mem_free(data);
+}
+
 /* ---- The window -------------------------------------------------------------------------- */
 
 static Color tile_color(const char *name)
@@ -650,15 +939,49 @@ static Color tile_color(const char *name)
 	return color_hsl((f32)(h % 360), 0.55f, 0.46f, 255);
 }
 
-static void monogram(Ui *ui, Rect r, const char *name)
+/* A program's cover: art from Steam or the person; else one made of its icon, or initial, and its name. */
+static void draw_cover(Ui *ui, Rect r, const App *a, f32 radius)
 {
-	ui_round(ui, r, 14, tile_color(name));
-	ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.55f), 14, color_hex("#ffffff30"), COLOR_CLEAR);
-	ui_border(ui, r, 14, 1, color_hex("#ffffff30"));
-	char m[4] = { name[0] ? name[0] : '?', 0 };
-	if (m[0] >= 'a' && m[0] <= 'z')
-		m[0] = (char)(m[0] - 32);
-	ui_text_in(ui, ui_font(ui, r.h * 0.42f, 700), r, m, COLOR_WHITE, ALIGN_CENTER);
+	Cover *c = cover_of(a);
+	if (!c->loaded) {
+		c->loaded = true;
+		char *art = cover_path(a->id, ""), *icon = cover_path(a->id, "-icon.png");
+		bool has_art = str_starts(a->cover, "steam:") || str_starts(a->cover, "wide:") || str_eq(a->cover, "file");
+		c->art = has_art ? image_load_thumb(art, 900) : NULL;
+		c->icon = image_load(icon);
+		mem_free(art);
+		mem_free(icon);
+	}
+	bool wide = str_starts(a->cover, "wide:");
+	if (c->art && !wide) {
+		ui_image(ui, r, c->art, radius, true);
+		ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.4f), radius, color_hex("#ffffff1c"), COLOR_CLEAR);
+		ui_border(ui, r, radius, 1, color_hex("#ffffff26"));
+		return;
+	}
+	Color tone = tile_color(a->name);
+	ui_gradient(ui, r, radius, color_lighten(tone, 0.08f), color_lighten(tone, -0.5f));
+	ui_gradient(ui, rect(r.x, r.y, r.w, r.h * 0.5f), radius, color_hex("#ffffff2a"), COLOR_CLEAR);
+	f32 mid = r.y + r.h * 0.36f;
+	if (c->art) {
+		/* a store banner, across the middle */
+		f32 h = r.w * 215 / 460;
+		ui_shadow(ui, rect(r.x, mid - h / 2, r.w, h), 0, 18, 6, color_hex("#00000060"));
+		ui_image(ui, rect(r.x, mid - h / 2, r.w, h), c->art, 0, true);
+	} else if (c->icon) {
+		f32 s = roundf(r.w * 0.44f);
+		ui_shadow(ui, rect(r.x + (r.w - s) / 2 + s * 0.1f, mid - s / 2 + s * 0.1f, s * 0.8f, s * 0.8f), s * 0.2f, 18, 8, color_hex("#00000070"));
+		ui_image(ui, rect(roundf(r.x + (r.w - s) / 2), roundf(mid - s / 2), s, s), c->icon, 0, false);
+	} else {
+		char m[4] = { a->name[0] ? a->name[0] : '?', 0 };
+		if (m[0] >= 'a' && m[0] <= 'z')
+			m[0] = (char)(m[0] - 32);
+		ui_text_in(ui, ui_font(ui, r.w * 0.36f, 700), rect(r.x, mid - r.w * 0.25f, r.w, r.w * 0.5f), m, color_hex("#ffffffe0"), ALIGN_CENTER);
+	}
+	if (r.h >= 140)
+		ui_text_wrapped(ui, ui_font(ui, maxf(12, r.w * 0.095f), 700), rect(r.x + 12, r.y + r.h * 0.64f, r.w - 24, r.h * 0.3f), a->name,
+				COLOR_WHITE, ALIGN_CENTER);
+	ui_border(ui, r, radius, 1, color_hex("#ffffff30"));
 }
 
 static bool option_row(Ui *ui, Rect *c, const char *label, const char *sub, bool *v)
@@ -679,15 +1002,23 @@ static void details(Ui *ui, Rect r)
 	App *a = &apps[sel];
 	ui_card(ui, r);
 	Rect c = pad(r, 18);
-	Rect top = cut_top(&c, 64);
-	monogram(ui, rect(top.x, top.y, 64, 64), a->name);
-	Rect nm = rect(top.x + 78, top.y + 6, top.w - 78, 32);
+	Rect top = cut_top(&c, 108);
+	draw_cover(ui, rect(top.x, top.y, 72, 108), a, 8);
+	Rect nm = rect(top.x + 86, top.y + 4, top.w - 86, 32);
 	int ev = ui_entry(ui, nm, "bridge-name", &name_edit, "Name", ENTRY_FLAT);
 	if (ev & (ENTRY_CHANGED | ENTRY_SUBMIT) && sb_str(&name_edit)[0]) {
 		str_copy(a->name, sb_str(&name_edit), sizeof a->name);
+		/* a new name: look for its cover again, unless the person chose one */
+		if (ev & ENTRY_SUBMIT && !str_eq(a->cover, "file"))
+			a->cover[0] = 0;
 		save_app(a);
 	}
-	ui_text_in(ui, ui_font(ui, 11, 400), rect(top.x + 80, top.y + 40, top.w - 80, 18), a->exe, t->text_faint, ALIGN_START);
+	ui_text_in(ui, ui_font(ui, 11, 400), rect(top.x + 88, top.y + 38, top.w - 88, 18), a->exe, t->text_faint, ALIGN_START);
+	if (ui_button_flat(ui, rect(top.x + 82, top.y + 66, 130, 30), "Change Cover…"))
+		ui_file_dialog_open(ui, "bridge-cover", FILE_OPEN, home_dir(), "png,jpg,jpeg", NULL);
+	char picked[512];
+	if (ui_file_dialog(ui, "bridge-cover", picked, sizeof picked))
+		set_cover_file(a, picked);
 	cut_top(&c, 12);
 	bool playing = play_pid > 0 && str_eq(play_id, a->id);
 	Rect btns = cut_top(&c, 36);
@@ -728,6 +1059,13 @@ static void details(Ui *ui, Rect r)
 		char *path = str_fmt("%s/apps/%s.conf", base, a->id);
 		sys_unlink(path);
 		mem_free(path);
+		path = cover_path(a->id, "");
+		sys_unlink(path);
+		mem_free(path);
+		path = cover_path(a->id, "-icon.png");
+		sys_unlink(path);
+		mem_free(path);
+		forget_cover(a->id);
 		sel = -1;
 		load_library();
 	}
@@ -792,6 +1130,7 @@ static void frame(Ui *ui)
 		}
 		ui->wake_at = ui->now + 1;
 	}
+	cover_tick(ui);
 	/* a program to run once everything's here */
 	if (pending_run[0] && !atomic_add(&job.busy, 0)) {
 		char proton[600];
@@ -851,20 +1190,24 @@ static void frame(Ui *ui)
 			       "Drop a game or an installer (.exe or .msi) here, choose Add Program, or open one from Files.");
 		return;
 	}
-	/* the library: tiles in rows */
-	f32 tw = 168, th = 196, gap = 16;
+	/* the library: covers in rows, as on a shelf */
+	f32 tw = 150, ch = 225, th = ch + 48, gap = 22;
 	int per = MAX(1, (int)((b.w + gap) / (tw + gap)));
 	f32 y = ui_scroll_begin(ui, b, "bridge-lib");
 	for (int i = 0; i < napps; i++) {
-		Rect cell = rect(b.x + (f32)(i % per) * (tw + gap), y + (f32)(i / per) * (th + gap), tw, th);
+		Rect cell = rect(b.x + (f32)(i % per) * (tw + gap), y + 8 + (f32)(i / per) * (th + gap), tw, th);
 		ui_push_id_str(ui, apps[i].id);
 		UiInteract it = ui_interact(ui, ui_id(ui, "tile"), cell);
-		if (it.hovered || sel == i)
-			ui_round(ui, rect_inset(cell, -6, -6), 18, sel == i ? color_with_alpha(t->accent, 0x30) : t->hover);
-		monogram(ui, rect(cell.x + 14, cell.y + 6, tw - 28, tw - 28), apps[i].name);
+		/* the cover rises a little under the pointer */
+		f32 lift = ui_anim(ui, ui_id(ui, "lift"), it.hovered, 14) * 5;
+		Rect art = rect(cell.x, cell.y - lift, tw, ch);
+		ui_shadow(ui, art, 12, 14 + lift * 3, 4 + lift, color_hex("#00000058"));
+		draw_cover(ui, art, &apps[i], 12);
+		if (sel == i)
+			ui_border(ui, rect_inset(art, -4, -4), 15, 2.5f, t->accent);
 		bool playing = play_pid > 0 && str_eq(play_id, apps[i].id);
-		ui_text_in(ui, ui_font(ui, 13, 600), rect(cell.x, cell.y + tw - 14, tw, 20), apps[i].name, t->text, ALIGN_CENTER);
-		ui_text_in(ui, ui_font(ui, 11, 400), rect(cell.x, cell.y + tw + 6, tw, 16), playing ? "Playing" : looks_like_installer(apps[i].exe) ? "Installer" : "Windows",
+		ui_text_in(ui, ui_font(ui, 13, 600), rect(cell.x, cell.y + ch + 8, tw, 20), apps[i].name, t->text, ALIGN_CENTER);
+		ui_text_in(ui, ui_font(ui, 11, 400), rect(cell.x, cell.y + ch + 27, tw, 16), playing ? "Playing" : looks_like_installer(apps[i].exe) ? "Installer" : "Windows",
 			   playing ? t->accent : t->text_faint, ALIGN_CENTER);
 		if (it.clicked) {
 			sel = i;
@@ -875,7 +1218,7 @@ static void frame(Ui *ui)
 			play(ui, i);
 		ui_pop_id(ui);
 	}
-	ui_scroll_end(ui, (f32)((napps + per - 1) / per) * (th + gap));
+	ui_scroll_end(ui, 8 + (f32)((napps + per - 1) / per) * (th + gap));
 	if (message[0])
 		ui_text(ui, ui_font(ui, 12, 400), b.x, b.y + b.h - 4, message, t->text_dim);
 }
@@ -886,7 +1229,8 @@ static void init(Ui *ui)
 {
 	UNUSED(ui);
 	fmt(base, sizeof base, "%s/.local/share/zurbax/bridge", home_dir());
-	char *dirs[] = { path_in("apps"), path_in("bottles"), path_in("proton"), path_in("runtime"), path_in("downloads") };
+	char *dirs[] = { path_in("apps"), path_in("bottles"), path_in("proton"), path_in("runtime"), path_in("downloads"),
+			path_in("covers") };
 	for (usize i = 0; i < ARRAY_LEN(dirs); i++) {
 		dir_make(dirs[i], 0755);
 		mem_free(dirs[i]);
