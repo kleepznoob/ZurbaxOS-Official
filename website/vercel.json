@@ -65,6 +65,11 @@
       "permanent": false
     },
     {
+      "source": "/download/2.1/:file(apps.sfs|apps2.sfs|apps3.sfs|firmware.sfs)",
+      "destination": "https://archive.org/download/zurbax-2.0/:file",
+      "permanent": false
+    },
+    {
       "source": "/download/2.1/:file",
       "destination": "https://archive.org/download/zurbax-2.1/:file",
       "permanent": false

@@ -1,7 +1,7 @@
 // zurbax.com: the boot on the hero monitor, the tour, and the download
 (() => {
   // where the full image lives; empty until it's up, and the page says so
-  const FULL = '/download/2.0/zurbax.iso';
+  const FULL = '/download/2.1/zurbax.iso';
 
   const root = document.documentElement;
   root.classList.replace('no-js', 'js');
@@ -82,9 +82,9 @@
   document.querySelectorAll('[data-get]').forEach(a => a.addEventListener('click', e => {
     if (!FULL) return; // the link scrolls to the download section
     e.preventDefault();
-    start(FULL, 'Zurbax 2.0 (about 7 GB)');
+    start(FULL, 'Zurbax 2.1 (about 7 GB)');
   }));
-  full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.0 (about 7 GB)'); });
+  full.addEventListener('click', e => { e.preventDefault(); if (FULL) start(FULL, 'Zurbax 2.1 (about 7 GB)'); });
 
   const next = document.getElementById('next');
   let opener = null;

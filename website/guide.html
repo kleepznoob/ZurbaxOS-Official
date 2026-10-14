@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zurbax 2.0 · Guide</title>
-<meta name="description" content="Everything about Zurbax 2.0: making the USB stick, starting and installing it, getting around, apps, games, settings and fixing problems.">
+<title>Zurbax 2.1 · Guide</title>
+<meta name="description" content="Everything about Zurbax 2.1: making the USB stick, starting and installing it, getting around, apps, games, settings and fixing problems.">
 <link rel="canonical" href="https://www.zurbax.com/guide">
 <meta property="og:site_name" content="Zurbax">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Zurbax 2.0 · Guide">
+<meta property="og:title" content="Zurbax 2.1 · Guide">
 <meta property="og:description" content="Making the USB stick, installing, getting around, apps, games and fixing problems.">
 <meta property="og:image" content="https://www.zurbax.com/images/desktop.jpg">
 <meta name="theme-color" content="#ff5a1f">
@@ -45,7 +45,7 @@
 <main>
 
 <section class="g-hero">
-  <p class="version">Zurbax 2.0 · Guide</p>
+  <p class="version">Zurbax 2.1 LTS · Guide</p>
   <h1 class="g-title">Everything, step by step.</h1>
   <p class="intro">From an empty USB stick to your first game: making the stick, trying and installing Zurbax, finding your way around, and what to do when something doesn't work.</p>
 </section>
@@ -93,8 +93,8 @@
     <section id="download" class="g-sec">
       <h2>Download</h2>
       <p>One image for every computer: the system, GNOME, Steam and Proton, eight apps, and the drivers for every graphics card, Wi-Fi chip and controller. About 7 GB; it installs without the internet.</p>
-      <p><a class="btn" href="/download/2.0/zurbax.iso">Download Zurbax 2.0 <span class="arrow" aria-hidden="true">→</span></a></p>
-      <p class="g-small">Each file's SHA-256 checksum is in <a href="/download/2.0/SHA256SUMS">SHA256SUMS</a>, if you'd like to check that the download arrived whole.</p>
+      <p><a class="btn" href="/download/2.1/zurbax.iso">Download Zurbax 2.1 <span class="arrow" aria-hidden="true">→</span></a></p>
+      <p class="g-small">Each file's SHA-256 checksum is in <a href="/download/2.1/SHA256SUMS">SHA256SUMS</a>, if you'd like to check that the download arrived whole.</p>
     </section>
 
     <section id="stick" class="g-sec">
@@ -211,7 +211,7 @@
 
     <section id="desktops" class="g-sec">
       <h2>Two desktops</h2>
-      <p>Zurbax has its own desktop, and GNOME too. On the lock screen, choose which one you want before signing in. Both use the same files, wallpapers and taskbar. GNOME is a preview in 2.0: its own Settings and Files apps arrive in a later version, so use Zurbax's for now.</p>
+      <p>Zurbax has its own desktop, and GNOME too. On the lock screen, choose which one you want before signing in. Both use the same files, wallpapers and taskbar. GNOME comes with its own Settings, Files, Console, Text Editor, Weather, Maps, System Monitor, Software and more.</p>
     </section>
 
     <section id="settings" class="g-sec">
@@ -266,10 +266,10 @@
       <h2>Try it on an iPad or Mac</h2>
       <p>No PC at hand? UTM runs Zurbax in a window on an iPad, an iPhone or a Mac, by pretending to be a PC. It's free: <em>UTM SE</em> on the App Store for iPad and iPhone, or <a href="https://mac.getutm.app" target="_blank" rel="noopener">UTM</a> for the Mac.</p>
       <ol class="g-steps">
-        <li><b>1</b><div><h3>Download the small image</h3><p>For a virtual machine, the small image is all you need: <a href="/download/2.0/zurbax-mini.iso">zurbax-mini.iso</a>, 72 MB. It has the whole desktop and every Zurbax app, without the PC drivers and Steam. In Safari it goes to Files, in Downloads.</p></div></li>
+        <li><b>1</b><div><h3>Download the small image</h3><p>For a virtual machine, the small image is all you need: <a href="/download/2.1/zurbax-mini.iso">zurbax-mini.iso</a>, 72 MB. It has the whole desktop and every Zurbax app, without the PC drivers and Steam. In Safari it goes to Files, in Downloads.</p></div></li>
         <li><b>2</b><div><h3>Make the machine</h3><p>In UTM, press <em>+</em>, then <em>Emulate</em>, then <em>Other</em>. For the boot device choose <em>CD/DVD Image</em>, press <em>Browse</em> and pick zurbax-mini.iso.</p></div></li>
         <li><b>3</b><div><h3>Hardware</h3><p>Architecture <em>x86_64</em>, system <em>Standard PC (Q35)</em>, memory <em>2048 MB</em> (or 3072 if your device has 6 GB or more), <em>2</em> CPU cores. Storage: 8 GB is plenty. Skip the shared folder, name it Zurbax and save.</p></div></li>
-        <li><b>4</b><div><h3>One setting first</h3><p>Before the first start, edit the machine. Under <em>System</em>, set <em>CPU</em> to <em>Nehalem</em> or anything newer (Skylake-Client is fine). Under <em>QEMU</em>, check that <em>UEFI Boot</em> is on. Zurbax 2.1 and later won't need the CPU setting.</p></div></li>
+        <li><b>4</b><div><h3>Check one setting</h3><p>Before the first start, edit the machine. Under <em>QEMU</em>, check that <em>UEFI Boot</em> is on. The CPU can stay on UTM's default.</p></div></li>
         <li><b>5</b><div><h3>Start it, and wait</h3><p>Press play. UTM SE can't use the iPad's full speed, so be patient: the Zurbax logo shows after a minute or three and the Welcome window after five to ten. Choose <em>Try Zurbax</em>.</p></div></li>
       </ol>
       <div class="g-note"><b>Getting around in UTM.</b> Tap to click and tap with two fingers to right-click. A keyboard and trackpad make it much nicer; UTM's toolbar has a button that brings up the on-screen keyboard. It's slow on an iPad because every instruction of the PC is worked out in software: on a real PC Zurbax is many times faster.</div>
@@ -287,7 +287,7 @@
 
     <div class="g-end">
       <p>Ready?</p>
-      <a class="btn big" href="/#download">Download Zurbax 2.0 <span class="arrow" aria-hidden="true">→</span></a>
+      <a class="btn big" href="/#download">Download Zurbax 2.1 <span class="arrow" aria-hidden="true">→</span></a>
     </div>
 
   </article>
