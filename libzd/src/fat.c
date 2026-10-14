@@ -190,29 +190,46 @@ bool fat_mkdir(FatWriter *w, const char *path)
 	return true;
 }
 
-bool fat_add_file(FatWriter *w, const char *path, const void *data, usize len)
+bool fat_add_file_space(FatWriter *w, const char *path, u64 len)
 {
 	char leaf[11];
 	FatNode *dir = walk(w, path, leaf);
-	if (!dir || find_child(dir, leaf))
+	if (!dir || find_child(dir, leaf) || len >= (4ull << 30))
 		return false;
 	FatNode *f = add_child(dir, leaf, false);
 	u32 csize = w->spc * SECTOR;
 	f->size = (u32)len;
 	f->cluster = alloc_chain(w, (u32)((len + csize - 1) / csize));
-	if (len && !f->cluster)
-		return false;
-	return !len || write_at(w->fd, cluster_byte(w, f->cluster), data, len);
+	return !len || f->cluster;
 }
 
+bool fat_add_file(FatWriter *w, const char *path, const void *data, usize len)
+{
+	if (!fat_add_file_space(w, path, len))
+		return false;
+	return !len || write_at(w->fd, fat_file_byte(w, path), data, len);
+}
+
+/* A piece at a time, so a file of gigabytes needs no more memory than that. */
 bool fat_add_file_from(FatWriter *w, const char *path, const char *source)
 {
-	usize len;
-	char *data = file_read(source, &len);
-	if (!data)
+	int fd = (int)sys_open(source, O_RDONLY | O_CLOEXEC, 0);
+	if (fd < 0)
 		return false;
-	bool ok = fat_add_file(w, path, data, len);
-	mem_free(data);
+	struct stat st;
+	bool ok = sys_fstat(fd, &st) == 0 && fat_add_file_space(w, path, (u64)st.st_size);
+	u64 at = ok ? fat_file_byte(w, path) : 0, done = 0;
+	usize cap = 8u << 20;
+	u8 *buf = ok ? mem_alloc(cap) : NULL;
+	while (ok && done < (u64)st.st_size) {
+		long n = sys_pread(fd, buf, (usize)MIN((u64)cap, (u64)st.st_size - done), (i64)done);
+		if (n == -EINTR)
+			continue;
+		ok = n > 0 && write_at(w->fd, at + done, buf, (usize)n);
+		done += n > 0 ? (u64)n : 0;
+	}
+	mem_free(buf);
+	sys_close(fd);
 	return ok;
 }
 

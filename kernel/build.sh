@@ -1,11 +1,12 @@
 #!/bin/sh
-# Builds Ember, the Zurbax kernel: upstream Linux LTS with kernel/patches and
-# kernel/zurbax.config.
+# Builds Ember, the Zurbax kernel: upstream Linux LTS with kernel/patches,
+# kernel/modules.config and kernel/zurbax.config.
 #
 #   kernel/build.sh                 build bzImage with no embedded system
 #   kernel/build.sh system.cpio     embed system.cpio -> one bootable EFI file
 #
-# Output: build/kernel/arch/x86/boot/bzImage
+# Output: build/kernel/arch/x86/boot/bzImage, and build/kernel/drivers.sfs:
+# every driver not built in, as signed modules (ZURBAX_MODULES=0 skips them).
 set -eu
 
 KVER=6.18.55
@@ -32,11 +33,11 @@ done
 
 mkdir -p "$OUT"
 # Reconfigure whenever the configuration files' contents change.
-sig=$(cat "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} | cksum)
+sig=$(cat "$ROOT/kernel/modules.config" "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} | cksum)
 if [ ! -f "$OUT/.config" ] || [ "$(cat "$OUT/.zurbax-config-sig" 2>/dev/null)" != "$sig" ]; then
 	echo ">> configuring"
 	make -s -C "$SRC" O="$OUT" x86_64_defconfig
-	"$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} >"$OUT/merge.log"
+	"$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" "$OUT/.config" "$ROOT/kernel/modules.config" "$ROOT/kernel/zurbax.config" ${ZURBAX_KEXTRA:+"$ZURBAX_KEXTRA"} >"$OUT/merge.log"
 	make -s -C "$SRC" O="$OUT" olddefconfig
 	# Report any requested option that Kconfig refused (missing dependency, renamed symbol).
 	grep -E '^(CONFIG_[A-Z0-9_]+=|# CONFIG_[A-Z0-9_]+ is not set)' "$ROOT/kernel/zurbax.config" |
@@ -71,3 +72,22 @@ fi
 echo ">> building with $JOBS jobs"
 make -s -C "$SRC" O="$OUT" -j"$JOBS" bzImage
 ls -l "$OUT/arch/x86/boot/bzImage"
+
+# The other drivers: modules, signed as they're installed, in one compressed
+# image that Zurbax mounts as /data/layers/drivers. Test kernels go without.
+if [ "${ZURBAX_MODULES:-1}" != 0 ] && [ -z "${ZURBAX_KOUT:-}" ]; then
+	echo ">> building the drivers"
+	make -s -C "$SRC" O="$OUT" -j"$JOBS" modules
+	if [ ! -f "$OUT/drivers.sfs" ] || [ -n "$(find "$OUT" -name '*.ko' -newer "$OUT/drivers.sfs" -print -quit)" ]; then
+		rel=$(cat "$OUT/include/config/kernel.release")
+		rm -rf "$OUT/modroot"
+		make -s -C "$SRC" O="$OUT" INSTALL_MOD_PATH="$OUT/modroot" INSTALL_MOD_STRIP=1 modules_install
+		rm -f "$OUT/modroot/lib/modules/$rel/build" "$OUT/modroot/lib/modules/$rel/source"
+		rm -f "$OUT/drivers.sfs.part"
+		mksquashfs "$OUT/modroot" "$OUT/drivers.sfs.part" -comp zstd -Xcompression-level 19 -b 1M -all-root -noappend -quiet
+		mv "$OUT/drivers.sfs.part" "$OUT/drivers.sfs"
+		rm -rf "$OUT/modroot"
+		echo "   $(find "$OUT" -name '*.ko' | wc -l) drivers"
+	fi
+	ls -l "$OUT/drivers.sfs"
+fi

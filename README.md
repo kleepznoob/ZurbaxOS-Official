@@ -142,6 +142,18 @@ Intel 6th generation and newer, Arc), so screens run at their native
 resolution and refresh rate and GPUs save power; machines without one of
 these use the firmware's framebuffer.
 
+**Every driver.** Ember, Zurbax's kernel, builds in what starting needs
+(disks, screens, keyboards, touchpads, Ethernet and Wi-Fi), and every other
+driver a PC or laptop can have, about 5,000 of them, as modules in
+`drivers.sfs`, an image beside the system like the firmware's. Each module
+is signed with a key made for the build and thrown away, and the kernel
+loads no other. Zurbax's own loader (`system/modprobe`) picks them: at
+startup for every device there is, as devices are plugged in, and when the
+kernel asks for one (a file system, a network protocol). The list comes
+from a general-purpose distribution's (`tools/gen-modules-config.py`),
+without what PCs don't have: data-centre cards, industrial sensors, phone
+and board chips.
+
 **First start.** The Welcome assistant covers keyboard, time zone, an
 account and a look. Every step can be skipped. When started from the USB
 stick, it offers to try Zurbax or install it.
@@ -241,10 +253,10 @@ on whichever one Zurbax started from.
 | `libzn/` | Networking: crypto, X.509, TLS 1.3, DNS, HTTP |
 | `libza/` | Audio files: WAV, FLAC, Ogg Vorbis, tags and cover art |
 | `libzd/` | Disks: GPT, FAT32, ext4, ISO 9660 with El Torito, cpio |
-| `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, harborctl, layerrun, the Flint shell, sudo, fetch, play |
+| `system/` | zinit (process 1), zdisplay (display server and desktop), znet, zaudio, zinstall, modprobe, harborctl, layerrun, the Flint shell, sudo, fetch, play |
 | `apps/` | The apps |
 | `store/` | Apps offered in Harbor, packaged by `mkimage repo` |
-| `kernel/` | Kernel configuration, build script and the list of GPU firmware |
+| `kernel/` | Ember: its patches, configuration (built in, and modules), build script and the list of GPU firmware |
 | `layer/` | The Linux layer for Steam: upstream sources (pinned) and how to build them |
 | `tools/` | Image builder, QEMU test drivers (with a simulated access point and a virtual controller), the Wayland protocol table generator (`wlgen.py`), development helpers |
 | `data/` | Icons, wallpaper, trusted root certificates, Harbor's trusted keys |
@@ -275,6 +287,7 @@ on whichever one Zurbax started from.
 - **NVIDIA's own driver.** NVIDIA graphics run on the open drivers:
   nouveau in the kernel with NVIDIA's GSP firmware, Mesa's NVK for Vulkan
   (Steam and Proton games, GeForce RTX 20 series and newer) and zink for
-  OpenGL on it; older GeForces get nouveau's OpenGL. NVIDIA's proprietary
-  driver is a kernel module, and the Zurbax kernel has no module loader.
+  OpenGL on it; older GeForces get nouveau's OpenGL. NVIDIA's own driver
+  is a kernel module built by NVIDIA, and Ember loads only modules signed
+  with its own build key.
 - **Windows programs outside Steam.** `.exe` files don't run on their own.

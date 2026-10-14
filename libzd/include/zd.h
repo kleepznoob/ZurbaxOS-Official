@@ -48,6 +48,8 @@ FatWriter *fat_format(int fd, u64 start_lba, u64 sectors, const char *label);
 bool fat_mkdir(FatWriter *w, const char *path);
 bool fat_add_file(FatWriter *w, const char *path, const void *data, usize len);
 bool fat_add_file_from(FatWriter *w, const char *path, const char *source); /* copies a host file */
+/* Room for a file of len bytes, left unwritten (fat_file_byte says where it starts). */
+bool fat_add_file_space(FatWriter *w, const char *path, u64 len);
 /* Where a file's data starts on the disk, in bytes (it's contiguous), or 0. */
 u64 fat_file_byte(FatWriter *w, const char *path);
 /* Writes the tables and directories; frees the writer. */

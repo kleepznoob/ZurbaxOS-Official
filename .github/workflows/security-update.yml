@@ -74,7 +74,7 @@ jobs:
         if: steps.when.outputs.go
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc make bc flex bison libelf-dev libssl-dev cpio xz-utils squashfs-tools jq
+          sudo apt-get install -y --no-install-recommends gcc make bc flex bison libelf-dev libssl-dev cpio xz-utils squashfs-tools jq kmod
 
       - name: Cache the Wi-Fi and GPU firmware
         if: steps.when.outputs.go
@@ -89,7 +89,7 @@ jobs:
           make -j"$(nproc)" OS_UPDATE="$UPDATE"
           make OS_UPDATE="$UPDATE" test
           make -j"$(nproc)" OS_UPDATE="$UPDATE" system-efi
-          ls -l build/downloads/zurbax.efi
+          ls -l build/downloads/zurbax.efi build/kernel/drivers.sfs
 
       - name: Sign
         if: steps.when.outputs.go
@@ -100,7 +100,7 @@ jobs:
           umask 077
           printf '%s\n' "$KEY" >"$RUNNER_TEMP/key.pem"
           tools/update-publish.sh "$RUNNER_TEMP/key.pem" "$VERSION" "https://archive.org/download/zurbax-$VERSION/" \
-            "Linux $KVER and the latest security fixes for Zurbax." build/update build/downloads/zurbax.efi
+            "Linux $KVER and the latest security fixes for Zurbax." build/update build/downloads/zurbax.efi build/kernel/drivers.sfs
           rm -f "$RUNNER_TEMP/key.pem"
 
       - name: Publish
@@ -118,6 +118,8 @@ jobs:
               "https://s3.us.archive.org/$1/$(basename "$2")"
           }
           put "zurbax-$VERSION" build/downloads/zurbax.efi "Zurbax $VERSION security update"
+          # the drivers go with the kernel they were built and signed with
+          put "zurbax-$VERSION" build/kernel/drivers.sfs "Zurbax $VERSION security update"
           # the files first, the description last: nobody is told about files that aren't there yet
           sleep 120
           put "zurbax-updates-$RELEASE" build/update/release "Zurbax $RELEASE update channel"

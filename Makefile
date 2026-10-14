@@ -123,10 +123,11 @@ test: $(TESTS) devroot
 # The system archive is embedded in the kernel, so the one EFI file is the
 # whole OS: firmware loads it directly, with no boot loader in between.
 EFI_FILE := $(OUT)/kernel/arch/x86/boot/bzImage
-# The Linux layer (layer/build.sh makes it), the apps (make apps) and the
-# firmware of every device (make firmware) go on the install media when they
+# The Linux layer (layer/build.sh makes it), the apps (make apps), the
+# firmware of every device (make firmware) and the drivers that aren't built
+# in (kernel/build.sh makes drivers.sfs) go on the install media when they
 # have been built.
-LAYER ?= $(wildcard $(OUT)/layer/steam.sfs $(OUT)/preload/apps*.sfs $(OUT)/firmware.sfs)
+LAYER ?= $(wildcard $(OUT)/layer/steam.sfs $(OUT)/preload/apps*.sfs $(OUT)/firmware.sfs $(OUT)/kernel/drivers.sfs)
 
 # Every file of linux-firmware in one compressed image: zinit points the
 # kernel's firmware loader at it (the system image keeps only what starts

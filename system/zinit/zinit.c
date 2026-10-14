@@ -463,6 +463,48 @@ static void device_perms(const char *name)
 	sys_chmod(path, mode);
 }
 
+/* Drivers that aren't built in: modprobe loads them from the drivers
+ * layer (drivers.sfs) for every device there is, in the background while
+ * the rest starts, and for each device that appears later (on_uevent). */
+static bool have_drivers;
+
+static void drivers_coldplug(void)
+{
+	have_drivers = dir_exists("/data/layers/drivers/lib/modules");
+	if (!have_drivers)
+		return;
+	char *argv[] = { "modprobe", "--coldplug", NULL };
+	if (proc_spawn("/system/bin/modprobe", argv, service_env, NULL) < 0)
+		log_msg("cannot start modprobe");
+}
+
+/* new devices' modaliases, gathered from one batch of events: one modprobe for all */
+static char *new_aliases[48];
+static int nnew_aliases;
+
+static void drivers_for(const char *modalias)
+{
+	if (have_drivers && nnew_aliases < (int)ARRAY_LEN(new_aliases))
+		new_aliases[nnew_aliases++] = str_dup(modalias);
+}
+
+static void drivers_load_new(void)
+{
+	if (!nnew_aliases)
+		return;
+	char *argv[3 + ARRAY_LEN(new_aliases)];
+	int n = 0;
+	argv[n++] = "modprobe";
+	argv[n++] = "--device";
+	for (int i = 0; i < nnew_aliases; i++)
+		argv[n++] = new_aliases[i];
+	argv[n] = NULL;
+	proc_spawn("/system/bin/modprobe", argv, service_env, NULL);
+	for (int i = 0; i < nnew_aliases; i++)
+		mem_free(new_aliases[i]);
+	nnew_aliases = 0;
+}
+
 static void coldplug(void)
 {
 	static const char *const dirs[] = { "", "input/", "dri/" };
@@ -488,20 +530,29 @@ static void on_uevent(Loop *l, int fd, u32 events, void *data)
 	char buf[4096];
 	for (;;) {
 		long n = sys_recvfrom(fd, buf, sizeof buf - 1, MSG_DONTWAIT, NULL, NULL);
-		if (n <= 0)
+		if (n <= 0) {
+			drivers_load_new();
 			return;
+		}
 		buf[n] = 0;
 		/* "add@/devices/...\0ACTION=add\0DEVNAME=video0\0..." */
-		bool add = false;
-		const char *devname = NULL;
+		bool add = false, added = false;
+		const char *devname = NULL, *modalias = NULL;
 		for (char *p = buf; p < buf + n; p += strlen(p) + 1) {
 			if (str_eq(p, "ACTION=add") || str_eq(p, "ACTION=change"))
 				add = true;
+			if (str_eq(p, "ACTION=add"))
+				added = true;
 			else if (str_starts(p, "DEVNAME="))
 				devname = p + 8;
+			else if (str_starts(p, "MODALIAS="))
+				modalias = p + 9;
 		}
 		if (add && devname)
 			device_perms(devname);
+		/* a new device: its driver, if it isn't built in */
+		if (added && modalias)
+			drivers_for(modalias);
 		/* Then tell the Linux layer's libudev (libudev-zero), now that the
 		 * node is ready: it listens on netlink group 4 for the event's
 		 * KEY=value lines, without the kernel's "add@/devices/..." header. */
@@ -648,6 +699,7 @@ int main(int argc, char **argv)
 		loop_add_fd(loop, ctl, EPOLLIN, on_control, NULL);
 	watch_devices();
 	coldplug();
+	drivers_coldplug();
 
 	for (usize i = 0; i < ARRAY_LEN(services); i++)
 		service_start(&services[i]);

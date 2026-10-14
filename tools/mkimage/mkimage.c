@@ -13,6 +13,12 @@
  *   mkimage iso OUT.iso EFI-FILE     the same as an ISO: it boots from a DVD
  *                                    (El Torito, UEFI) and, written to a USB
  *                                    stick as is, from the stick (GPT)
+ *   mkimage iso --skeleton OUT.iso EFI-FILE LAYER...
+ *                                    the ISO without its layers' contents
+ *                                    (holes where they go) and OUT.iso.map,
+ *                                    "BYTE SIZE PATH" for each: together, the
+ *                                    whole image, for tools/publish-ia.py to
+ *                                    send without it ever being on disk
  *   mkimage ext4 OUT.img MIB         an empty ext4 image (for tests)
  *   mkimage repo OUTDIR              Harbor's built-in source: a package per
  *                                    store/<app>, its icon and screenshot,
@@ -218,13 +224,15 @@ static u64 layers_bytes(const Layer *l, int n)
 	return sum;
 }
 
+static bool skeleton; /* the layers' room only, their contents left out */
+
 static void add_layers(FatWriter *w, Layer *l, int n)
 {
 	if (!n)
 		return;
 	check(fat_mkdir(w, LAYER_DIR), "LAYERS folder");
 	for (int i = 0; i < n; i++)
-		check(fat_add_file_from(w, l[i].name, l[i].path), l[i].name);
+		check(skeleton ? fat_add_file_space(w, l[i].name, (u64)l[i].size) : fat_add_file_from(w, l[i].name, l[i].path), l[i].name);
 }
 
 static int make_disk(const char *out, const char *efi, char **layer_paths, int nlayers)
@@ -342,6 +350,15 @@ static int make_iso(const char *out, const char *efi, char **layer_paths, int nl
 	check(!failed && iso_write(fd, &v, files, 2 + nlayers), "ISO 9660 records");
 	sys_fsync(fd);
 	sys_close(fd);
+	if (skeleton && !failed) {
+		StrBuf map = { 0 };
+		for (int i = 0; i < nlayers; i++)
+			sb_fmt(&map, "%llu %lld %s\n", (unsigned long long)layers[i].byte, (long long)layers[i].size, layers[i].path);
+		char *path = str_fmt("%s.map", out);
+		check(file_write(path, map.data, map.len), "map");
+		mem_free(path);
+		sb_free(&map);
+	}
 	if (failed)
 		return 1;
 	print("%s: %llu MiB, boots from a disc or a USB stick\n", out, (unsigned long long)(total >> 20));
@@ -470,6 +487,10 @@ int main(int argc, char **argv)
 		return make_cpio(argv[2], argv + 3, argc - 3);
 	if (argc >= 4 && str_eq(argv[1], "disk"))
 		return make_disk(argv[2], argv[3], argv + 4, argc - 4);
+	if (argc >= 5 && str_eq(argv[1], "iso") && str_eq(argv[2], "--skeleton")) {
+		skeleton = true;
+		return make_iso(argv[3], argv[4], argv + 5, argc - 5);
+	}
 	if (argc >= 4 && str_eq(argv[1], "iso"))
 		return make_iso(argv[2], argv[3], argv + 4, argc - 4);
 	if (argc == 4 && str_eq(argv[1], "ext4"))

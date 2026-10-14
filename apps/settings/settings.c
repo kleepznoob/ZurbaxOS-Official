@@ -53,7 +53,7 @@ typedef struct {
 	/* date & time */
 	StrBuf tz_search;
 	/* about */
-	char cpu[96], gpu[96], board[128], kernel[96];
+	char cpu[96], gpu[96], board[128], kernel[96], drivers[96];
 	u64 mem_kb, disk_total, disk_free;
 } Settings;
 
@@ -1425,7 +1425,7 @@ static void page_about(Ui *ui, Rect r)
 	ui_app_icon(ui, center_in(cut_top(&top, 110), 100, 100), "zurbax");
 	ui_text_in(ui, ui_font(ui, 28, 300), cut_top(&top, 40), OS_NAME " " OS_VERSION " LTS", t->text, ALIGN_CENTER);
 	ui_text_in(ui, ui_font(ui, 12, 400), cut_top(&top, 18), "Built from scratch on the Linux kernel", t->text_dim, ALIGN_CENTER);
-	Rect rows = card_rows(ui, &b, 6, 44);
+	Rect rows = card_rows(ui, &b, 7, 44);
 	char mem[32], disk[64], tot[32], fr[32];
 	fmt_bytes(mem, sizeof mem, st.mem_kb * 1024);
 	fmt_bytes(tot, sizeof tot, st.disk_total);
@@ -1436,7 +1436,8 @@ static void page_about(Ui *ui, Rect r)
 	about_row(ui, &rows, "Memory", mem, false);
 	about_row(ui, &rows, "Graphics", st.gpu[0] ? st.gpu : "Firmware framebuffer", false);
 	about_row(ui, &rows, "Storage", disk, false);
-	about_row(ui, &rows, "Kernel", st.kernel, true);
+	about_row(ui, &rows, "Kernel", st.kernel, false);
+	about_row(ui, &rows, "Drivers", st.drivers, true);
 	Rect btns = cut_top(&b, 34);
 	if (ui_button(ui, cut_left(&btns, 170), "Check for Updates"))
 		st.page = PAGE_SECURITY;
@@ -1471,6 +1472,27 @@ static void load_about(void)
 	mem_free(pn);
 	struct utsname u;
 	if (sys_uname(&u) == 0) {
+		/* drivers: the modules in drivers.sfs (one line each in depmod's
+		 * modules.dep) and how many are loaded (lines of /proc/modules) */
+		char *dep = str_fmt("/data/layers/drivers/lib/modules/%s/modules.dep", u.release);
+		char *all = file_read(dep, NULL), *loaded = file_read("/proc/modules", NULL);
+		int n_all = 0, n_loaded = 0;
+		for (const char *p = all; p && *p; p++)
+			n_all += *p == '\n';
+		for (const char *p = loaded; p && *p; p++)
+			n_loaded += *p == '\n';
+		char count[16];
+		if (n_all >= 1000)
+			fmt(count, sizeof count, "%d,%03d", n_all / 1000, n_all % 1000);
+		else
+			fmt(count, sizeof count, "%d", n_all);
+		if (n_all)
+			fmt(st.drivers, sizeof st.drivers, "%d in use, %s ready for any device", n_loaded, count);
+		else
+			str_copy(st.drivers, "Built into the kernel", sizeof st.drivers);
+		mem_free(all);
+		mem_free(loaded);
+		mem_free(dep);
 		/* Ember, Zurbax's kernel, says so in /proc/version; its release is Linux's */
 		char *pv = file_read_line("/proc/version");
 		char base[64];

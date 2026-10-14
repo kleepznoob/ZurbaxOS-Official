@@ -145,7 +145,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc make bc flex bison libelf-dev libssl-dev cpio xz-utils squashfs-tools
+          sudo apt-get install -y --no-install-recommends gcc make bc flex bison libelf-dev libssl-dev cpio xz-utils squashfs-tools kmod
 
       - name: Cache the kernel source and build
         uses: actions/cache@v4
@@ -153,7 +153,7 @@ jobs:
           path: |
             build/linux-*
             build/kernel
-          key: kernel-${{ hashFiles('kernel/build.sh', 'kernel/zurbax.config') }}
+          key: kernel-${{ hashFiles('kernel/build.sh', 'kernel/zurbax.config', 'kernel/modules.config', 'kernel/patches/*') }}
           restore-keys: kernel-
 
       - name: Cache the Wi-Fi and GPU firmware
