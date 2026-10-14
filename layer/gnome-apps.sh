@@ -234,11 +234,12 @@ ORDER+=(xdg_desktop_portal xdg_desktop_portal_gnome gnome_keyring gvfs gnome_set
 pkg_tecla() { unpack tecla; mesonbuild; }
 
 # MIT Kerberos, for Settings' enterprise login (its configure can't run test
-# programs in a cross build, so it's told what they'd find)
+# programs in a cross build, so it's told what they'd find; its older C needs
+# the standard before GCC 15's default)
 pkg_krb5() {
 	unpack krb5
 	cd src
-	krb5_cv_attr_constructor_destructor=yes,yes ac_cv_func_regcomp=yes ac_cv_printf_positional=yes \
+	CFLAGS="${CFLAGS:-} -std=gnu17" krb5_cv_attr_constructor_destructor=yes,yes ac_cv_func_regcomp=yes ac_cv_printf_positional=yes \
 		autobuild --without-system-verto --disable-rpath --without-keyutils --without-ldap --without-tcl
 }
 

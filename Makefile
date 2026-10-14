@@ -19,6 +19,8 @@
 
 CC      ?= gcc
 OUT     := build
+# the release, as libzr/include/zr/base.h has it
+OS_RELEASE := $(shell sed -n 's/^\#define OS_VERSION "\(.*\)"$$/\1/p' libzr/include/zr/base.h)
 OPT     ?= -O2
 
 .DEFAULT_GOAL := all
@@ -165,7 +167,7 @@ $(OUT)/preload/apps.sfs: tools/preload-apps.sh
 # installer downloads the rest from DOWNLOADS, which zurbax.com sends on to
 # where `make downloads` files are kept; when that can't be reached, it
 # installs the stick's own system.
-DOWNLOADS ?= https://zurbax.com/download/2.0/
+DOWNLOADS ?= https://zurbax.com/download/$(OS_RELEASE)/
 iso-mini: system-efi
 	@mkdir -p $(OUT)/mini && printf '%s\n' '$(DOWNLOADS)' >$(OUT)/mini/NETINST.TXT
 	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-mini.iso $(EFI_FILE) $(OUT)/mini/NETINST.TXT
