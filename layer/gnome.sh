@@ -352,7 +352,29 @@ pkg_duktape() {
 
 # polkit: the agent library GNOME Shell asks for passwords with, and the
 # authority's client library; the authority itself is Zurbax's
+# gettext's rules for translating polkit's .policy files; apps' builds look
+# for them, and polkit built for its libraries alone doesn't install them
+polkit_its() {
+	mkdir -p "$ROOT/usr/share/gettext/its"
+	cat >"$ROOT/usr/share/gettext/its/polkit.its" <<-'EOF'
+	<?xml version="1.0"?>
+	<its:rules xmlns:its="http://www.w3.org/2005/11/its" version="2.0">
+	  <its:translateRule selector="//*" translate="no"/>
+	  <its:translateRule selector="//action/description | //action/message" translate="yes"/>
+	</its:rules>
+	EOF
+	cat >"$ROOT/usr/share/gettext/its/polkit.loc" <<-'EOF'
+	<?xml version="1.0"?>
+	<locatingRules>
+	  <locatingRule name="polkit policy" pattern="*.policy">
+	    <documentRule localName="policyconfig" target="polkit.its"/>
+	  </locatingRule>
+	</locatingRules>
+	EOF
+}
+
 pkg_polkit() {
+	polkit_its
 	unpack polkit
 	mesonbuild -Dlibs-only=true -Dintrospection=true -Dexamples=false -Dtests=false -Dman=false -Dgtk_doc=false \
 		-Dauthfw=shadow -Dsession_tracking=logind -Dsystemdsystemunitdir=/usr/lib/systemd/system
@@ -743,6 +765,8 @@ ORDER+=(libndp networkmanager)
 # on Zurbax zsys is the service behind each of them, so only the libraries
 # (and their type information) stay in the layer.
 
+pkg_json_c() { unpack json-c; cmakebuild -DBUILD_TESTING=OFF -DBUILD_STATIC_LIBS=OFF -DDISABLE_WERROR=ON -DBUILD_APPS=OFF; }
+
 pkg_accountsservice() {
 	unpack accountsservice
 	# its tests (which need python-dbus) aren't built
@@ -830,7 +854,7 @@ pkg_ibus() {
 		--enable-dconf --disable-systemd-services --with-python=python3
 }
 
-ORDER+=(accountsservice upower geoclue linux_pam gdm libnotify gsound gnome_bluetooth gtk3 libnma ibus)
+ORDER+=(json_c accountsservice upower geoclue linux_pam gdm libnotify gsound gnome_bluetooth gtk3 libnma ibus)
 
 # ---- GNOME Shell -----------------------------------------------------------------------------
 

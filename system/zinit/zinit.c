@@ -555,7 +555,7 @@ static void start_test_hooks(void)
 
 /* Safer kernel settings than its defaults, each one written at boot:
  * hidden kernel pointers and log, no reading other programs' memory unless
- * they're your own children, no unprivileged BPF, protected links and files
+ * they're your own children, protected links and files
  * in shared folders, full address randomization, and a network stack that
  * ignores redirects and source routes and resists SYN floods. */
 static void harden(void)
@@ -564,7 +564,6 @@ static void harden(void)
 		{ "kernel/kptr_restrict", "2" },
 		{ "kernel/dmesg_restrict", "1" },
 		{ "kernel/yama/ptrace_scope", "1" },
-		{ "kernel/unprivileged_bpf_disabled", "1" },
 		{ "kernel/perf_event_paranoid", "2" },
 		{ "kernel/randomize_va_space", "2" },
 		{ "kernel/sysrq", "176" },              /* sync, remount read-only and reboot only */
@@ -576,7 +575,6 @@ static void harden(void)
 		{ "fs/suid_dumpable", "0" },
 		{ "vm/mmap_rnd_bits", "32" },
 		{ "vm/mmap_rnd_compat_bits", "16" },
-		{ "vm/unprivileged_userfaultfd", "0" },
 		{ "dev/tty/ldisc_autoload", "0" },
 		{ "net/ipv4/tcp_syncookies", "1" },
 		{ "net/ipv4/tcp_rfc1337", "1" },

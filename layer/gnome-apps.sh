@@ -22,8 +22,19 @@ pkg_native_blueprint() {
 	native_env
 	"$L/venv/bin/meson" setup _build --prefix="$NATIVE" -Ddocs=false >meson.log 2>&1 || { tail -20 meson.log; exit 1; }
 	ninja -C _build install >ninja.log 2>&1 || { tail -20 ninja.log; exit 1; }
-	# it runs on the build's Python, with PyGObject reading the build machine's GTK type information
-	sed -i "1s|.*|#!$L/venv/bin/python3|" "$NATIVE/bin/blueprint-compiler"
+	# it runs on the build machine's Python and PyGObject (its own GLib type information), reading
+	# the layer's for GTK, libadwaita and the rest; meson put its module beside the native tools
+	local py
+	py=$(command -v python3.12 || command -v python3)
+	{
+		echo "#!$py"
+		echo "import os, sys"
+		echo "sys.path.insert(0, '$NATIVE/lib/python3/dist-packages')"
+		echo "os.environ['GI_TYPELIB_PATH'] = ':'.join(p for p in ('/usr/lib/x86_64-linux-gnu/girepository-1.0', '$ROOT/usr/lib/girepository-1.0', os.environ.get('GI_TYPELIB_PATH', '')) if p)"
+		sed 1d "$NATIVE/bin/blueprint-compiler" | grep -v '^import sys; sys.path.insert'
+	} >"$NATIVE/bin/blueprint-compiler.new"
+	chmod +x "$NATIVE/bin/blueprint-compiler.new"
+	mv "$NATIVE/bin/blueprint-compiler.new" "$NATIVE/bin/blueprint-compiler"
 }
 
 # Vala: several GNOME apps are written in it (it compiles to C)
@@ -70,7 +81,7 @@ pkg_udisks_client() {
 	cd udisks
 	"$NATIVE/bin/gdbus-codegen" --interface-prefix org.freedesktop.UDisks2. --c-namespace UDisks --generate-c-code udisks-generated \
 		--c-generate-object-manager --c-generate-autocleanup all ../data/org.freedesktop.UDisks2.xml
-	sed -e 's/@UD_MAJOR_VERSION@/2/; s/@UD_MINOR_VERSION@/11/; s/@UD_MICRO_VERSION@/1/' udisksversion.h.in >udisksversion.h
+	sed -e 's/@MAJOR_VERSION@/2/; s/@MINOR_VERSION@/11/; s/@MICRO_VERSION@/1/' udisksversion.h.in >udisksversion.h
 	printf '#define GETTEXT_PACKAGE "udisks2"\n' >../config.h
 	"$NATIVE/bin/glib-mkenums" --template udisksenumtypes.h.template udisksenums.h >udisksenumtypes.h
 	"$NATIVE/bin/glib-mkenums" --template udisksenumtypes.c.template udisksenums.h >udisksenumtypes.c
@@ -215,13 +226,24 @@ pkg_gnome_settings_daemon() {
 		-Dusb-protection=false -Dwwan=false -Dgcr3=false -Dcolord=true -Dxwayland=false
 }
 
-ORDER+=(xdg_desktop_portal xdg_desktop_portal_gnome gnome_keyring gvfs gnome_settings_daemon)
+ORDER+=(xdg_desktop_portal xdg_desktop_portal_gnome gnome_keyring gvfs gnome_settings_daemon tecla)
 
 # ---- Apps ------------------------------------------------------------------------------------------
 
+# Tecla: the keyboard layout viewer Settings shows
+pkg_tecla() { unpack tecla; mesonbuild; }
+
+# Apps' manuals are left out: building them needs itstool, and reading them yelp.
+nohelp() { sed -i "/subdir('help')/d" meson.build; }
+
 pkg_gnome_control_center() {
+	polkit_its
 	unpack gnome-control-center
-	mesonbuild -Dibus=true -Dmalcontent=false -Dsnap=false -Dlocation-services=enabled -Dtests=false -Ddocumentation=false \
+	# no Printers panel: Zurbax has no print service for it to manage
+	sed -i "/^  'printers',$/d" panels/meson.build
+	sed -i "/^assert(cups_dep.found()/d" meson.build
+	sed -i '/cc_printers_panel_get_type/d' shell/cc-panel-loader.c
+	XDG_DATA_DIRS=$ROOT/usr/share mesonbuild -Dibus=true -Dmalcontent=false -Dsnap=false -Dlocation-services=enabled -Dtests=false -Ddocumentation=false \
 		-Ddistributor_logo=/usr/share/pixmaps/zurbax-logo.svg -Ddark_mode_distributor_logo=/usr/share/pixmaps/zurbax-logo.svg
 }
 
@@ -235,7 +257,11 @@ pkg_gnome_console() { unpack gnome-console; mesonbuild -Dtests=false; }
 # Spell checking (Text Editor's, and any app's through libspelling): Hunspell
 # with English (US) words, behind Enchant
 pkg_hunspell() { unpack hunspell; autoreconf -fi >autoreconf.log 2>&1; autobuild --disable-nls --without-ui --without-readline; }
-pkg_enchant() { unpack enchant; autobuild --with-hunspell --without-aspell --without-nuspell --without-voikko --without-hspell --without-applespell --disable-relocatable; }
+pkg_enchant() {
+	unpack enchant
+	# its manuals as HTML need groff's HTML device, which build machines often lack
+	sed -i 's/^nodist_doc_DATA = .*/nodist_doc_DATA =/' lib/Makefile.in src/Makefile.in
+	autobuild --with-hunspell --without-aspell --without-nuspell --without-voikko --without-hspell --without-applespell --disable-relocatable; }
 
 pkg_hunspell_en_us() {
 	local zip
@@ -247,7 +273,7 @@ pkg_hunspell_en_us() {
 
 pkg_libspelling() { unpack libspelling; mesonbuild -Denchant=enabled -Dintrospection=enabled -Dvapi=false -Ddocs=false -Dsysprof=false; }
 
-pkg_gnome_text_editor() { unpack gnome-text-editor; mesonbuild -Ddevelopment=false -Deditorconfig=disabled; }
+pkg_gnome_text_editor() { unpack gnome-text-editor; nohelp; mesonbuild -Ddevelopment=false -Deditorconfig=disabled; }
 
 ORDER+=(gnome_control_center nautilus gnome_console hunspell enchant hunspell_en_us libspelling gnome_text_editor)
 
@@ -281,6 +307,8 @@ pkg_vala_bindings() {
 	: >"$WORK/vapigen.log"
 	# libadwaita's adjustments for Vala come with its source
 	unpack libadwaita
+	vapi gsettings-desktop-schemas GDesktopEnums-3.0 "" gobject-2.0
+	vapi gtksourceview-5 GtkSource-5 "" gtk4
 	vapi libadwaita-1 Adw-1 "$PWD/src" gtk4 gio-2.0
 	vapi gnome-desktop-4 GnomeDesktop-4.0 "" gtk4 gio-2.0 gsettings-desktop-schemas
 	vapi gweather4 GWeather-4.0 "" gio-2.0
@@ -298,17 +326,36 @@ vala_env() {
 
 pkg_gnome_calculator() {
 	unpack gnome-calculator
+	nohelp
 	vala_env
 	mesonbuild "${VALA[@]}" -Ddoc=false -Dui-tests=false -Ddisable-introspection=true
 }
 
-pkg_gnome_clocks() { unpack gnome-clocks; vala_env; mesonbuild "${VALA[@]}" -Ddocs=false; }
-pkg_baobab() { unpack baobab; vala_env; mesonbuild "${VALA[@]}"; }
-pkg_gnome_weather() { unpack gnome-weather; mesonbuild; }
+pkg_gnome_clocks() {
+	unpack gnome-clocks
+	# the alarm sounds stay FLAC (sound playback reads the file, not its name)
+	# rather than needing Vorbis's encoder on the build machine
+	# its geocoding call leaves out the accuracy the bindings here ask for
+	sed -i 's|((GClue.Location) geo_location).longitude);|((GClue.Location) geo_location).longitude, Geocode.LOCATION_ACCURACY_UNKNOWN);|' src/geocoding.vala
+	sed -i "s|^oggenc = find_program('oggenc')|oggenc = find_program('cp')|; s|command: \[oggenc, '@INPUT@', '--serial', '0', '-o', '@OUTPUT@' \]|command: [oggenc, '@INPUT@', '@OUTPUT@']|" \
+		data/sounds/alarms/meson.build
+	nohelp
+	vala_env
+	mesonbuild "${VALA[@]}" -Ddocs=false
+}
+
+pkg_baobab() { unpack baobab; nohelp; vala_env; mesonbuild "${VALA[@]}"; }
+
+pkg_gnome_weather() {
+	unpack gnome-weather
+	# newer TypeScript compilers want these spelled out
+	sed -i 's|"compilerOptions": {|"compilerOptions": {\n        "rootDir": "src",\n        "ignoreDeprecations": "6.0",|' tsconfig.json
+	mesonbuild
+}
 pkg_gnome_calendar() { unpack gnome-calendar; mesonbuild; }
 pkg_gnome_characters() { unpack gnome-characters; mesonbuild -Dinstalled_tests=false; }
 pkg_gnome_font_viewer() { unpack gnome-font-viewer; mesonbuild; }
-pkg_file_roller() { unpack file-roller; mesonbuild -Dpackagekit=false -Dnautilus-actions=disabled -Dintrospection=disabled; }
+pkg_file_roller() { unpack file-roller; nohelp; mesonbuild -Dpackagekit=false -Dnautilus-actions=disabled -Dintrospection=disabled; }
 
 ORDER+=(mpfr mpc libgee vala_bindings gnome_calculator gnome_clocks baobab gnome_weather gnome_calendar gnome_characters
 	gnome_font_viewer file_roller)
@@ -319,7 +366,7 @@ pkg_glibmm() { unpack glibmm; mesonbuild -Dbuild-examples=false -Dbuild-document
 pkg_cairomm() { unpack cairomm; mesonbuild -Dbuild-examples=false -Dbuild-tests=false -Dbuild-documentation=false; }
 pkg_pangomm() { unpack pangomm; mesonbuild -Dbuild-documentation=false; }
 pkg_gtkmm() { unpack gtkmm; mesonbuild -Dbuild-demos=false -Dbuild-tests=false -Dbuild-documentation=false; }
-pkg_gnome_system_monitor() { unpack gnome-system-monitor; mesonbuild -Dsystemd=false; }
+pkg_gnome_system_monitor() { unpack gnome-system-monitor; nohelp; mesonbuild -Dsystemd=false; }
 
 ORDER+=(libsigcpp glibmm cairomm pangomm gtkmm gnome_system_monitor)
 
@@ -354,7 +401,7 @@ rust_app_env() {
 	export PATH="$WORK/cargo-bin:$PATH"
 }
 
-pkg_loupe() { unpack loupe; rust_app_env; mesonbuild; }
+pkg_loupe() { unpack loupe; nohelp; rust_app_env; mesonbuild; }
 
 # Document Viewer: PDF through Poppler, and the XMP metadata library it reads
 pkg_exempi() { unpack exempi; autobuild --enable-unittest=no --enable-samples=no; }
@@ -362,7 +409,7 @@ pkg_exempi() { unpack exempi; autobuild --enable-unittest=no --enable-samples=no
 pkg_poppler() {
 	unpack poppler
 	cmakebuild -DENABLE_QT5=OFF -DENABLE_QT6=OFF -DENABLE_BOOST=OFF -DENABLE_LIBOPENJPEG=none -DENABLE_GPGME=OFF \
-		-DENABLE_NSS3=ON -DENABLE_LCMS=ON -DENABLE_LIBCURL=ON -DENABLE_GLIB=ON -DENABLE_GOBJECT_INTROSPECTION=OFF \
+		-DENABLE_NSS3=ON -DENABLE_LCMS=ON -DENABLE_BROTLI=OFF -DENABLE_LIBCURL=ON -DENABLE_GLIB=ON -DENABLE_GOBJECT_INTROSPECTION=OFF \
 		-DENABLE_CPP=ON -DENABLE_UTILS=ON -DBUILD_GTK_TESTS=OFF -DBUILD_QT5_TESTS=OFF -DBUILD_QT6_TESTS=OFF \
 		-DBUILD_CPP_TESTS=OFF -DBUILD_MANUAL_TESTS=OFF -DENABLE_GTK_DOC=OFF -DTESTDATADIR=/nonexistent
 }
@@ -376,20 +423,24 @@ pkg_papers() {
 
 ORDER+=(loupe exempi poppler papers)
 
+# libshumate's map tiles come as protocol buffers; only the C library is needed
+pkg_protobuf_c() { unpack protobuf-c; autobuild --disable-protoc; }
+
 pkg_libshumate() {
 	unpack libshumate
 	mesonbuild -Dgir=true -Dvapi=false -Dgtk_doc=false -Ddemos=false -Dvector_renderer=false
 }
 
-pkg_gnome_maps() { unpack gnome-maps; mesonbuild; }
+pkg_gnome_maps() { unpack gnome-maps; nohelp; mesonbuild; }
 pkg_gnome_tour() { unpack gnome-tour; rust_app_env; mesonbuild; }
 
 # Software, for the apps on Flathub (Flatpak); no distribution packages
 pkg_gnome_software() {
 	unpack gnome-software
+	nohelp
 	mesonbuild -Dpackagekit=false -Dfwupd=false -Dmalcontent=false -Dwebapps=false -Dhardcoded_foss_webapps=false \
 		-Dhardcoded_proprietary_webapps=false -Dtests=false -Dman=false -Dgtk_doc=false -Dsysprof=disabled -Dpolkit=true \
 		-Dgudev=true -Dflatpak=true -Dexternal_appstream=false
 }
 
-ORDER+=(libshumate gnome_maps gnome_tour gnome_software)
+ORDER+=(protobuf_c libshumate gnome_maps gnome_tour gnome_software)

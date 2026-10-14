@@ -118,6 +118,12 @@ pkgconfig_wrapper() {
 	EOF
 	chmod +x "$bin/pkg-config.$$"
 	mv "$bin/pkg-config.$$" "$bin/pkg-config"
+	# desktop-file and MIME caches are made on the running system, not here
+	mkdir -p "$NATIVE/bin"
+	for tool in update-desktop-database update-mime-database; do
+		[ -x "$NATIVE/bin/$tool" ] || printf '#!/bin/sh\nexit 0\n' >"$NATIVE/bin/$tool"
+		chmod +x "$NATIVE/bin/$tool"
+	done
 }
 
 flags() {
