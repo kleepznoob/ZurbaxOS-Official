@@ -368,7 +368,7 @@ char *files_trash_dir(const char *which);                   /* "files" or "info"
 int files_paste(const char *list, const char *dir, bool move, char *last, usize cap);
 
 /* Wallpapers: built-in names, or an absolute path to a picture. */
-#define WALLPAPER_DEFAULT "silk"
+#define WALLPAPER_DEFAULT "halloween"
 extern const char *const WALLPAPER_NAMES[];
 extern const char *const WALLPAPER_TITLES[];
 extern const int WALLPAPER_COUNT;
