@@ -70,7 +70,7 @@ static const struct {
 	{ "writer", "metro-document", "#2b5797" },  { "arcade", "metro-games", "#00a300" },     { "steam", "metro-controller", "#1e7145" },
 	{ "screenshot", "metro-screenshot", "#603cba" }, { "screentime", "metro-hourglass", "#da532c" }, { "pulse", "metro-pulse", "#b91d47" },
 	{ "help", "metro-help", "#2d89ef" },        { "welcome", "metro-wave", "#00aba9" },     { "installer", "metro-download", "#00a300" },
-	{ "desktop", "metro-desktop", "#2b5797" },
+	{ "desktop", "metro-desktop", "#2b5797" },  { "bridge", "bridge", "#5b2a86" },
 };
 
 /* A Linux program's tile takes the main colour of its icon. */
@@ -216,6 +216,7 @@ static void default_layout(void)
 	add_tile(g, "music", T_MEDIUM);
 	g = add_group("Play");
 	add_tile(g, "steam", T_WIDE);
+	add_tile(g, "bridge", T_WIDE);
 	add_tile(g, "arcade", T_MEDIUM);
 	add_tile(g, "camera", T_MEDIUM);
 	g = add_group("Work");

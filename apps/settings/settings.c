@@ -1039,13 +1039,14 @@ static void page_gaming(Ui *ui, Rect r)
 	Rect card = cut_top(&b, 92);
 	ui_card(ui, card);
 	Rect in = pad(card, 18);
-	ui_icon(ui, rect(in.x, in.y + 4, 32, 32), "computer", t->text_dim);
+	ui_icon(ui, rect(in.x, in.y + 4, 32, 32), "bridge", t->text_dim);
 	ui_text(ui, ui_font(ui, 14, 600), in.x + 48, in.y + 16, "Running .exe programs", t->text);
 	ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(in.x + 48, in.y + 24, in.w - 48, 40),
-			"Zurbax can't run Windows programs yet. Games made for Zurbax are in Harbor and Arcade.", t->text_dim, ALIGN_START);
+			"Bridge runs Windows programs and games with Proton: open any .exe or installer from Files, or add it in Bridge.",
+			t->text_dim, ALIGN_START);
 	cut_top(&b, 14);
-	if (ui_button(ui, cut_left(&(Rect){ b.x, b.y, 200, 34 }, 200), "Browse Games in Harbor"))
-		ui_launch(ui, "harbor", "games");
+	if (ui_button(ui, cut_left(&(Rect){ b.x, b.y, 200, 34 }, 200), "Open Bridge"))
+		ui_launch(ui, "bridge", NULL);
 	cut_top(&b, 34 + 14);
 	/* controllers, with a live test */
 	section(ui, &b, "Controllers");
