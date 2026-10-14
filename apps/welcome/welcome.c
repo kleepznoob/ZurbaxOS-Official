@@ -157,7 +157,7 @@ static void page_welcome(Ui *ui, Rect r)
 		Rect row = cut_top(&r, 172);
 		f32 fw = (row.w - 32) / 3;
 		feature(ui, setup_rise(ui, wl.changed_at, 2, rect(row.x, row.y, fw, row.h)), "gamepad", "Built to play",
-			"Steam with Proton, Heroic and ProtonPlus, and any controller, rumble included.");
+			"Steam with Proton, Bridge for any Windows game or app, and any controller, rumble included.");
 		feature(ui, setup_rise(ui, wl.changed_at, 3, rect(row.x + fw + 16, row.y, fw, row.h)), "bag", "Thousands of apps",
 			"Harbor brings all of Flathub. Firefox, LibreOffice and six more are here already.");
 		feature(ui, setup_rise(ui, wl.changed_at, 4, rect(row.x + (fw + 16) * 2, row.y, fw, row.h)), "palette", "Yours to shape",
