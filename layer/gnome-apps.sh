@@ -233,6 +233,15 @@ ORDER+=(xdg_desktop_portal xdg_desktop_portal_gnome gnome_keyring gvfs gnome_set
 # Tecla: the keyboard layout viewer Settings shows
 pkg_tecla() { unpack tecla; mesonbuild; }
 
+# MIT Kerberos, for Settings' enterprise login (its configure can't run test
+# programs in a cross build, so it's told what they'd find)
+pkg_krb5() {
+	unpack krb5
+	cd src
+	krb5_cv_attr_constructor_destructor=yes,yes ac_cv_func_regcomp=yes ac_cv_printf_positional=yes \
+		autobuild --without-system-verto --disable-rpath --without-keyutils --without-ldap --without-tcl
+}
+
 # Apps' manuals are left out: building them needs itstool, and reading them yelp.
 nohelp() { sed -i "/subdir('help')/d" meson.build; }
 
@@ -241,7 +250,7 @@ pkg_gnome_control_center() {
 	unpack gnome-control-center
 	# no Printers panel: Zurbax has no print service for it to manage
 	sed -i "/^  'printers',$/d" panels/meson.build
-	sed -i "/^assert(cups_dep.found()/d" meson.build
+	sed -i "/^assert(cups_dep.found()/d; /CUPS headers not found/d" meson.build
 	sed -i '/cc_printers_panel_get_type/d' shell/cc-panel-loader.c
 	XDG_DATA_DIRS=$ROOT/usr/share mesonbuild -Dibus=true -Dmalcontent=false -Dsnap=false -Dlocation-services=enabled -Dtests=false -Ddocumentation=false \
 		-Ddistributor_logo=/usr/share/pixmaps/zurbax-logo.svg -Ddark_mode_distributor_logo=/usr/share/pixmaps/zurbax-logo.svg
@@ -275,20 +284,17 @@ pkg_libspelling() { unpack libspelling; mesonbuild -Denchant=enabled -Dintrospec
 
 pkg_gnome_text_editor() { unpack gnome-text-editor; nohelp; mesonbuild -Ddevelopment=false -Deditorconfig=disabled; }
 
-ORDER+=(gnome_control_center nautilus gnome_console hunspell enchant hunspell_en_us libspelling gnome_text_editor)
+ORDER+=(krb5 gnome_control_center nautilus gnome_console hunspell enchant hunspell_en_us libspelling gnome_text_editor)
 
 # ---- More apps -------------------------------------------------------------------------------------
-# Calculator, Clocks, Weather, Calendar, Characters, Fonts, Disk Usage,
-# Archive Manager, System Monitor, Image Viewer, Document Viewer, Maps,
-# the welcome tour and Software (Flathub's apps).
+# Weather, Calendar, Characters, Fonts, Disk Usage, Archive Manager, System
+# Monitor, Image Viewer, Document Viewer, Maps, the welcome tour and Software
+# (Flathub's apps). Zurbax's own Calculator and Clock stand in for GNOME's.
 
-# GNU's arbitrary precision arithmetic, which the Calculator computes with;
+# GNU's arbitrary precision arithmetic, which Nettle (under GnuTLS) computes with;
 # fat: the fastest code for whichever processor it runs on
 # GMP 6.3's configure tests are older C than GCC 15 assumes
 pkg_gmp() { unpack gmp; CFLAGS="${CFLAGS:-} -std=gnu17" autobuild --enable-fat; }
-pkg_mpfr() { unpack mpfr; autobuild; }
-pkg_mpc() { unpack mpc; autobuild; }
-pkg_libgee() { unpack libgee; autobuild --disable-introspection; }
 
 # The Vala apps' view of the libraries they use, made from the libraries'
 # introspection data (those were built before Vala was)
@@ -305,10 +311,9 @@ pkg_vala_bindings() {
 	native_env
 	mkdir -p "$ROOT/usr/share/vala/vapi"
 	: >"$WORK/vapigen.log"
+	vapi gsettings-desktop-schemas GDesktopEnums-3.0 "" gobject-2.0
 	# libadwaita's adjustments for Vala come with its source
 	unpack libadwaita
-	vapi gsettings-desktop-schemas GDesktopEnums-3.0 "" gobject-2.0
-	vapi gtksourceview-5 GtkSource-5 "" gtk4
 	vapi libadwaita-1 Adw-1 "$PWD/src" gtk4 gio-2.0
 	vapi gnome-desktop-4 GnomeDesktop-4.0 "" gtk4 gio-2.0 gsettings-desktop-schemas
 	vapi gweather4 GWeather-4.0 "" gio-2.0
@@ -324,26 +329,6 @@ vala_env() {
 	VALA=(--cross-file "$WORK/vala.ini")
 }
 
-pkg_gnome_calculator() {
-	unpack gnome-calculator
-	nohelp
-	vala_env
-	mesonbuild "${VALA[@]}" -Ddoc=false -Dui-tests=false -Ddisable-introspection=true
-}
-
-pkg_gnome_clocks() {
-	unpack gnome-clocks
-	# the alarm sounds stay FLAC (sound playback reads the file, not its name)
-	# rather than needing Vorbis's encoder on the build machine
-	# its geocoding call leaves out the accuracy the bindings here ask for
-	sed -i 's|((GClue.Location) geo_location).longitude);|((GClue.Location) geo_location).longitude, Geocode.LOCATION_ACCURACY_UNKNOWN);|' src/geocoding.vala
-	sed -i "s|^oggenc = find_program('oggenc')|oggenc = find_program('cp')|; s|command: \[oggenc, '@INPUT@', '--serial', '0', '-o', '@OUTPUT@' \]|command: [oggenc, '@INPUT@', '@OUTPUT@']|" \
-		data/sounds/alarms/meson.build
-	nohelp
-	vala_env
-	mesonbuild "${VALA[@]}" -Ddocs=false
-}
-
 pkg_baobab() { unpack baobab; nohelp; vala_env; mesonbuild "${VALA[@]}"; }
 
 pkg_gnome_weather() {
@@ -357,7 +342,7 @@ pkg_gnome_characters() { unpack gnome-characters; mesonbuild -Dinstalled_tests=f
 pkg_gnome_font_viewer() { unpack gnome-font-viewer; mesonbuild; }
 pkg_file_roller() { unpack file-roller; nohelp; mesonbuild -Dpackagekit=false -Dnautilus-actions=disabled -Dintrospection=disabled; }
 
-ORDER+=(mpfr mpc libgee vala_bindings gnome_calculator gnome_clocks baobab gnome_weather gnome_calendar gnome_characters
+ORDER+=(vala_bindings baobab gnome_weather gnome_calendar gnome_characters
 	gnome_font_viewer file_roller)
 
 # System Monitor is written in C++ with GTK's C++ interface
@@ -408,7 +393,7 @@ pkg_exempi() { unpack exempi; autobuild --enable-unittest=no --enable-samples=no
 
 pkg_poppler() {
 	unpack poppler
-	cmakebuild -DENABLE_QT5=OFF -DENABLE_QT6=OFF -DENABLE_BOOST=OFF -DENABLE_LIBOPENJPEG=none -DENABLE_GPGME=OFF \
+	cmakebuild -DENABLE_QT5=OFF -DENABLE_QT6=OFF -DENABLE_BOOST=OFF -DENABLE_LIBOPENJPEG=OFF -DENABLE_GPGME=OFF \
 		-DENABLE_NSS3=ON -DENABLE_LCMS=ON -DENABLE_BROTLI=OFF -DENABLE_LIBCURL=ON -DENABLE_GLIB=ON -DENABLE_GOBJECT_INTROSPECTION=OFF \
 		-DENABLE_CPP=ON -DENABLE_UTILS=ON -DBUILD_GTK_TESTS=OFF -DBUILD_QT5_TESTS=OFF -DBUILD_QT6_TESTS=OFF \
 		-DBUILD_CPP_TESTS=OFF -DBUILD_MANUAL_TESTS=OFF -DENABLE_GTK_DOC=OFF -DTESTDATADIR=/nonexistent
@@ -416,6 +401,8 @@ pkg_poppler() {
 
 pkg_papers() {
 	unpack papers
+	# appstreamcli only checks its metadata, which the build can do without
+	sed -i "s|find_program('appstreamcli', required: true)|find_program('appstreamcli', required: false)|" meson.build
 	rust_app_env
 	mesonbuild -Dtests=false -Ddocumentation=false -Duser_doc=false -Dfile_tests=false -Dsysprof=disabled \
 		-Dspell_check=disabled -Ddjvu=disabled -Dcomics=enabled -Dtiff=enabled -Dkeyring=enabled -Dintrospection=disabled
@@ -431,7 +418,15 @@ pkg_libshumate() {
 	mesonbuild -Dgir=true -Dvapi=false -Dgtk_doc=false -Ddemos=false -Dvector_renderer=false
 }
 
-pkg_gnome_maps() { unpack gnome-maps; nohelp; mesonbuild; }
+pkg_gnome_maps() {
+	unpack gnome-maps
+	nohelp
+	# gjs runs it in the layer; the build machine has none
+	sed -i "/^subdir('tests')/d" meson.build
+	sed -i "s|^gjs = find_program('gjs')|gjs = find_program('gjs', required: false)|" meson.build
+	sed -i "s|script_conf.set('GJS', gjs.full_path())|script_conf.set('GJS', '/usr/bin/gjs')|" src/meson.build
+	mesonbuild
+}
 pkg_gnome_tour() { unpack gnome-tour; rust_app_env; mesonbuild; }
 
 # Software, for the apps on Flathub (Flatpak); no distribution packages

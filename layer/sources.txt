@@ -169,6 +169,7 @@ spirv-tools https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan
 spirv-headers https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz - spirv-headers-1.4.357.0.tar.gz
 json-c https://s3.amazonaws.com/json-c_releases/releases/json-c-0.18.tar.gz -
 protobuf-c https://github.com/protobuf-c/protobuf-c/releases/download/v1.5.2/protobuf-c-1.5.2.tar.gz -
+krb5 https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz -
 accountsservice https://gitlab.freedesktop.org/accountsservice/accountsservice/-/archive/26.27.3/accountsservice-26.27.3.tar.gz -
 upower https://gitlab.freedesktop.org/upower/upower/-/archive/v1.90.10/upower-v1.90.10.tar.bz2 -
 geoclue https://gitlab.freedesktop.org/geoclue/geoclue/-/archive/2.8.0/geoclue-2.8.0.tar.bz2 -
@@ -224,11 +225,6 @@ nautilus https://download.gnome.org/sources/nautilus/51/nautilus-51.0.1.tar.xz -
 gnome-console https://download.gnome.org/sources/gnome-console/51/gnome-console-51.0.tar.xz -
 gnome-text-editor https://download.gnome.org/sources/gnome-text-editor/51/gnome-text-editor-51.0.tar.xz -
 gmp https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz -
-mpfr https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz -
-mpc https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz -
-libgee https://download.gnome.org/sources/libgee/0.20/libgee-0.20.8.tar.xz -
-gnome-calculator https://download.gnome.org/sources/gnome-calculator/51/gnome-calculator-51.0.tar.xz -
-gnome-clocks https://download.gnome.org/sources/gnome-clocks/51/gnome-clocks-51.0.tar.xz -
 baobab https://download.gnome.org/sources/baobab/50/baobab-50.0.tar.xz -
 gnome-weather https://download.gnome.org/sources/gnome-weather/50/gnome-weather-50.0.tar.xz -
 gnome-calendar https://download.gnome.org/sources/gnome-calendar/51/gnome-calendar-51.0.tar.xz -
