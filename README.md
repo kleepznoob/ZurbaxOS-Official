@@ -1,14 +1,17 @@
-# Zurbax 2.0
+# Zurbax 2.2
 
 A desktop operating system written from scratch in C. The Linux kernel is
 the only outside code.
 
-**Zurbax 2.0 is the release for playing:** game
-controllers everywhere, Glide (a 3D game drawn by Zurbax's own renderer),
-controller vibration, F11 full screen, and the Silk wallpaper. It also
-brings Wi-Fi, Mail, Flathub's apps in Harbor, and a full GNOME desktop
-built from GNOME's own sources as a second desktop. (Inside the source,
-programs, paths and settings carry the name in lower case, `zurbax`.)
+**Zurbax 2.2 is the release of Hive and the pixel style:** a tiling desktop
+of liquid glass that it now starts on, two themes (Carbon and Midnight) with
+pixel-art wallpapers that move, windows that build up and fall apart block
+by block, and a setup and installer in the look of zurbax.com, with the name
+built in big pixels. It keeps what came before: 2.1's Ember kernel, a driver
+for every PC and Bridge for Windows programs; 2.0's controllers, Glide, Wi-Fi,
+Mail, Flathub's apps in Harbor and a full GNOME desktop built from GNOME's
+own sources as a second desktop. (Inside the source, programs, paths and
+settings carry the name in lower case, `zurbax`.)
 
 There's no glibc, no X server or libwayland, no GTK or Qt, no GRUB and no
 distribution underneath. Zurbax has its own pieces for everything:

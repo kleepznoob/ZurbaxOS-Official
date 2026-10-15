@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zurbax 2.1 · Guide</title>
-<meta name="description" content="Everything about Zurbax 2.1: making the USB stick, starting and installing it, getting around, apps, games, settings and fixing problems.">
+<title>Zurbax 2.2 · Guide</title>
+<meta name="description" content="Everything about Zurbax 2.2: making the USB stick, starting and installing it, getting around, apps, games, settings and fixing problems.">
 <link rel="canonical" href="https://www.zurbax.com/guide">
 <meta property="og:site_name" content="Zurbax">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Zurbax 2.1 · Guide">
+<meta property="og:title" content="Zurbax 2.2 · Guide">
 <meta property="og:description" content="Making the USB stick, installing, getting around, apps, games and fixing problems.">
 <meta property="og:image" content="https://www.zurbax.com/images/desktop.jpg">
 <meta name="theme-color" content="#ff5a1f">
@@ -45,7 +45,7 @@
 <main>
 
 <section class="g-hero">
-  <p class="version">Zurbax 2.1 LTS · Guide</p>
+  <p class="version">Zurbax 2.2 LTS · Guide</p>
   <h1 class="g-title">Everything, step by step.</h1>
   <p class="intro">From an empty USB stick to your first game: making the stick, trying and installing Zurbax, finding your way around, and what to do when something doesn't work.</p>
 </section>
@@ -93,8 +93,8 @@
     <section id="download" class="g-sec">
       <h2>Download</h2>
       <p>One image for every computer: the system, GNOME, Steam and Proton, eight apps, and the drivers for every graphics card, Wi-Fi chip and controller. About 7 GB; it installs without the internet.</p>
-      <p><a class="btn" href="/download/2.1/zurbax.iso">Download Zurbax 2.1 <span class="arrow" aria-hidden="true">→</span></a></p>
-      <p class="g-small">Each file's SHA-256 checksum is in <a href="/download/2.1/SHA256SUMS">SHA256SUMS</a>, if you'd like to check that the download arrived whole.</p>
+      <p><a class="btn" href="/download/2.2/zurbax.iso">Download Zurbax 2.2 <span class="arrow" aria-hidden="true">→</span></a></p>
+      <p class="g-small">Each file's SHA-256 checksum is in <a href="/download/2.2/SHA256SUMS">SHA256SUMS</a>, if you'd like to check that the download arrived whole.</p>
     </section>
 
     <section id="stick" class="g-sec">
@@ -149,7 +149,7 @@
         <li><b>Wi-Fi:</b> only shown when there's no cable. Pick your network and type its password.</li>
         <li><b>Time zone:</b> search for your city. The clock swings to its time.</li>
         <li><b>Account:</b> your name, and a password if you want one. Zurbax asks for it at start-up and before big changes.</li>
-        <li><b>Look:</b> light or dark, an accent colour and a wallpaper.</li>
+        <li><b>Look:</b> Carbon (black and orange) or Midnight (deep blue and violet), an accent colour and a wallpaper. The setup itself changes colour as you pick.</li>
       </ul>
       <p>The apps that come with Zurbax install themselves in the background the first time you use one of Zurbax's Linux apps, Steam or GNOME, so they may take a few minutes to appear.</p>
     </section>
@@ -162,30 +162,36 @@
 
     <section id="around" class="g-sec">
       <h2>Getting around</h2>
-      <div class="g-figure"><img src="/images/desktop.jpg?v=3" alt="The Zurbax desktop" loading="lazy" width="1280" height="720"></div>
+      <div class="g-figure"><img src="/images/hive/hive-carbon.jpg" alt="Hive: Files, Music and a terminal side by side under a floating bar of glass" loading="lazy" width="1600" height="900"></div>
+      <p>Zurbax starts on <b>Hive</b>, a tiling desktop: windows share the screen side by side instead of piling up, and everything is a keystroke away. <kbd>Super</kbd> is the Windows key.</p>
       <ul class="g-list">
-        <li><b>The top bar</b> shows the app in front on the left, the date and time in the middle, and Wi-Fi, sound and power on the right. Click the right side for quick settings: Wi-Fi, volume, brightness, dark style, night light and do not disturb.</li>
-        <li><b>The taskbar</b> along the bottom has the grid (every app), a search box, and your apps. Open apps are marked; hover one to see its windows.</li>
-        <li><b>Applications:</b> press the grid or tap <kbd>Super</kbd> (the Windows key). Apps are sorted into Internet, Office, Media, Games and more; just start typing to search apps and settings.</li>
-        <li><b>Notifications</b> collect behind the bell at the right of the taskbar.</li>
-        <li><b>Windows</b> snap to halves of the screen when dragged to its edges, and maximise when double-clicked or dragged to the top.</li>
+        <li><b>The bar</b> floats at the top as three islands of glass: your workspaces on the left (with the windows you've put away), the date and time in the middle, and battery, Wi-Fi, sound and power on the right.</li>
+        <li><b>Apps:</b> press <kbd>Super</kbd> + <kbd>Space</kbd>, type a few letters of the name and press <kbd>Enter</kbd>. The app opens in a tile of its own.</li>
+        <li><b>Tiles:</b> each new window splits the one in focus. Focus follows the pointer; move it with <kbd>Super</kbd> + arrows, swap with <kbd>Shift</kbd> added, resize with <kbd>Ctrl</kbd> added.</li>
+        <li><b>Workspaces:</b> nine of them, on <kbd>Super</kbd> + <kbd>1</kbd> to <kbd>9</kbd>. The screen slides across.</li>
+        <li><b>Window buttons</b> are drawn in pixels at the top right of each window: put away, zoom over the others, close.</li>
+        <li><b>Prefer windows you move about?</b> Settings › Appearance › Desktop has <em>Classic</em>, with a taskbar and windows that overlap.</li>
       </ul>
     </section>
 
     <section id="keys" class="g-sec">
       <h2>Keyboard shortcuts</h2>
+      <p><kbd>Super</kbd> + <kbd>K</kbd> shows all of them on the screen.</p>
       <table class="g-table">
         <tbody>
-          <tr><td><kbd>Super</kbd></td><td>Open Applications</td></tr>
-          <tr><td><kbd>Super</kbd> + <kbd>Space</kbd></td><td>Open or close Applications</td></tr>
-          <tr><td><kbd>Alt</kbd> + <kbd>Tab</kbd></td><td>Switch between windows</td></tr>
-          <tr><td><kbd>Alt</kbd> + <kbd>F4</kbd></td><td>Close the window in front</td></tr>
-          <tr><td><kbd>Super</kbd> + <kbd>D</kbd></td><td>Show the desktop</td></tr>
-          <tr><td><kbd>Super</kbd> + <kbd>L</kbd></td><td>Lock the screen</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>Space</kbd></td><td>The launcher: every app, by name</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>Return</kbd></td><td>A terminal</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>W</kbd></td><td>Close the window in focus</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>Z</kbd></td><td>Zoom it over the others, or back</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>V</kbd></td><td>Float it above the tiles, or tile it again</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>J</kbd></td><td>Split the other way</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>1</kbd>…<kbd>9</kbd></td><td>Go to a workspace (add <kbd>Shift</kbd> to take the window along)</td></tr>
+          <tr><td><kbd>Super</kbd> + arrows</td><td>Move the focus (add <kbd>Shift</kbd> to swap, <kbd>Ctrl</kbd> to resize)</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd></td><td>The next theme</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>B</kbd>, <kbd>F</kbd>, <kbd>M</kbd>, <kbd>,</kbd></td><td>Web, Files, Music, Settings</td></tr>
+          <tr><td><kbd>Super</kbd> + <kbd>Esc</kbd></td><td>Lock, sign out, restart or shut down</td></tr>
           <tr><td><kbd>Print Screen</kbd></td><td>Take a screenshot (saved in Pictures › Screenshots)</td></tr>
           <tr><td><kbd>F11</kbd></td><td>Full screen, which also turns on game mode</td></tr>
-          <tr><td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + arrows</td><td>Maximise, restore, or snap to a side</td></tr>
-          <tr><td><kbd>Super</kbd> + drag</td><td>Move a window from anywhere inside it</td></tr>
           <tr><td><kbd>AltGr</kbd> + <kbd>S</kbd>, <kbd>T</kbd>, <kbd>A</kbd>, <kbd>I</kbd></td><td>ș ț ă î, on every keyboard layout</td></tr>
         </tbody>
       </table>
@@ -201,7 +207,7 @@
     <section id="games" class="g-sec">
       <h2>Games</h2>
       <ol class="g-steps">
-        <li><b>1</b><div><h3>Open Steam</h3><p>It's in Applications under Games. Sign in with your Steam account; Steam starts in Big Picture, made for the couch and a controller.</p></div></li>
+        <li><b>1</b><div><h3>Open Steam</h3><p>Press <kbd>Super</kbd> + <kbd>Space</kbd>, type <em>steam</em> and press <kbd>Enter</kbd>. Sign in with your Steam account; Steam starts in Big Picture, made for the couch and a controller.</p></div></li>
         <li><b>2</b><div><h3>Turn on Proton for Windows games</h3><p>In Steam, open <em>Settings › Compatibility</em> and turn on <em>Enable Steam Play for all other titles</em>. Most Windows games then install and play like any other.</p></div></li>
         <li><b>3</b><div><h3>Plug in a controller</h3><p>Xbox, PlayStation, Switch Pro and Steam controllers work as soon as they're connected, by cable or Bluetooth, with rumble.</p></div></li>
       </ol>
@@ -218,7 +224,7 @@
       <h2>Settings</h2>
       <p>Open Settings from Applications.</p>
       <ul class="g-list">
-        <li><b>Appearance:</b> light or dark, the accent colour (or the one your wallpaper suggests), the wallpaper, and the taskbar's size, colour and position.</li>
+        <li><b>Appearance:</b> the desktop (Hive or Classic), the theme (Carbon or Midnight), the accent colour and the wallpaper; transparency and the pixel style can be turned off under Accessibility. With Classic, the taskbar's size, colour and position too.</li>
         <li><b>Network and Bluetooth:</b> Wi-Fi networks, wired connections, and pairing headphones, mice and controllers.</li>
         <li><b>Display and Sound:</b> resolution and scale, night light, outputs and volume.</li>
         <li><b>Users:</b> your name, picture and password.</li>
@@ -229,7 +235,7 @@
 
     <section id="security" class="g-sec">
       <h2>Updates and security</h2>
-      <p>Zurbax 2.1 is a long-term support (LTS) release: it gets security updates every two weeks until <b>October 2028</b>. Each one brings the newest kernel from Linux's long-term branch and fixes for Zurbax itself.</p>
+      <p>Zurbax 2.2 is a long-term support (LTS) release: it gets security updates every two weeks until <b>October 2028</b>. Each one brings the newest kernel from Linux's long-term branch and fixes for Zurbax itself.</p>
       <ul class="g-list">
         <li><b>They install on their own.</b> Zurbax checks once a day, downloads an update in the background and tells you when it's ready. Restart to finish; your apps, files and settings stay as they are.</li>
         <li><b>Only real updates install.</b> Every update is signed by Zurbax, and every file in it is checked against its fingerprint before it goes in. Anything else is thrown away.</li>
@@ -266,7 +272,7 @@
       <h2>Try it on an iPad or Mac</h2>
       <p>No PC at hand? UTM runs Zurbax in a window on an iPad, an iPhone or a Mac, by pretending to be a PC. It's free: <em>UTM SE</em> on the App Store for iPad and iPhone, or <a href="https://mac.getutm.app" target="_blank" rel="noopener">UTM</a> for the Mac.</p>
       <ol class="g-steps">
-        <li><b>1</b><div><h3>Download the small image</h3><p>For a virtual machine, the small image is all you need: <a href="/download/2.1/zurbax-mini.iso">zurbax-mini.iso</a>, 72 MB. It has the whole desktop and every Zurbax app, without the PC drivers and Steam. In Safari it goes to Files, in Downloads.</p></div></li>
+        <li><b>1</b><div><h3>Download the small image</h3><p>For a virtual machine, the small image is all you need: <a href="/download/2.2/zurbax-mini.iso">zurbax-mini.iso</a>, 72 MB. It has the whole desktop and every Zurbax app, without the PC drivers and Steam. In Safari it goes to Files, in Downloads.</p></div></li>
         <li><b>2</b><div><h3>Make the machine</h3><p>In UTM, press <em>+</em>, then <em>Emulate</em>, then <em>Other</em>. For the boot device choose <em>CD/DVD Image</em>, press <em>Browse</em> and pick zurbax-mini.iso.</p></div></li>
         <li><b>3</b><div><h3>Hardware</h3><p>Architecture <em>x86_64</em>, system <em>Standard PC (Q35)</em>, memory <em>2048 MB</em> (or 3072 if your device has 6 GB or more), <em>2</em> CPU cores. Storage: 8 GB is plenty. Skip the shared folder, name it Zurbax and save.</p></div></li>
         <li><b>4</b><div><h3>Check one setting</h3><p>Before the first start, edit the machine. Under <em>QEMU</em>, check that <em>UEFI Boot</em> is on. The CPU can stay on UTM's default.</p></div></li>
@@ -287,7 +293,7 @@
 
     <div class="g-end">
       <p>Ready?</p>
-      <a class="btn big" href="/#download">Download Zurbax 2.1 <span class="arrow" aria-hidden="true">→</span></a>
+      <a class="btn big" href="/#download">Download Zurbax 2.2 <span class="arrow" aria-hidden="true">→</span></a>
     </div>
 
   </article>

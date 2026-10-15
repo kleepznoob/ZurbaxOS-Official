@@ -152,6 +152,9 @@ section { padding: 96px 0; }
 .hive { background: var(--deep); border-block: 1px solid var(--border); }
 .hive-in { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
 .hive-copy p { color: var(--text-2); font-size: 17px; margin-top: 16px; }
+.setup { background: var(--bg); }
+.setup .hive-in { grid-template-columns: 1.25fr 1fr; }
+.setup .screen { margin: 0; border-radius: 0; box-shadow: 8px 8px 0 color-mix(in srgb, var(--brand) 70%, #000), 0 30px 90px -40px color-mix(in srgb, var(--brand) 55%, #000); }
 .keys { margin: 0; display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 18px; padding: 22px; }
 .keys div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .keys dt { display: flex; gap: 6px; }
@@ -228,6 +231,7 @@ kbd {
 @media (max-width: 920px) {
 	.nav { display: none; }
 	.about, .hive-in, .pixels-in, .install-in { grid-template-columns: 1fr; gap: 36px; }
+	.setup .hive-in { grid-template-columns: 1fr; }
 	.cards { grid-template-columns: 1fr; }
 	section { padding: 72px 0; }
 }

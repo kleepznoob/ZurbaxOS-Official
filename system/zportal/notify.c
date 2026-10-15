@@ -98,7 +98,7 @@ static bool notifications_method(DBus *bus, DBusMsg *call, void *data)
 		dbus_send(bus, s);
 	} else if (dbus_is_call(call, "org.freedesktop.Notifications", "GetServerInformation")) {
 		DBusMsg *r = dbus_new_reply(call);
-		dbus_add(r, "ssss", "Zurbax", "Zurbax", "2.1", "1.2");
+		dbus_add(r, "ssss", "Zurbax", "Zurbax", OS_VERSION, "1.2");
 		dbus_send(bus, r);
 	} else {
 		return false;

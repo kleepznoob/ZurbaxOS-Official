@@ -535,7 +535,7 @@ static const char *const SLIDE_TITLES[] = { "Tiles that place themselves", "Ever
 static const char *const SLIDE_TEXTS[] = {
 	"Open a window and Hive finds it a place. Super+Return for a terminal.",
 	"Press Super+Space and start typing. Enter opens it, tiled in.",
-	"Nine workspaces on Super+1 to 9. Super+Esc shows every key.",
+	"Nine workspaces on Super+1 to 9. Super+K shows every key.",
 	"Two themes, with pictures in pixels that move. One click in Settings.",
 	"Glass, the pixel style, accents and wallpapers, all in Settings.",
 	"Harbor brings the whole of Flathub. Firefox and LibreOffice are here already.",

@@ -33,8 +33,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/home.css?v=2">
-<script src="/home.js?v=2" defer></script>
+<link rel="stylesheet" href="/home.css?v=3">
+<script src="/home.js?v=3" defer></script>
 </head>
 <body>
 
@@ -61,14 +61,14 @@
   </div>
 </header>
 
-<a class="strip" href="#hive"><span class="tag">new</span> Hive: a tiling desktop of liquid glass and moving pixels, coming with Zurbax 2.2 <span aria-hidden="true">→</span></a>
+<a class="strip" href="#install"><span class="tag">new</span> Zurbax 2.2 is out: Hive, the pixel style, and a setup made of pixels <span aria-hidden="true">→</span></a>
 
 <main>
 
 <section class="hero">
   <div class="hero-bg" aria-hidden="true"><canvas class="stars"></canvas></div>
   <div class="wrap hero-in">
-    <p class="kicker">zurbax 2.1 lts · written from the first line</p>
+    <p class="kicker">zurbax 2.2 lts · written from the first line</p>
     <h1 class="mark"><span class="mark-text">Zurbax</span><svg class="pixel-mark" aria-hidden="true" shape-rendering="crispEdges"></svg></h1>
     <p class="tag-line">A desktop operating system of <em>liquid glass</em> and <em>moving pixels</em>. Tiled, themed, and fast, with Steam and every driver already on it.</p>
     <div class="cta">
@@ -79,7 +79,7 @@
   </div>
   <div class="wrap">
     <figure class="screen">
-      <img class="shot" src="/images/hive/hive-carbon.jpg" alt="Hive: Files, Music and a terminal side by side under a floating bar of glass" width="1600" height="900">
+      <img class="shot" data-themed="/images/hive/hive-{t}.jpg" src="/images/hive/hive-carbon.jpg" alt="Hive: Files, Music and a terminal side by side under a floating bar of glass" width="1600" height="900">
     </figure>
   </div>
 </section>
@@ -154,6 +154,20 @@
   </div>
 </section>
 
+<section id="setup" class="hive setup">
+  <div class="wrap hive-in">
+    <figure class="screen rise">
+      <img class="shot" data-themed="/images/hive/setup-{t}.jpg" src="/images/hive/setup-carbon.jpg" alt="Welcome, the setup: the name in big pixels over a pane of glass, the steps down the side as keycaps" loading="lazy" width="1600" height="900">
+    </figure>
+    <div class="hive-copy">
+      <p class="kicker">the first start</p>
+      <h2>Even the setup is a show.</h2>
+      <p>The name builds itself in big pixels, block by block, over the theme's own picture while stars twinkle behind it. The steps are keycaps, the buttons are blocks you press down, and the tick at the end draws itself and throws sparks.</p>
+      <p>Pick Carbon or Midnight on the way and the whole setup changes colour on the spot. The installer is the same: it shows what's coming in pixels that dissolve, and a live log of every step.</p>
+    </div>
+  </div>
+</section>
+
 <section id="games" class="trio wrap">
   <div class="head">
     <h2>Built to play.</h2>
@@ -184,10 +198,10 @@
       <h2>Get Zurbax</h2>
       <p>One image for every computer: the system, Steam and Proton, Bridge, eight ready apps and a driver for every part of every PC. Flash it to a USB stick, start from it, and install in a few minutes.</p>
       <div class="get-actions">
-        <a class="btn big" data-get href="/download/2.1/zurbax.iso">Download Zurbax 2.1 LTS</a>
-        <span class="fine">About 7 GB · ISO for USB sticks · <a href="/download/2.1/SHA256SUMS">SHA-256 sums</a></span>
+        <a class="btn big" data-get href="/download/2.2/zurbax.iso">Download Zurbax 2.2 LTS</a>
+        <span class="fine">About 7 GB · ISO for USB sticks · <a href="/download/2.2/SHA256SUMS">SHA-256 sums</a></span>
       </div>
-      <p class="fine note">Hive and the pixel style arrive with Zurbax 2.2; 2.1 opens on the Classic desktop.</p>
+      <p class="fine note">Just trying it in a virtual machine? <a href="/download/2.2/zurbax-mini.iso">zurbax-mini.iso</a> is 82 MB. Prefer windows you move about? The Classic desktop is one click away in Settings.</p>
     </div>
     <div class="try rise">
       <h3>Try it first</h3>
@@ -219,7 +233,7 @@
     </div>
     <nav class="foot-cols" aria-label="More">
       <div><h4>Explore</h4><a href="#hive">Hive</a><a href="#themes">Themes</a><a href="#pixels">Pixels</a><a href="#games">Games</a></div>
-      <div><h4>Get it</h4><a href="#install">Download</a><a href="/download/2.1/SHA256SUMS">Checksums</a><a href="/guide">Guide</a><a href="/guide#utm">On a Mac or iPad</a></div>
+      <div><h4>Get it</h4><a href="#install">Download</a><a href="/download/2.2/SHA256SUMS">Checksums</a><a href="/guide">Guide</a><a href="/guide#utm">On a Mac or iPad</a></div>
       <div><h4>Help</h4><a href="/guide#keys">Keyboard shortcuts</a><a href="/guide#trouble">When something's wrong</a><a href="/guide#security">Updates and security</a><a href="/guide#faq">Questions</a></div>
     </nav>
   </div>

@@ -20,14 +20,14 @@
   const pickBtn = picker.querySelector('.picker-btn');
   const pickList = picker.querySelector('.picker-list');
   const grid = document.querySelector('.theme-grid');
-  const shot = document.querySelector('.screen .shot');
+  const shots = document.querySelectorAll('img[data-themed]');
 
   pickList.innerHTML = THEMES.map(t => `<li><button type="button" role="menuitemradio" data-theme="${t[0]}">${swatch(t)}${t[1]}</button></li>`).join('');
   grid.innerHTML = THEMES.map(t => `<li><button type="button" data-theme="${t[0]}" aria-pressed="false">
     <img src="/images/hive/bit-${t[0]}.png" alt="${t[1]}: its pixel-art wallpaper" loading="lazy" width="1600" height="900">
     <span class="meta">${t[1]}${swatch(t)}</span></button></li>`).join('');
 
-  // a theme for the whole page: colours, the hero's wallpaper and screen, the tab's colour
+  // a theme for the whole page: colours, the hero's wallpaper, the screens, the tab's colour
   const apply = (id, keep) => {
     const t = byId(id);
     root.dataset.theme = t[0];
@@ -36,13 +36,14 @@
     picker.querySelector('.picker-name').textContent = t[1];
     pickList.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.theme === t[0])));
     grid.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === t[0])));
-    const src = `/images/hive/hive-${t[0]}.jpg`;
-    if (!shot.src.endsWith(src)) {
+    shots.forEach(shot => {
+      const src = shot.dataset.themed.replace('{t}', t[0]);
+      if (shot.src.endsWith(src)) return;
       shot.classList.add('fading');
       const img = new Image();
       img.onload = () => { shot.src = src; shot.classList.remove('fading'); };
       img.src = src;
-    }
+    });
     if (keep) try { localStorage.setItem('zurbax-theme', t[0]); } catch (e) {}
     stars.recolour();
   };

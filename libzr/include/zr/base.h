@@ -41,7 +41,7 @@ typedef ptrdiff_t isize;
 /* The system's name and release, as people see it. (Inside, programs,
  * paths and settings keep the "zurbax" name it was started under.) */
 #define OS_NAME "Zurbax"
-#define OS_VERSION "2.1"
+#define OS_VERSION "2.2"
 #define OS_PRETTY_NAME OS_NAME " " OS_VERSION
 /* Each release is long-term supported: security updates every two weeks
  * until OS_SUPPORT_END, each one numbered (2.1.1, 2.1.2, ...). The update
