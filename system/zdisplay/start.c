@@ -361,9 +361,19 @@ static void tile_face(Ui *ui, const Tile *t, Rect r, f32 alpha)
 	Color bg = tile_color_of(t->app, a ? a->icon : NULL);
 	Color white = color_scale_alpha(COLOR_WHITE, alpha);
 	if (str_eq(t->app, "desktop")) {
-		/* the desktop itself, in miniature */
+		/* the desktop itself, in miniature: shrunk once per wallpaper and size,
+		 * not every frame */
+		static Canvas *mini;
+		static u32 mini_gen;
 		Rect d = ui_to_device(ui, r);
-		blit_scaled(ui->canvas, S.wallpaper, rect(0, 0, (f32)S.wallpaper->width, (f32)S.wallpaper->height), d, alpha);
+		int mw = MAX(1, (int)roundf(d.w)), mh = MAX(1, (int)roundf(d.h));
+		if (!mini || mini_gen != S.wallpaper_gen || mini->width != mw || mini->height != mh) {
+			if (mini)
+				canvas_free(mini);
+			mini = canvas_resize(S.wallpaper, mw, mh);
+			mini_gen = S.wallpaper_gen;
+		}
+		blit_scaled(ui->canvas, mini, rect(0, 0, (f32)mw, (f32)mh), rect(roundf(d.x), roundf(d.y), (f32)mw, (f32)mh), alpha);
 		ui_fill(ui, rect(r.x, r.y + r.h - 30, r.w, 30), color_scale_alpha(color_hex("#00000060"), alpha));
 		ui_text(ui, ui_font(ui, 13, 400), r.x + 10, r.y + r.h - 10, "Desktop", white);
 		return;

@@ -197,6 +197,7 @@ typedef struct {
 	Canvas *frame;              /* composited screen, physical pixels */
 	Canvas *wallpaper;          /* scaled to the screen */
 	Canvas *wallpaper_blur;     /* for the lock screen */
+	u32 wallpaper_gen;          /* counts wallpaper_blur's remakes: glass caches by it */
 
 	Window *windows[MAX_WINDOWS]; /* bottom to top */
 	int nwin;

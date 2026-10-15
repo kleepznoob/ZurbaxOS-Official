@@ -17,31 +17,14 @@ void fill_rect_paint(Canvas *c, Rect r, const Paint *paint)
 	path_free(&p);
 }
 
+static void solid_round_rect(Canvas *c, Rect r, f32 radius, f32 ring, u32 src);
+
+/* Solid rectangles, rounded or not, and their outlines skip the rasterizer:
+ * coverage comes from the shape's distance, the inside is blended four
+ * pixels at a time (solid_round_rect, below). */
 void fill_rect(Canvas *c, Rect r, Color color)
 {
-	Rect cr = rect_intersect(r, clip_of(c));
-	if (rect_empty(cr))
-		return;
-	/* Pixel-aligned rectangles skip the rasterizer entirely. */
-	bool aligned = r.x == floorf(r.x) && r.y == floorf(r.y) && r.w == floorf(r.w) && r.h == floorf(r.h) &&
-		       cr.x == floorf(cr.x) && cr.y == floorf(cr.y);
-	if (!aligned) {
-		Paint p = paint_solid(color);
-		fill_rect_paint(c, r, &p);
-		return;
-	}
-	u32 src = color_premul(color);
-	int x0 = (int)cr.x, y0 = (int)cr.y, x1 = (int)(cr.x + cr.w), y1 = (int)(cr.y + cr.h);
-	bool opaque = (src >> 24) == 255;
-	for (int y = y0; y < y1; y++) {
-		u32 *row = canvas_row(c, y);
-		if (opaque)
-			for (int x = x0; x < x1; x++)
-				row[x] = src;
-		else
-			for (int x = x0; x < x1; x++)
-				row[x] = blend_premul(row[x], src, 256);
-	}
+	solid_round_rect(c, r, 0, 0, color_premul(color));
 }
 
 void fill_round_rect_paint(Canvas *c, Rect r, f32 radius, const Paint *paint)
@@ -54,12 +37,7 @@ void fill_round_rect_paint(Canvas *c, Rect r, f32 radius, const Paint *paint)
 
 void fill_round_rect(Canvas *c, Rect r, f32 radius, Color color)
 {
-	if (radius <= 0) {
-		fill_rect(c, r, color);
-		return;
-	}
-	Paint p = paint_solid(color);
-	fill_round_rect_paint(c, r, radius, &p);
+	solid_round_rect(c, r, maxf(radius, 0), 0, color_premul(color));
 }
 
 /* Appends every contour of `src` to `dst`. */
@@ -84,6 +62,10 @@ static void path_append(Path *dst, const Path *src)
 void stroke_round_rect(Canvas *c, Rect r, f32 radius, f32 width, Color color)
 {
 	/* The ring between two rounded rectangles: crisp corners, even width. */
+	if (width > 0 && width < minf(r.w, r.h) / 2) {
+		solid_round_rect(c, r, maxf(radius, 0), width, color_premul(color));
+		return;
+	}
 	Paint paint = paint_solid(color);
 	Path ring = { 0 };
 	path_round_rect(&ring, r, radius);
@@ -207,19 +189,134 @@ void blur_region(Canvas *c, Rect r, f32 radius)
 
 /* ---- Shadows -------------------------------------------------------------------------- */
 
+static void blend_row(u32 *d, const u32 *s, int n, u32 k);
+
+/*
+ * A blurred rounded rectangle is its four corners, its four edges (the same
+ * profile all along each one) and a solid middle. So one small picture is
+ * blurred, once, for each radius, blur and colour, and any shadow of those
+ * is pieced together from it: the corners copied, the edges' middle row and
+ * column repeated, the middle filled. A shape too thin for that in one
+ * direction (a taskbar: the blur reaches across it) gets a picture of its
+ * exact size that way, and only the other direction is pieced. Shadows cost
+ * a few blits, whatever their size, instead of a blur every frame. The
+ * colour's alpha is applied as the pieces are blended, so a shadow fading
+ * in doesn't make new pictures.
+ */
+typedef struct {
+	int radius, blur, tw, th; /* tw, th: an exact width or height, 0 when pieced */
+	u32 rgb;
+	Canvas *tile;
+	u64 used;
+} ShadowTile;
+
+static ShadowTile shadow_tiles[32];
+static u64 shadow_clock;
+
+static ShadowTile *shadow_tile(int radius, int blur, u32 rgb, int tw, int th, int side)
+{
+	ShadowTile *slot = &shadow_tiles[0];
+	for (usize i = 0; i < ARRAY_LEN(shadow_tiles); i++) {
+		ShadowTile *t = &shadow_tiles[i];
+		if (t->tile && t->radius == radius && t->blur == blur && t->rgb == rgb && t->tw == tw && t->th == th) {
+			t->used = ++shadow_clock;
+			return t;
+		}
+		if (!t->tile || t->used < slot->used)
+			slot = &shadow_tiles[i];
+	}
+	if (slot->tile)
+		canvas_free(slot->tile);
+	int margin = (int)ceilf((f32)blur * 1.5f) + 2;
+	int w = tw ? tw : side, h = th ? th : side;
+	Canvas *tile = canvas_new(w, h);
+	fill_round_rect(tile, rect((f32)margin, (f32)margin, (f32)(w - 2 * margin), (f32)(h - 2 * margin)), (f32)radius, 0xff000000u | rgb);
+	blur_region(tile, rect(0, 0, (f32)w, (f32)h), (f32)blur);
+	*slot = (ShadowTile){ radius, blur, tw, th, rgb, tile, ++shadow_clock };
+	return slot;
+}
+
+/* Part of src (sx, sy, w, h) blended at (dx, dy), at coverage k. */
+static void blit_part(Canvas *c, const Canvas *src, int sx, int sy, int w, int h, int dx, int dy, u32 k)
+{
+	Rect clip = clip_of(c);
+	int x0 = MAX(dx, (int)clip.x), y0 = MAX(dy, (int)clip.y);
+	int x1 = MIN(dx + w, (int)(clip.x + clip.w)), y1 = MIN(dy + h, (int)(clip.y + clip.h));
+	if (x1 <= x0)
+		return;
+	for (int y = y0; y < y1; y++)
+		blend_row(canvas_row(c, y) + x0, canvas_row(src, sy + y - dy) + sx + x0 - dx, x1 - x0, k);
+}
+
+/* One premultiplied pixel blended over a rectangle, at coverage k. */
+static void blend_fill(Canvas *c, int x, int y, int w, int h, u32 px, u32 k)
+{
+	Rect clip = clip_of(c);
+	int x0 = MAX(x, (int)clip.x), y0 = MAX(y, (int)clip.y);
+	int x1 = MIN(x + w, (int)(clip.x + clip.w)), y1 = MIN(y + h, (int)(clip.y + clip.h));
+	if (x1 <= x0 || !(px >> 24))
+		return;
+	for (int yy = y0; yy < y1; yy++) {
+		u32 *d = canvas_row(c, yy);
+		for (int xx = x0; xx < x1; xx++)
+			d[xx] = blend_premul(d[xx], px, k);
+	}
+}
+
+/* How a dimension is pieced: up to three spans of the target, each either a
+ * copy of the tile's (src..src+len) or a repeat of its column/row src. */
+typedef struct {
+	int dst, len, src;
+	bool repeat;
+} Span;
+
+static int spans(Span *out, int total, int e, bool exact)
+{
+	if (exact) {
+		out[0] = (Span){ 0, total, 0, false };
+		return 1;
+	}
+	out[0] = (Span){ 0, e, 0, false };
+	out[1] = (Span){ e, total - 2 * e, e, true };
+	out[2] = (Span){ total - e, e, e + 1, false };
+	return 3;
+}
+
 void draw_shadow(Canvas *c, Rect r, f32 radius, f32 blur, f32 dx, f32 dy, Color color)
 {
-	/* Render the shape into a scratch canvas with a margin, blur, then composite. */
-	int margin = (int)ceilf(blur * 1.5f) + 2;
-	int w = (int)ceilf(r.w) + margin * 2, h = (int)ceilf(r.h) + margin * 2;
-	if (w <= 0 || h <= 0)
+	u32 alpha = COLOR_A(color);
+	if (!alpha || r.w <= 0 || r.h <= 0)
 		return;
-	Canvas *tmp = canvas_new(w, h);
-	f32 fx = r.x - floorf(r.x), fy = r.y - floorf(r.y);
-	fill_round_rect(tmp, rect((f32)margin + fx, (f32)margin + fy, r.w, r.h), radius, color);
-	blur_region(tmp, rect(0, 0, (f32)w, (f32)h), blur);
-	blit(c, tmp, (int)floorf(r.x + dx) - margin, (int)floorf(r.y + dy) - margin, 1);
-	canvas_free(tmp);
+	int rad = (int)roundf(radius), bl = (int)roundf(blur);
+	int margin = (int)ceilf((f32)bl * 1.5f) + 2;
+	int x = (int)floorf(r.x + dx) - margin, y = (int)floorf(r.y + dy) - margin;
+	int w = (int)ceilf(r.w) + margin * 2, h = (int)ceilf(r.h) + margin * 2;
+	/* from the picture's side to its middle: past the corner and the blur's reach */
+	int e = margin + rad + margin, side = 2 * e + 1;
+	bool exact_w = w < side, exact_h = h < side;
+	ShadowTile *t = shadow_tile(rad, bl, color & 0xffffffu, exact_w ? w : 0, exact_h ? h : 0, side);
+	const Canvas *s = t->tile;
+	u32 k = (alpha * 256 + 127) / 255;
+	Span xs[3], ys[3];
+	int nx = spans(xs, w, e, exact_w), ny = spans(ys, h, e, exact_h);
+	for (int j = 0; j < ny; j++) {
+		for (int i = 0; i < nx; i++) {
+			Span a = xs[i], b = ys[j];
+			if (a.len <= 0 || b.len <= 0)
+				continue;
+			if (!a.repeat && !b.repeat) {
+				blit_part(c, s, a.src, b.src, a.len, b.len, x + a.dst, y + b.dst, k);
+			} else if (a.repeat && !b.repeat) {
+				for (int row = 0; row < b.len; row++)
+					blend_fill(c, x + a.dst, y + b.dst + row, a.len, 1, canvas_row(s, b.src + row)[a.src], k);
+			} else if (!a.repeat && b.repeat) {
+				for (int col = 0; col < a.len; col++)
+					blend_fill(c, x + a.dst + col, y + b.dst, 1, b.len, canvas_row(s, b.src)[a.src + col], k);
+			} else {
+				blend_fill(c, x + a.dst, y + b.dst, a.len, b.len, canvas_row(s, b.src)[a.src], k);
+			}
+		}
+	}
 }
 
 /* ---- Blits -------------------------------------------------------------------------------- */
@@ -371,6 +468,14 @@ void blit_scaled(Canvas *c, const Canvas *src, Rect sr, Rect dst, f32 opacity)
 {
 	if (rect_empty(dst) || rect_empty(sr))
 		return;
+	/* not scaled at all, on whole pixels (a full-screen backdrop): a plain blend */
+	if (sr.w == dst.w && sr.h == dst.h && sr.x == floorf(sr.x) && sr.y == floorf(sr.y) && dst.x == floorf(dst.x) &&
+	    dst.y == floorf(dst.y) && sr.x >= 0 && sr.y >= 0 && sr.x + sr.w <= (f32)src->width && sr.y + sr.h <= (f32)src->height) {
+		u32 k = (u32)(clampf(opacity, 0, 1) * 256 + 0.5f);
+		if (k)
+			blit_part(c, src, (int)sr.x, (int)sr.y, (int)sr.w, (int)sr.h, (int)dst.x, (int)dst.y, k);
+		return;
+	}
 	/* shrinking a lot: a box-filtered copy first, so it doesn't shimmer */
 	f32 sx = dst.w / sr.w, sy = dst.h / sr.h;
 	if (sx < 0.5f || sy < 0.5f) {
@@ -414,4 +519,84 @@ Canvas *canvas_resize(const Canvas *src, int w, int h)
 		}
 	}
 	return out;
+}
+
+/* ---- Solid rounded rectangles, without the rasterizer -------------------------------------- */
+
+/* One premultiplied colour over n pixels, at coverage k: four at a time. */
+static void blend_span(u32 *d, int n, u32 src, u32 k)
+{
+	if (k >= 256 && (src >> 24) == 255) {
+		for (int x = 0; x < n; x++)
+			d[x] = src;
+		return;
+	}
+	__m128i s = _mm_set1_epi32((int)src), k16 = _mm_set1_epi16((short)k);
+	int x = 0;
+	for (; x + 4 <= n; x += 4)
+		_mm_storeu_si128((__m128i *)(d + x), blend4(_mm_loadu_si128((const __m128i *)(d + x)), s, k16));
+	for (; x < n; x++)
+		d[x] = blend_premul(d[x], src, k);
+}
+
+/* How much of the pixel centred at (px, py) the rounded rectangle covers:
+ * its signed distance, as a ramp one pixel wide. */
+static inline f32 rr_cover(f32 px, f32 py, f32 cx, f32 cy, f32 hw, f32 hh, f32 rad)
+{
+	f32 qx = fabsf(px - cx) - hw + rad, qy = fabsf(py - cy) - hh + rad;
+	f32 ox = qx > 0 ? qx : 0, oy = qy > 0 ? qy : 0;
+	f32 sdf = sqrtf(ox * ox + oy * oy) + minf(maxf(qx, qy), 0) - rad;
+	f32 cov = 0.5f - sdf;
+	return cov < 0 ? 0 : cov > 1 ? 1 : cov;
+}
+
+/* The rounded rectangle r filled with src, or with ring > 0 only its
+ * outline that wide. Edge pixels are worked out from the distance; the rest
+ * is a constant blend. */
+static void solid_round_rect(Canvas *c, Rect r, f32 radius, f32 ring, u32 src)
+{
+	if (!(src >> 24) || r.w <= 0 || r.h <= 0)
+		return;
+	Rect clip = clip_of(c);
+	int x0 = MAX((int)floorf(r.x), (int)clip.x), y0 = MAX((int)floorf(r.y), (int)clip.y);
+	int x1 = MIN((int)ceilf(r.x + r.w), (int)(clip.x + clip.w)), y1 = MIN((int)ceilf(r.y + r.h), (int)(clip.y + clip.h));
+	if (x1 <= x0 || y1 <= y0)
+		return;
+	f32 rad = minf(radius, minf(r.w, r.h) / 2);
+	f32 cx = r.x + r.w / 2, cy = r.y + r.h / 2, hw = r.w / 2, hh = r.h / 2;
+	f32 irad = maxf(rad - ring, 0), ihw = hw - ring, ihh = hh - ring;
+	/* the band at the top and bottom where corners (and a ring's edges) are,
+	 * and the columns at the sides; everything else is a full blend, or for
+	 * a ring nothing */
+	f32 edge = maxf(rad, ring) + 1;
+	int band_top = (int)ceilf(r.y + edge), band_bottom = (int)floorf(r.y + r.h - edge);
+	int col_left = (int)ceilf(r.x + (ring > 0 ? ring : 0) + 1), col_right = (int)floorf(r.x + r.w - (ring > 0 ? ring : 0) - 1);
+	for (int y = y0; y < y1; y++) {
+		u32 *row = canvas_row(c, y);
+		f32 py = (f32)y + 0.5f;
+		bool middle = y >= band_top && y < band_bottom;
+		if (middle && ring <= 0) {
+			/* edges of the straight sides, then the inside */
+			int a = MAX(x0, col_left), b = MIN(x1, col_right);
+			for (int x = x0; x < MIN(a, x1); x++)
+				row[x] = blend_premul(row[x], src, (u32)(rr_cover((f32)x + 0.5f, py, cx, cy, hw, hh, rad) * 256));
+			if (b > a)
+				blend_span(row + a, b - a, src, 256);
+			for (int x = MAX(b, x0); x < x1; x++)
+				row[x] = blend_premul(row[x], src, (u32)(rr_cover((f32)x + 0.5f, py, cx, cy, hw, hh, rad) * 256));
+			continue;
+		}
+		for (int x = x0; x < x1; x++) {
+			if (middle && x >= col_left && x < col_right)
+				x = col_right; /* a ring's hollow middle */
+			if (x >= x1)
+				break;
+			f32 px = (f32)x + 0.5f;
+			f32 cov = rr_cover(px, py, cx, cy, hw, hh, rad);
+			if (ring > 0 && cov > 0 && ihw > 0 && ihh > 0)
+				cov -= rr_cover(px, py, cx, cy, ihw, ihh, irad);
+			if (cov > 0)
+				row[x] = blend_premul(row[x], src, (u32)(cov * 256));
+		}
+	}
 }

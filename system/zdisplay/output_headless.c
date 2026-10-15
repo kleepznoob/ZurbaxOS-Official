@@ -164,6 +164,25 @@ static void run_command(int fd, char *line)
 	} else if (str_eq(cmd, "frame")) {
 		damage_all();
 		compose_frame();
+	} else if (str_eq(cmd, "bench")) {
+		/* N frames with the shell redrawn and the whole screen composed:
+		 * the time each takes, for finding what's slow */
+		int n = arg[0] ? (int)str_to_int(arg, NULL) : 30;
+		u64 shell_ns = 0, comp_ns = 0;
+		for (int i = 0; i < n; i++) {
+			shell_mark_dirty();
+			u64 t0 = time_mono_ns();
+			shell_prepare();
+			u64 t1 = time_mono_ns();
+			damage_all();
+			compose_frame();
+			u64 t2 = time_mono_ns();
+			shell_ns += t1 - t0, comp_ns += t2 - t1;
+		}
+		char out[160];
+		fmt(out, sizeof out, "shell %.2f ms, compose %.2f ms (%dx%d)\n", (f64)shell_ns / n / 1e6, (f64)comp_ns / n / 1e6,
+		    S.frame->width, S.frame->height);
+		reply(fd, out);
 	} else {
 		reply(fd, "unknown command\n");
 		return;

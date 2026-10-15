@@ -101,6 +101,7 @@ void wallpaper_reload(void)
 	Canvas *small = canvas_resize(S.wallpaper, bw, bh);
 	blur_region(small, rect(0, 0, (f32)bw, (f32)bh), 18);
 	S.wallpaper_blur = canvas_new(S.frame->width, S.frame->height);
+	S.wallpaper_gen++;
 	blit_scaled(S.wallpaper_blur, small, rect(0, 0, (f32)bw, (f32)bh), rect(0, 0, (f32)S.frame->width, (f32)S.frame->height), 1);
 	canvas_free(small);
 	desktop_invalidate();

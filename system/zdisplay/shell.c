@@ -874,8 +874,9 @@ void shell_init(void)
  * areas that changed (this frame's and last frame's surfaces) get repainted. */
 
 static bool dirty = true;
-static Rect surfaces[24], prev_surfaces[24];
+static Rect surfaces[64], prev_surfaces[64];
 static int nsurfaces, nprev;
+static bool surfaces_overflowed = true; /* more than fit: the whole overlay is cleared */
 
 void shell_mark_dirty(void)
 {
@@ -893,6 +894,26 @@ void shell_surface(Rect r)
 {
 	if (nsurfaces < (int)ARRAY_LEN(surfaces))
 		surfaces[nsurfaces++] = rect_inset(r, -24, -24); /* room for shadows */
+	else
+		surfaces_overflowed = true;
+}
+
+/* Clears what the last frame drew: everything the shell draws is inside a
+ * surface, so only those need clearing, not the whole screen. */
+static void clear_overlay(bool all)
+{
+	if (all) {
+		memset(overlay->pixels, 0, (usize)overlay->stride * (usize)overlay->height * 4);
+		return;
+	}
+	for (int i = 0; i < nprev; i++) {
+		Rect r = prev_surfaces[i];
+		int x0 = CLAMP((int)floorf(r.x * S.scale) - 2, 0, overlay->width), y0 = CLAMP((int)floorf(r.y * S.scale) - 2, 0, overlay->height);
+		int x1 = CLAMP((int)ceilf((r.x + r.w) * S.scale) + 2, 0, overlay->width);
+		int y1 = CLAMP((int)ceilf((r.y + r.h) * S.scale) + 2, 0, overlay->height);
+		for (int y = y0; y < y1 && x1 > x0; y++)
+			memset(canvas_row(overlay, y) + x0, 0, (usize)(x1 - x0) * 4);
+	}
 }
 
 void shell_prepare(void)
@@ -900,15 +921,18 @@ void shell_prepare(void)
 	if (!dirty && !ui->redraw && !(ui->wake_at > 0 && now_s() >= ui->wake_at))
 		return;
 	dirty = false;
+	bool all = surfaces_overflowed;
 	if (overlay->width != S.frame->width || overlay->height != S.frame->height) {
 		canvas_free(overlay);
 		overlay = canvas_new(S.frame->width, S.frame->height);
+		all = true;
 	}
 	ui_attach(ui, overlay, S.sw, S.sh, S.scale);
 	memcpy(prev_surfaces, surfaces, sizeof surfaces);
 	nprev = nsurfaces;
 	nsurfaces = 0;
-	memset(overlay->pixels, 0, (usize)overlay->stride * (usize)overlay->height * 4);
+	surfaces_overflowed = false;
+	clear_overlay(all);
 	ui_set_theme(ui, &S.theme);
 	ui->win_states = STATE_ACTIVE;
 	ui->window_focused = true;
