@@ -322,8 +322,7 @@ static void draw_window(Canvas *frame, Window *w)
 	pr.x = roundf(pr.x), pr.y = roundf(pr.y);
 	if (!rect_empty(rect_intersect(pr, frame->clip)) || !(w->flags & WIN_NO_SHADOW)) {
 		if (hive_tiled(w)) {
-			/* tiles lie close together: a light shadow each */
-			shadow_draw(frame, &shadow_normal, pr, opacity);
+			/* tiles lie close together: no shadows, their rims and glow are the depth */
 		} else if (!(w->flags & (WIN_NO_SHADOW | WIN_POPUP)) && !(w->states & STATE_FULLSCREEN)) {
 			bool focused = w == S.focus;
 			const Shadow *sh = focused ? &shadow_focused : &shadow_normal;

@@ -215,6 +215,10 @@ void glass_backdrop(Canvas *dst, Rect d, Rect shape, f32 rad, f32 opacity)
 		const u32 *s = canvas_row(b, y);
 		u32 *o = canvas_row(dst, y);
 		f32 py = (f32)y + 0.5f, qy = fabsf(py - cy) - hh;
+		if (k >= 256 && (rad <= 0 || qy <= 0)) { /* clear of the corners: the row as it is */
+			memcpy(o + x0, s + x0, sizeof(u32) * (usize)(x1 - x0));
+			continue;
+		}
 		for (int x = x0; x < x1; x++) {
 			u32 a = k;
 			if (rad > 0 && qy > 0) { /* by a rounded corner: only what's inside it */

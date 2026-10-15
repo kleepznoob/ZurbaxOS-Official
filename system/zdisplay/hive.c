@@ -145,6 +145,8 @@ static void layout(Node *n, Rect r, bool animate)
 			return;
 		bool zoom = zoomed[w->ws] == w;
 		Rect c = rect_inset(zoom ? area() : r, BORDER, BORDER);
+		/* on whole pixels: the app's picture is then copied, never scaled */
+		c = rect(roundf(c.x), roundf(c.y), roundf(c.x + c.w) - roundf(c.x), roundf(c.y + c.h) - roundf(c.y));
 		bool moved = c.x != w->rect.x || c.y != w->rect.y || c.w != w->rect.w || c.h != w->rect.h;
 		w->states = (w->states & ~(u32)(STATE_TILED_LEFT | STATE_TILED_RIGHT | STATE_MAXIMIZED)) | STATE_TILED | (zoom ? STATE_MAXIMIZED : 0);
 		if (moved)
@@ -538,7 +540,15 @@ void hive_draw_border(Canvas *frame, Window *w, Rect pr, f32 opacity)
 	glow_track();
 	const HiveTheme *t = theme();
 	f32 g = glow_of(w), sc = S.scale, k = clampf(opacity, 0, 1);
+	/* the accents' gradient, and the ring's colour along it, as tables */
+	enum { STEPS = 64 };
+	u32 acc[STEPS], ring_c[STEPS];
 	Color c1 = color_hex(t->accent), c2 = color_hex(t->accent2);
+	for (int i = 0; i < STEPS; i++) {
+		Color a = color_mix(c1, c2, (f32)i / (STEPS - 1));
+		acc[i] = color_premul(a);
+		ring_c[i] = color_premul(color_mix(COLOR_WHITE, a, g));
+	}
 	f32 bw = (1 + g) * sc; /* the ring: a pixel wide, two in focus */
 	f32 halo = GLOW_PX * sc;
 	f32 rad = (w->wl ? 0 : w->radius) * sc;
@@ -547,32 +557,42 @@ void hive_draw_border(Canvas *frame, Window *w, Rect pr, f32 opacity)
 	Rect o = rect_inset(pr, -reach, -reach), clip = frame->clip;
 	int x0 = MAX((int)floorf(o.x), (int)clip.x), y0 = MAX((int)floorf(o.y), (int)clip.y);
 	int x1 = MIN((int)ceilf(o.x + o.w), (int)(clip.x + clip.w)), y1 = MIN((int)ceilf(o.y + o.h), (int)(clip.y + clip.h));
+	f32 gx = (STEPS - 1) / (2 * maxf(pr.w, 1)), gy = (STEPS - 1) / (2 * maxf(pr.h, 1));
 	for (int y = y0; y < y1; y++) {
 		u32 *row = canvas_row(frame, y);
 		f32 py = (f32)y + 0.5f;
 		/* rows along the straight sides: what's well inside is skipped */
 		bool middle = py > pr.y + rad + 2 && py < pr.y + pr.h - rad - 2;
+		bool corners = py < pr.y + rad || py > pr.y + pr.h - rad;
+		f32 dy = py < cy ? pr.y - py : py - (pr.y + pr.h); /* to the top or bottom edge */
 		f32 rim = 0.17f - 0.11f * clampf((py - pr.y) / maxf(pr.h, 1), 0, 1);
 		f32 ring_a = rim + (1 - rim) * g;
+		f32 gbase = (py - pr.y) * gy;
 		for (int x = x0; x < x1; x++) {
 			f32 px = (f32)x + 0.5f;
 			if (middle && px > pr.x + 2 && px < pr.x + pr.w - 2) {
 				x = MAX(x, (int)ceilf(pr.x + pr.w - 2.5f) - 1); /* never back */
 				continue;
 			}
-			f32 d = rr_dist(px, py, cx, cy, hw, hh, rad);
+			f32 d;
+			if (px > pr.x + rad && px < pr.x + pr.w - rad)
+				d = dy;
+			else if (!corners)
+				d = px < cx ? pr.x - px : px - (pr.x + pr.w);
+			else
+				d = rr_dist(px, py, cx, cy, hw, hh, rad);
 			if (d < -1 || d > reach)
 				continue;
 			f32 ring = clampf(0.5f - (d - bw), 0, 1) - clampf(0.5f - d, 0, 1);
-			Color acc = color_mix(c1, c2, clampf(((px - pr.x) / pr.w + (py - pr.y) / pr.h) / 2, 0, 1));
+			int gi = CLAMP((int)(gbase + (px - pr.x) * gx + 0.5f), 0, STEPS - 1);
 			if (g > 0 && d > 0) {
 				f32 u = clampf(1 - (d - bw * 0.5f) / halo, 0, 1);
 				f32 a = u * u * 0.45f * g * (1 - ring);
 				if (a > 0.004f)
-					row[x] = blend_premul(row[x], color_premul(acc), (u32)(a * k * 256));
+					row[x] = blend_premul(row[x], acc[gi], (u32)(a * k * 256));
 			}
 			if (ring > 0)
-				row[x] = blend_premul(row[x], color_premul(color_mix(COLOR_WHITE, acc, g)), (u32)(ring * ring_a * k * 256));
+				row[x] = blend_premul(row[x], ring_c[gi], (u32)(ring * ring_a * k * 256));
 		}
 	}
 }
@@ -810,8 +830,6 @@ static void glass(Ui *ui, Rect r, f32 radius, const HiveTheme *t, f32 alpha)
 	ui_shadow(ui, r, radius, 18, 6, color_scale_alpha(color_hex("#00000070"), alpha));
 	glass_panel_style(ui, r, radius, alpha, true);
 	ui_round(ui, r, radius, color_scale_alpha(color_with_alpha(color_hex(t->bg), 0x30), alpha));
-	/* a sheen across it, brightest at the top, as on a drop */
-	ui_gradient(ui, r, radius, color_scale_alpha(color_hex("#ffffff1c"), alpha), color_scale_alpha(color_hex("#ffffff00"), alpha));
 	ui_border(ui, r, radius, 1, color_scale_alpha(color_hex("#ffffff1a"), alpha));
 }
 
@@ -1185,14 +1203,11 @@ void hive_frame(Ui *ui)
 {
 	const HiveTheme *t = theme();
 	bar(ui, t);
-	if (launcher_open || help_open || power_open) {
-		/* the screen dims under them, and a click outside closes them */
-		Rect all = rect(0, 0, S.sw, S.sh);
-		shell_surface(all);
-		ui_fill(ui, all, color_hex("#00000058"));
-		if (ui_interact(ui, ui_id(ui, "hive-scrim"), all).clicked)
-			close_overlays();
-	}
+	/* a click outside them closes them (Hive has the pointer while they're
+	 * open; nothing is drawn over the screen, which would cost a redraw of
+	 * all of it every time) */
+	if ((launcher_open || help_open || power_open) && ui_interact(ui, ui_id(ui, "hive-outside"), rect(0, 0, S.sw, S.sh)).clicked)
+		close_overlays();
 	if (!launcher_open)
 		sel_y = -1;
 	if (launcher_open)
