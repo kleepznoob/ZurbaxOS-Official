@@ -1,7 +1,8 @@
 /*
  * Installer — puts Zurbax on this computer, from the install stick or disc.
  *
- * The steps run down a sidebar like Welcome's (setup.c): pick a disk (each
+ * The steps run down the side like Welcome's, in the same pixel look
+ * (setup.c): pick a disk (each
  * drawn as a bar of what's on it), pick how (erase it, or use its free
  * space next to Windows, with the disk shown before and after), check the
  * summary, and watch a slideshow of what's coming while it installs. The
@@ -42,9 +43,12 @@ typedef struct {
 	StrBuf line;
 	f32 fraction, shown_fraction;
 	char step_text[128];
+	char log[8][128];    /* the steps so far, the last one going on now */
+	int nlog;
 	char error[256];
 	f64 demo_t0;
 	f64 started_at, result_at;
+	char theme[32];      /* the Hive theme chosen in Welcome, which it wears too */
 	/* the slideshow */
 	Canvas *slides[8];
 	int nslides;
@@ -198,12 +202,25 @@ static void load_disks(void)
 	mem_free(out);
 }
 
+/* The step being done, onto the log, if it's a new one. */
+static void note_step(void)
+{
+	if (!in.step_text[0] || (in.nlog && str_eq(in.log[in.nlog - 1], in.step_text)))
+		return;
+	if (in.nlog == (int)ARRAY_LEN(in.log)) {
+		memmove(in.log, in.log + 1, sizeof in.log - sizeof in.log[0]);
+		in.nlog--;
+	}
+	str_copy(in.log[in.nlog++], in.step_text, sizeof in.log[0]);
+}
+
 static void handle_line(Ui *ui, const char *l)
 {
 	if (str_starts(l, "step ")) {
 		const char *rest;
 		in.fraction = (f32)str_to_float(l + 5, &rest);
 		str_copy(in.step_text, rest && *rest ? rest + 1 : "", sizeof in.step_text);
+		note_step();
 	} else if (str_eq(l, "done")) {
 		in.fraction = 1;
 		go(ui, P_DONE);
@@ -249,6 +266,7 @@ static void start_install(Ui *ui)
 {
 	in.fraction = in.shown_fraction = 0;
 	str_copy(in.step_text, "Starting", sizeof in.step_text);
+	in.nlog = 0;
 	in.error[0] = 0;
 	in.started_at = 0;   /* set on the first frame of the page */
 	go(ui, P_INSTALLING);
@@ -285,6 +303,7 @@ static void demo_tick(Ui *ui)
 	f32 t = (f32)(ui->now - in.demo_t0) / 30.0f;
 	in.fraction = minf(t, 1);
 	str_copy(in.step_text, steps[MIN((int)(t * 6), 5)], sizeof in.step_text);
+	note_step();
 	if (t >= 1)
 		go(ui, P_DONE);
 	ui->redraw = true;
@@ -327,14 +346,14 @@ static Color fs_color(Ui *ui, const char *fs)
 static void disk_bar(Ui *ui, Rect r, const Disk *d, int zurbax, f32 grow)
 {
 	Theme *t = &ui->theme;
-	ui_round(ui, r, 6, t->dark ? color_hex("#2a292f") : color_hex("#e4e5e9"));
+	setup_block(ui, r, 1, t->dark ? color_hex("#2a292f") : color_hex("#e4e5e9"));
 	if (!d->bytes)
 		return;
 	ui_push_clip(ui, r);
 	f32 x = r.x;
 	if (zurbax == 2) {
 		/* the whole disk, erased */
-		ui_round(ui, rect(r.x, r.y, r.w * grow, r.h), 6, t->accent);
+		setup_block(ui, rect(r.x, r.y, r.w * grow, r.h), 1, t->accent);
 	} else {
 		for (int i = 0; i < d->nparts; i++) {
 			f32 w = maxf(3, r.w * (f32)((f64)d->parts[i].bytes / (f64)d->bytes));
@@ -352,7 +371,7 @@ static void disk_bar(Ui *ui, Rect r, const Disk *d, int zurbax, f32 grow)
 
 static void legend(Ui *ui, f32 x, f32 y, Color c, const char *label)
 {
-	ui_round(ui, rect(x, y + 4, 10, 10), 3, c);
+	setup_block(ui, rect(x, y + 4, 10, 10), 0, c);
 	ui_text(ui, ui_font(ui, 12, 500), x + 16, y + 13, label, ui->theme.text_dim);
 }
 
@@ -379,8 +398,9 @@ static void page_disk(Ui *ui, Rect r)
 		bool ok = !d->boot_medium, sel = in.disk == i;
 		UiInteract it = ui_interact(ui, ui_id(ui, "disk"), row);
 		f32 hover = ui_fade(ui, ui_id(ui, "disk"), it.hovered && ok, 0.15f);
-		ui_round(ui, row, 14, sel ? color_mix(t->card, t->accent, t->dark ? 0.16f : 0.07f) : color_mix(t->card, t->hover, hover));
-		ui_border(ui, row, 14, sel ? 2 : 1, sel ? t->accent : t->border);
+		if (it.hovered && ok)
+			ui_set_cursor(ui, CURSOR_POINTER);
+		setup_card(ui, row, sel, hover);
 		Rect c = pad2(row, 18, 14);
 		ui_icon(ui, rect(c.x, c.y + 4, 32, 32), d->usb || d->removable ? "usb" : "drive", ok ? t->text_dim : t->text_faint);
 		Rect tx = rect(c.x + 48, c.y, c.w - 48, 40);
@@ -440,8 +460,7 @@ static void page_how(Ui *ui, Rect r)
 	cut_top(&r, 26);
 	/* before and after */
 	Rect ba = setup_rise(ui, in.changed_at, 2, cut_top(&r, 120));
-	ui_round(ui, ba, 14, t->card);
-	ui_border(ui, ba, 14, 1, t->border);
+	setup_card(ui, ba, false, 0);
 	Rect c = pad2(ba, 20, 18);
 	f32 grow = setup_ease((f32)((ui->now - in.changed_at - 0.3) / 0.9));
 	static f64 last_choice_at;
@@ -451,9 +470,9 @@ static void page_how(Ui *ui, Rect r)
 	f32 grow2 = minf(grow, setup_ease((f32)((ui->now - last_choice_at) / 0.7)));
 	if (grow2 < 1)
 		ui->redraw = true;
-	ui_text_in(ui, ui_font(ui, 12, 700), rect(c.x, c.y, 60, 16), "NOW", t->text_dim, ALIGN_START);
+	ui_pixel_text(ui, c.x, c.y + 2, "NOW", 2, t->text_dim);
 	disk_bar(ui, rect(c.x + 64, c.y + 2, c.w - 64, 14), d, 0, 1);
-	ui_text_in(ui, ui_font(ui, 12, 700), rect(c.x, c.y + 34, 60, 16), "AFTER", t->text_dim, ALIGN_START);
+	ui_pixel_text(ui, c.x, c.y + 36, "AFTER", 2, t->text_dim);
 	disk_bar(ui, rect(c.x + 64, c.y + 36, c.w - 64, 14), d, in.alongside ? 1 : 2, grow2);
 	legend(ui, c.x + 64, c.y + 62, t->accent, "Zurbax");
 	if (in.alongside)
@@ -467,8 +486,8 @@ static void summary_row(Ui *ui, Rect *r, const char *icon, const char *what, con
 	Rect row = cut_top(r, 42);
 	ui_icon(ui, rect(row.x, row.y + 12, 18, 18), icon, t->accent);
 	ui_text_in(ui, ui_font(ui, 14, 500), rect(row.x + 30, row.y, 150, row.h), what, t->text_dim, ALIGN_START);
-	ui_text_in(ui, ui_font(ui, 14, 600), rect(row.x + 180, row.y, row.w - 180, row.h), value, t->text, ALIGN_START);
-	ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
+	ui_text_in(ui, ui_font(ui, 14, 700), rect(row.x + 180, row.y, row.w - 180, row.h), value, t->text, ALIGN_START);
+	setup_rule(ui, row.x, row.y + row.h - 1, row.x + row.w);
 }
 
 static void page_confirm(Ui *ui, Rect r)
@@ -487,13 +506,13 @@ static void page_confirm(Ui *ui, Rect r)
 	Rect list = setup_rise(ui, in.changed_at, 0, cut_top(&r, 4 * 42));
 	summary_row(ui, &list, "drive", "Disk", disk);
 	summary_row(ui, &list, "computer", "Installation", how);
-	summary_row(ui, &list, "apps", "Included", "Steam, Proton, GNOME, 8 apps and every driver");
+	summary_row(ui, &list, "apps", "Included", "Hive, Steam, Proton, GNOME, 8 apps and every driver");
 	summary_row(ui, &list, "clock", "Time", "About five minutes");
 	cut_top(&r, 22);
 	Rect box = setup_rise(ui, in.changed_at, 1, cut_top(&r, 86));
 	Color tint = erase ? t->danger : t->success;
-	ui_round(ui, box, 12, color_with_alpha(tint, 0x1c));
-	ui_border(ui, box, 12, 1, color_with_alpha(tint, 0x60));
+	setup_block(ui, box, 2, color_with_alpha(tint, 0x1c));
+	setup_block(ui, rect(box.x, box.y + 4, 4, box.h - 8), 0, tint);
 	Rect c = pad2(box, 18, 16);
 	ui_icon(ui, center_in(cut_left(&c, 36), 28, 28), erase ? "warning" : "shield-check", tint);
 	cut_left(&c, 14);
@@ -510,16 +529,16 @@ static void page_confirm(Ui *ui, Rect r)
 
 /* ---- Installing: a slideshow of what's coming, and the progress ---------------------------- */
 
-static const char *const SLIDE_FILES[] = { "harbor", "settings", "dashboard", "launcher", "music", "lock" };
-static const char *const SLIDE_TITLES[] = { "Thousands of apps", "Made to your taste", "Your day at a glance", "Every app on one screen",
-					    "Your music, beautifully", "Two desktops, one machine" };
+static const char *const SLIDE_FILES[] = { "hive", "launcher", "keys", "midnight", "settings", "harbor" };
+static const char *const SLIDE_TITLES[] = { "Tiles that place themselves", "Every app, by name", "Your hands stay on the keys",
+					    "Carbon, or Midnight", "Made to your taste", "Thousands of apps" };
 static const char *const SLIDE_TEXTS[] = {
-	"Harbor brings the whole of Flathub. Firefox, LibreOffice, GIMP and VLC are installed already.",
-	"Light or dark, any accent, ten wallpapers. Settings has everything in one place.",
-	"The dashboard shows the weather, your next events, your mail and your music.",
-	"Press the grid at the left of the taskbar, or just start typing.",
-	"Music plays your library with album art, and keeps going while you work.",
-	"Sign in to Zurbax's own desktop or to GNOME. Your files are in both.",
+	"Open a window and Hive finds it a place. Super+Return for a terminal.",
+	"Press Super+Space and start typing. Enter opens it, tiled in.",
+	"Nine workspaces on Super+1 to 9. Super+Esc shows every key.",
+	"Two themes, with pictures in pixels that move. One click in Settings.",
+	"Glass, the pixel style, accents and wallpapers, all in Settings.",
+	"Harbor brings the whole of Flathub. Firefox and LibreOffice are here already.",
 };
 #define NSLIDES ((int)ARRAY_LEN(SLIDE_FILES))
 #define SLIDE_SECONDS 7.0
@@ -551,39 +570,71 @@ static void page_installing(Ui *ui, Rect r)
 	if (in.started_at <= 0)
 		in.started_at = ui->now;
 	setup_title(ui, &r, in.changed_at, "Installing Zurbax", "Sit back: this takes a few minutes. Here's some of what's waiting.");
-	/* the slideshow: each picture slides in from the right */
+	/* the slideshow: one picture dissolves into the dark in blocks, and the
+	 * next comes out of it the same way */
 	Rect prog = cut_bottom(&r, 74);
 	cut_bottom(&r, 18);
+	/* the pictures whole, at 16:9, with their caption under them */
 	Rect show = r;
-	f32 sh = minf(show.h, show.w * 9 / 16 + 64);
-	show.h = sh;
+	f32 pw = minf(show.w - 12, (show.h - 76) * 16 / 9);
+	show.w = pw + 12, show.h = pw * 9 / 16 + 76;
 	f64 e = ui->now - in.started_at;
 	int cur = (int)(e / SLIDE_SECONDS) % NSLIDES, prev = (cur + NSLIDES - 1) % NSLIDES;
-	f32 k = setup_ease((f32)((fmod(e, SLIDE_SECONDS)) / 0.8));
-	if (e < SLIDE_SECONDS)
+	f32 k = (f32)(fmod(e, SLIDE_SECONDS) / 0.9);
+	if (e < SLIDE_SECONDS || t->reduce_motion)
 		k = 1;
-	ui_shadow(ui, show, 16, 30, 10, color_with_alpha(t->shadow, 0x40));
-	ui_round(ui, show, 16, color_hex("#141218"));
-	Rect pic = rect(show.x, show.y, show.w, show.h - 64);
-	ui_push_clip(ui, show);
-	for (int pass = 0; pass < 2; pass++) {
-		int i = pass ? cur : prev;
-		if (!pass && k >= 1)
-			continue;
-		f32 dx = pass ? (1 - k) * show.w : -k * show.w * 0.3f;
-		Rect pr = rect(pic.x + dx, pic.y, pic.w, pic.h);
-		if (in.slides[i])
-			ui_image(ui, pr, in.slides[i], 0, true);
-		else
-			ui_gradient(ui, pr, 0, t->accent, color_hex("#141218"));
-		Rect cap = rect(show.x + 20 + dx, show.y + show.h - 64, show.w - 40, 64);
-		ui_text_in(ui, ui_font(ui, 15, 700), rect(cap.x, cap.y + 10, cap.w, 22), SLIDE_TITLES[i], COLOR_WHITE, ALIGN_START);
-		ui_text_in(ui, ui_font(ui, 12, 400), rect(cap.x, cap.y + 32, cap.w - 90, 18), SLIDE_TEXTS[i], color_hex("#ffffffb0"), ALIGN_START);
+	k = clampf(k, 0, 1);
+	Color dark = color_hex("#0c0c0e");
+	setup_block(ui, rect(show.x + 4, show.y + 4, show.w, show.h), 3, color_hex("#00000070"));
+	setup_block(ui, show, 3, dark);
+	Rect pic = rect(show.x + 6, show.y + 6, pw, pw * 9 / 16);
+	int si = k < 0.5f ? prev : cur;
+	f32 shown = k < 0.5f ? 1 - k * 2 : (k - 0.5f) * 2; /* how much of the picture is there */
+	if (in.slides[si])
+		ui_image(ui, pic, in.slides[si], 0, true);
+	else
+		ui_gradient(ui, pic, 0, t->accent, dark);
+	if (shown < 1) {
+		const f32 b = 20;
+		ui_push_clip(ui, pic);
+		for (int by = 0; (f32)by * b < pic.h; by++)
+			for (int bx = 0; (f32)bx * b < pic.w; bx++)
+				if (block_turn(bx, by) >= shown)
+					ui_fill(ui, rect(pic.x + (f32)bx * b, pic.y + (f32)by * b, b, b), dark);
+		ui_pop_clip(ui);
 	}
-	ui_pop_clip(ui);
+	Rect cap = rect(show.x + 20, show.y + show.h - 64, show.w - 40, 64);
+	ui_text_in(ui, ui_font(ui, 15, 800), rect(cap.x, cap.y + 10, cap.w, 22), SLIDE_TITLES[si], COLOR_WHITE, ALIGN_START);
+	ui_text_in(ui, ui_font(ui, 12, 400), rect(cap.x, cap.y + 32, cap.w - 110, 18), SLIDE_TEXTS[si], color_hex("#ffffffb0"), ALIGN_START);
 	for (int i = 0; i < NSLIDES; i++) {
-		f32 x = show.x + show.w - 20 - (f32)(NSLIDES - i) * 14, y = show.y + show.h - 32;
-		ui_circle(ui, x, y, i == cur ? 4 : 3, i == cur ? COLOR_WHITE : color_hex("#ffffff50"));
+		f32 x = show.x + show.w - 20 - (f32)(NSLIDES - i) * 14, y = show.y + show.h - 36;
+		setup_block(ui, rect(x, y, 8, 8), 0, i == cur ? t->accent : color_hex("#ffffff40"));
+	}
+	/* beside it, when there's room, what zinstall has done so far */
+	Rect lg = rect(show.x + show.w + 18, show.y, r.x + r.w - (show.x + show.w + 18), show.h);
+	if (lg.w >= 220) {
+		setup_card(ui, lg, false, 0);
+		Rect c = pad2(lg, 18, 16);
+		ui_pixel_text(ui, c.x, c.y, "> ZINSTALL", 2, t->accent);
+		cut_top(&c, 30);
+		Font mf = ui_font_mono(ui, 12, 500);
+		bool blink = t->reduce_motion || (int)(ui->now * 3) % 2 == 0;
+		for (int j = 0; j < in.nlog && c.h >= 24; j++) {
+			Rect row = cut_top(&c, 24);
+			bool now = j == in.nlog - 1;
+			if (now) {
+				if (blink)
+					setup_block(ui, rect(row.x, row.y + 7, 8, 10), 0, t->accent);
+			} else {
+				setup_block(ui, rect(row.x, row.y + 9, 6, 6), 0, color_with_alpha(t->accent, 0x90));
+			}
+			ui_text_in(ui, mf, rect(row.x + 18, row.y, row.w - 18, row.h), in.log[j], now ? t->text : t->text_dim, ALIGN_START);
+		}
+		/* how long it's been, in big pixels */
+		char clock[16];
+		int secs = (int)e;
+		fmt(clock, sizeof clock, "%02d:%02d", secs / 60, secs % 60);
+		ui_pixel_text(ui, lg.x + 18, lg.y + lg.h - 16 - 7 * 4, clock, 4, color_with_alpha(t->text, 0x60));
 	}
 	ui->wake_at = ui->now + (k < 1 ? 0.016 : 0.25);
 	/* how far along, in words and numbers */
@@ -597,20 +648,11 @@ static void page_installing(Ui *ui, Rect r)
 		else
 			fmt(left, sizeof left, "About %d minute%s left", (int)(rest / 60 + 0.5), (int)(rest / 60 + 0.5) == 1 ? "" : "s");
 	}
-	ui_text_in(ui, ui_font(ui, 14, 600), rect(prog.x, prog.y, prog.w - 80, 22), in.step_text, t->text, ALIGN_START);
-	ui_text_in(ui, ui_font(ui, 22, 800), rect(prog.x + prog.w - 80, prog.y - 4, 80, 28), pct, t->text, ALIGN_END);
-	Rect bar = rect(prog.x, prog.y + 32, prog.w, 8);
-	ui_round(ui, bar, 4, t->border);
-	f32 w = bar.w * in.shown_fraction;
-	ui_round(ui, rect(bar.x, bar.y, w, bar.h), 4, t->accent);
-	/* a light that runs along the filled part */
-	if (w > 40 && !t->reduce_motion) {
-		f32 sx = bar.x + fmodf((f32)ui->now * 160, w + 60) - 30;
-		ui_push_clip(ui, rect(bar.x, bar.y, w, bar.h));
-		ui_round(ui, rect(sx, bar.y, 30, bar.h), 4, color_with_alpha(COLOR_WHITE, 0x50));
-		ui_pop_clip(ui);
-		ui->wake_at = ui->now + 0.016;
-	}
+	ui_text_in(ui, ui_font(ui, 14, 700), rect(prog.x, prog.y, prog.w - 110, 22), in.step_text, t->text, ALIGN_START);
+	f32 tw = ui_pixel_text_width(pct, 4);
+	ui_pixel_text(ui, prog.x + prog.w - tw, prog.y - 8, pct, 4, t->accent);
+	/* a bar of blocks, with a light running along the filled ones */
+	setup_segments(ui, rect(prog.x, prog.y + 30, prog.w, 14), in.shown_fraction, 32, true);
 	ui_text_in(ui, ui_font(ui, 12, 400), rect(prog.x, prog.y + 48, prog.w, 18), left, t->text_dim, ALIGN_START);
 }
 
@@ -631,8 +673,7 @@ static void page_result(Ui *ui, Rect r, bool ok)
 		f32 cw = (row.w - 32) / 3;
 		for (int i = 0; i < 3; i++) {
 			Rect c = setup_rise(ui, in.changed_at, i, rect(row.x + (f32)i * (cw + 16), row.y, cw, row.h));
-			ui_round(ui, c, 14, t->card);
-			ui_border(ui, c, 14, 1, t->border);
+			setup_card(ui, c, false, 0);
 			ui_icon(ui, rect(c.x + 18, c.y + 18, 22, 22), icons[i], t->accent);
 			ui_text_in(ui, ui_font(ui, 15, 700), rect(c.x + 18, c.y + 52, c.w - 36, 22), heads[i], t->text, ALIGN_START);
 			ui_text_wrapped(ui, ui_font(ui, 12, 400), rect(c.x + 18, c.y + 76, c.w - 36, 40), texts[i], t->text_dim, ALIGN_START);
@@ -643,11 +684,12 @@ static void page_result(Ui *ui, Rect r, bool ok)
 static void frame(Ui *ui)
 {
 	SetupSteps s = { .title = "Installer", .steps = STEPS, .count = (int)ARRAY_LEN(STEPS),
-			 .current = in.page == P_DONE ? (int)ARRAY_LEN(STEPS) : step_of(in.page), .changed_at = in.changed_at, .dir = in.dir };
+			 .current = in.page == P_DONE ? (int)ARRAY_LEN(STEPS) : step_of(in.page), .changed_at = in.changed_at, .dir = in.dir,
+			 .theme = in.theme[0] ? in.theme : NULL };
 	Rect page = setup_frame(ui, &s);
 	Rect bottom = cut_bottom(&page, 40);
 	cut_bottom(&page, 18);
-	ui_push_clip(ui, rect(ui->width - page.w - 120, 0, page.w + 120, ui->height));
+	ui_push_clip(ui, setup_pane());
 	switch (in.page) {
 	case P_DISK:
 		page_disk(ui, page);
@@ -671,44 +713,44 @@ static void frame(Ui *ui)
 	ui_pop_clip(ui);
 	if (in.page == P_INSTALLING)
 		return;
-	ui_separator(ui, bottom.x, bottom.y - 10, bottom.x + bottom.w);
+	setup_rule(ui, bottom.x, bottom.y - 12, bottom.x + bottom.w);
 	switch (in.page) {
 	case P_DISK:
-		if (ui_button(ui, cut_left(&bottom, 130), "Look Again")) {
+		if (setup_button(ui, cut_left(&bottom, 130), "Look Again", SETUP_BUTTON)) {
 			load_disks();
 			if (in.disk >= in.ndisks)
 				in.disk = -1;
 		}
-		if (ui_button_suggested(ui, cut_right(&bottom, 120), "Next") && in.disk >= 0) {
+		if (setup_button(ui, cut_right(&bottom, 130), "Next", SETUP_BUTTON_GO) && in.disk >= 0) {
 			Disk *d = &in.disks[in.disk];
 			in.alongside = (d->free_bytes >= MIN_FREE || d->has_zurbax) && d->esp && !str_eq(d->contents, "Empty");
 			go(ui, P_HOW);
 		}
 		break;
 	case P_HOW:
-		if (ui_button(ui, cut_left(&bottom, 100), "Back"))
+		if (setup_button(ui, cut_left(&bottom, 100), "Back", SETUP_BUTTON))
 			go(ui, P_DISK);
-		if (ui_button_suggested(ui, cut_right(&bottom, 120), "Next"))
+		if (setup_button(ui, cut_right(&bottom, 130), "Next", SETUP_BUTTON_GO))
 			go(ui, P_CONFIRM);
 		break;
 	case P_CONFIRM: {
-		if (ui_button(ui, cut_left(&bottom, 100), "Back"))
+		if (setup_button(ui, cut_left(&bottom, 100), "Back", SETUP_BUTTON))
 			go(ui, P_HOW);
-		Rect go_r = cut_right(&bottom, 180);
-		if (!in.alongside ? ui_button_destructive(ui, go_r, "Erase and Install") : ui_button_suggested(ui, go_r, "Install"))
+		Rect go_r = cut_right(&bottom, 190);
+		if (setup_button(ui, go_r, !in.alongside ? "Erase and Install" : "Install", !in.alongside ? SETUP_BUTTON_DANGER : SETUP_BUTTON_GO))
 			start_install(ui);
 		break;
 	}
 	case P_DONE:
-		if (ui_button(ui, cut_left(&bottom, 140), "Keep Trying"))
+		if (setup_button(ui, cut_left(&bottom, 140), "Keep Trying", SETUP_BUTTON))
 			ui->quit = true;
-		if (ui_button_suggested(ui, cut_right(&bottom, 150), "Restart Now"))
+		if (setup_button(ui, cut_right(&bottom, 160), "Restart Now", SETUP_BUTTON_GO))
 			ui_session(ui, SESSION_RESTART);
 		break;
 	case P_FAILED:
-		if (ui_button(ui, cut_left(&bottom, 100), "Close"))
+		if (setup_button(ui, cut_left(&bottom, 100), "Close", SETUP_BUTTON))
 			ui->quit = true;
-		if (ui_button_suggested(ui, cut_right(&bottom, 140), "Try Again")) {
+		if (setup_button(ui, cut_right(&bottom, 150), "Try Again", SETUP_BUTTON_GO)) {
 			load_disks();
 			in.disk = -1;
 			go(ui, P_DISK);
@@ -728,6 +770,11 @@ static void init(Ui *ui)
 {
 	in.demo = env_get("ZURBAX_INSTALL_DEMO") != NULL;
 	in.changed_at = ui->now;
+	char path[512];
+	fmt(path, sizeof path, "%s/.config/zurbax/settings.conf", home_dir());
+	Conf *c = conf_load(path);
+	str_copy(in.theme, conf_get(c, "hive_theme", ""), sizeof in.theme);
+	conf_free(c);
 	load_disks();
 	/* One disk to choose from (besides the stick): choose it already. */
 	int candidates = 0, last = -1;

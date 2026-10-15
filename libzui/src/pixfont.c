@@ -1,8 +1,9 @@
 /*
  * Pixfont: a 5×7 font of square pixels, for the pixel style's clock,
- * numbers and names. Capitals, figures and a little punctuation; small
- * letters are drawn as capitals and anything else as a space. Each pixel
- * is a square of cell logical pixels, laid on whole device pixels.
+ * numbers and names. Capitals, figures and a little punctuation
+ * (: . - / > + ! %); small letters are drawn as capitals and anything else
+ * as a space. Each pixel is a square of cell logical pixels, laid on whole
+ * device pixels.
  */
 #include "zui.h"
 
@@ -34,6 +35,10 @@ static const char *const COLON[7] = { "     ", "  X  ", "  X  ", "     ", "  X  
 static const char *const PERCENT[7] = { "XX   ", "XX  X", "   X ", "  X  ", " X   ", "X  XX", "   XX" };
 static const char *const DOT[7] = { "     ", "     ", "     ", "     ", "     ", " XX  ", " XX  " };
 static const char *const DASH[7] = { "     ", "     ", "     ", "XXXXX", "     ", "     ", "     " };
+static const char *const SLASH[7] = { "    X", "    X", "   X ", "  X  ", " X   ", "X    ", "X    " };
+static const char *const MORE[7] = { "X    ", " X   ", "  X  ", "   X ", "  X  ", " X   ", "X    " };
+static const char *const PLUS[7] = { "     ", "  X  ", "  X  ", "XXXXX", "  X  ", "  X  ", "     " };
+static const char *const BANG[7] = { "  X  ", "  X  ", "  X  ", "  X  ", "  X  ", "     ", "  X  " };
 
 static const char *const *glyph(u32 cp)
 {
@@ -50,6 +55,10 @@ static const char *const *glyph(u32 cp)
 	case '%': return PERCENT;
 	case '.': return DOT;
 	case '-': return DASH;
+	case '/': return SLASH;
+	case '>': return MORE;
+	case '+': return PLUS;
+	case '!': return BANG;
 	default: return NULL;
 	}
 }

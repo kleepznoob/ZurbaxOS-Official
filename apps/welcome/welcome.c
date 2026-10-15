@@ -1,11 +1,13 @@
 /*
  * Welcome — the first-start assistant (and a short tour later on).
  *
- * The steps run down a sidebar over the wallpaper (setup.c): a welcome,
+ * The steps run down the side over the theme's pixel picture (setup.c): a
+ * welcome under the name in big pixels,
  * the keyboard (with a keyboard that lights up as you type), Wi-Fi when
  * there's no cable, the time zone (with a clock that swings to the city's
  * time), an account (with its picture and how strong the password is), a
- * look (with a little desktop that changes as you choose) and a summary.
+ * look (Carbon or Midnight, which the assistant itself wears as soon as
+ * it's picked, an accent and a wallpaper) and a summary.
  * Every step can be skipped: without an account Zurbax simply starts with
  * a user that has no password. Booted from the install USB stick or disc it
  * offers to try Zurbax or install it.
@@ -95,12 +97,12 @@ static void list_choice(Ui *ui, Rect *r, const char *const *titles, const char *
 {
 	const char *cur = conf_get(wl.conf, key, fallback);
 	Rect card = cut_top(r, (f32)n * 42 + 8);
-	ui_card(ui, card);
+	setup_card(ui, card, false, 0);
 	Rect rows = pad2(card, 14, 4);
 	for (int i = 0; i < n; i++) {
 		Rect row = cut_top(&rows, 42);
 		if (i < n - 1)
-			ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
+			setup_rule(ui, row.x, row.y + row.h, row.x + row.w);
 		ui_push_id(ui, i);
 		if (ui_radio(ui, row, titles[i], str_eq(cur, ids[i])) && !str_eq(cur, ids[i])) {
 			conf_set(wl.conf, key, ids[i]);
@@ -116,11 +118,10 @@ static void list_choice(Ui *ui, Rect *r, const char *const *titles, const char *
 static void feature(Ui *ui, Rect r, const char *icon, const char *title, const char *text)
 {
 	Theme *t = &ui->theme;
-	ui_round(ui, r, 14, t->card);
-	ui_border(ui, r, 14, 1, t->border);
+	setup_card(ui, r, false, 0);
 	Rect c = pad(r, 18);
 	Rect ic = cut_top(&c, 40);
-	ui_round(ui, rect(ic.x, ic.y, 40, 40), 11, color_with_alpha(t->accent, 0x22));
+	setup_block(ui, rect(ic.x, ic.y, 40, 40), 2, color_with_alpha(t->accent, 0x26));
 	ui_icon(ui, rect(ic.x + 10, ic.y + 10, 20, 20), icon, t->accent);
 	cut_top(&c, 14);
 	ui_text_in(ui, ui_font(ui, 15, 700), cut_top(&c, 22), title, t->text, ALIGN_START);
@@ -131,16 +132,14 @@ static void feature(Ui *ui, Rect r, const char *icon, const char *title, const c
 static void page_welcome(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	/* the logo floats above the greeting */
-	f32 bob = t->reduce_motion ? 0 : sinf((f32)ui->now * 1.6f) * 4;
-	f32 in = setup_ease((f32)((ui->now - wl.changed_at) / 0.6));
-	f32 size = 84 * (0.85f + 0.15f * in);
-	ui_app_icon(ui, rect(r.x, r.y + 4 + bob, size, size), "zurbax");
-	cut_top(&r, 108);
+	/* the name in big pixels, built block by block, like on zurbax.com */
+	f32 cell = clampf(floorf(minf(r.w, 620) / setup_wordmark_width(1)), 3, 8);
+	setup_wordmark(ui, r.x, r.y + 2, cell, wl.changed_at);
+	cut_top(&r, 14 * cell + 22);
 	const char *about = wl.live ? "You're running " OS_NAME " from the USB stick. Nothing on this computer has changed: try it for as long as you like, "
 				      "or install it when you're ready."
 				    : "Let's get your computer ready. It takes about a minute, and every step can be skipped and changed later in Settings.";
-	setup_title(ui, &r, wl.changed_at, "Welcome to " OS_NAME, about);
+	setup_title(ui, &r, wl.changed_at, wl.live ? "Take it for a spin." : "Hello. Let's make it yours.", about);
 	if (wl.live) {
 		Rect row = cut_top(&r, 168);
 		f32 cw = (row.w - 18) / 2;
@@ -161,18 +160,19 @@ static void page_welcome(Ui *ui, Rect r)
 		feature(ui, setup_rise(ui, wl.changed_at, 3, rect(row.x + fw + 16, row.y, fw, row.h)), "bag", "Thousands of apps",
 			"Harbor brings all of Flathub. Firefox, LibreOffice and six more are here already.");
 		feature(ui, setup_rise(ui, wl.changed_at, 4, rect(row.x + (fw + 16) * 2, row.y, fw, row.h)), "palette", "Yours to shape",
-			"Light or dark, any accent colour and ten wallpapers the system paints itself.");
+			"Carbon or Midnight, tiles that fall into place and pictures in pixels that move.");
 	}
 }
 
 /* ---- Keyboard -------------------------------------------------------------------------------- */
 
-/* The layout's letters drawn as keys; the one just typed lights up. */
+/* The layout's letters drawn as keys in blocks, their letters in pixels;
+ * the one just typed lights up and goes down. */
 static void keyboard_picture(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
 	int li = layout_index();
-	ui_round(ui, r, 14, t->dark ? color_hex("#17161a") : color_hex("#dcdde1"));
+	setup_block(ui, r, 3, t->dark ? color_hex("#0e0d10c0") : color_hex("#dcdde1"));
 	Rect k = pad(r, 14);
 	f32 kw = (k.w - 9 * 6) / 10, kh = minf(40, (k.h - 3 * 6) / 4);
 	f32 lit = clampf(1 - (f32)(ui->now - wl.key_at) / 0.7f, 0, 1);
@@ -193,14 +193,14 @@ static void keyboard_picture(Ui *ui, Rect r)
 			bool hit = lit > 0 && to_upper((u8)wl.last_key) == (u8)c;
 			Color face = t->dark ? color_hex("#2a292f") : COLOR_WHITE;
 			if (hit)
-				face = color_mix(face, t->accent, lit);
-			ui_round(ui, rect(key.x, key.y + 2, key.w, key.h), 7, t->dark ? color_hex("#0c0b0e") : color_hex("#b9bac0"));
-			ui_round(ui, key, 7, face);
-			char label[4] = { c, 0 };
-			if (keys[i] == '~')
-				str_copy(label, "\xc3\x91", sizeof label);
+				face = color_mix(face, t->accent, lit), key.y += 2;
+			setup_block(ui, rect(key.x, key.y + 4, key.w, key.h), 1, t->dark ? color_hex("#060507") : color_hex("#b9bac0"));
+			setup_block(ui, key, 1, face);
+			setup_block(ui, rect(key.x + 2, key.y, key.w - 4, 2), 0, color_with_alpha(COLOR_WHITE, hit ? 0x60 : 0x1c));
+			char label[2] = { c, 0 };
 			if (row < 3)
-				ui_text_in(ui, ui_font(ui, 13, 600), key, label, hit ? COLOR_WHITE : t->text, ALIGN_CENTER);
+				ui_pixel_text(ui, key.x + (key.w - ui_pixel_text_width(label, 2)) / 2, key.y + (key.h - 14) / 2, label, 2,
+					      hit ? COLOR_WHITE : t->text);
 		}
 	}
 }
@@ -260,12 +260,12 @@ static void page_network(Ui *ui, Rect r)
 	}
 	conf_free(c);
 	Rect st = cut_top(&r, 50);
-	ui_round(ui, st, 12, color_with_alpha(col, 0x18));
+	setup_block(ui, st, 2, color_with_alpha(col, 0x1c));
 	ui_icon(ui, rect(st.x + 16, st.y + 15, 20, 20), icon, col);
 	ui_text_in(ui, ui_font(ui, 14, 600), rect(st.x + 48, st.y, st.w - 60, st.h), line, col, ALIGN_START);
 	cut_top(&r, 12);
 	if (!radio) {
-		if (ui_button(ui, rect(r.x, r.y, 160, 36), "Turn Wi-Fi On"))
+		if (setup_button(ui, rect(r.x, r.y, 160, 38), "Turn Wi-Fi On", SETUP_BUTTON))
 			wifi_command("radio on");
 		return;
 	}
@@ -276,7 +276,7 @@ static void page_network(Ui *ui, Rect r)
 	WifiNet nets[24];
 	int n = wifi_networks(nets, 24);
 	Rect list = r;
-	ui_card(ui, list);
+	setup_card(ui, list, false, 0);
 	if (!n) {
 		ui_spinner(ui, center_in(list, 24, 24));
 		ui->wake_at = ui->now + 0.5;
@@ -310,7 +310,7 @@ static void page_network(Ui *ui, Rect r)
 			Rect pr = rect(row.x + 12, row.y + 52, row.w - 24 - 90, 36);
 			int ev = ui_entry(ui, pr, "wifi-pass", &wl.wifi_pass, "Password", ENTRY_PASSWORD | ENTRY_AUTOFOCUS);
 			bool good = wl.wifi_pass.len >= 8;
-			if ((ui_button_suggested(ui, rect(pr.x + pr.w + 8, pr.y, 82, 36), "Join") || (ev & ENTRY_SUBMIT)) && good) {
+			if ((setup_button(ui, rect(pr.x + pr.w + 8, pr.y, 82, 36), "Join", SETUP_BUTTON_GO) || (ev & ENTRY_SUBMIT)) && good) {
 				wifi_connect(w->hex, sb_str(&wl.wifi_pass));
 				memset(wl.wifi_pass.data, 0, wl.wifi_pass.len);
 				sb_clear(&wl.wifi_pass);
@@ -334,8 +334,7 @@ static void city_clock(Ui *ui, Rect r)
 	i64 now = time_unix();
 	f32 off = ui_anim(ui, ui_id(ui, "tz-offset"), (f32)tz_offset_in(zone, now) / 60.0f, 5);
 	f64 local = (f64)now + (f64)off * 60 + fmod(ui->now, 1.0) * 0; /* seconds, with the offset as it swings */
-	ui_round(ui, r, 16, t->card);
-	ui_border(ui, r, 16, 1, t->border);
+	setup_card(ui, r, false, 0);
 	Rect c = pad(r, 20);
 	f32 d = minf(c.w, c.h - 70);
 	f32 cx = c.x + c.w / 2, cy = c.y + d / 2, rad = d / 2;
@@ -383,7 +382,7 @@ static void page_timezone(Ui *ui, Rect r)
 	ui_entry(ui, cut_top(&r, 36), "tz-search", &wl.tz_search, "Search for your city", ENTRY_SEARCH | ENTRY_AUTOFOCUS);
 	cut_top(&r, 10);
 	Rect list = r;
-	ui_card(ui, list);
+	setup_card(ui, list, false, 0);
 	usize nz;
 	const ZoneInfo *zones = tz_zones(&nz);
 	const char *q = sb_str(&wl.tz_search);
@@ -472,8 +471,7 @@ static void page_account(Ui *ui, Rect r)
 		/* the picture people will see on the lock screen */
 		Rect card = setup_rise(ui, wl.changed_at, 1, cut_right(&r, minf(240, r.w * 0.36f)));
 		card.h = minf(card.h, 250);
-		ui_round(ui, card, 16, t->card);
-		ui_border(ui, card, 16, 1, t->border);
+		setup_card(ui, card, false, 0);
 		char ini[8];
 		initials_of(wl.name.len ? sb_str(&wl.name) : "", ini);
 		if (!str_eq(ini, wl.initials)) {
@@ -488,7 +486,7 @@ static void page_account(Ui *ui, Rect r)
 		ui_text_in(ui, ui_font(ui, 17, 700), rect(card.x + 12, card.y + 142, card.w - 24, 26), wl.name.len ? sb_str(&wl.name) : "Your name",
 			   wl.name.len ? t->text : t->text_faint, ALIGN_CENTER);
 		Rect badge = center_in(rect(card.x, card.y + 176, card.w, 24), 120, 24);
-		ui_round(ui, badge, 12, color_with_alpha(t->accent, 0x22));
+		setup_block(ui, badge, 2, color_with_alpha(t->accent, 0x26));
 		ui_text_in(ui, ui_font(ui, 12, 600), badge, "Administrator", t->accent, ALIGN_CENTER);
 		ui_text_in(ui, ui_font(ui, 12, 400), rect(card.x + 12, card.y + 210, card.w - 24, 20),
 			   wl.skip_password ? "Starts without a password" : "Signs in with a password", t->text_dim, ALIGN_CENTER);
@@ -512,11 +510,11 @@ static void page_account(Ui *ui, Rect r)
 		if (fabsf(fill - (f32)score) > 0.01f)
 			ui->redraw = true;
 		for (int i = 0; i < 4; i++) {
-			Rect b = rect(bars.x + (f32)i * (bw + 6), bars.y + 6, bw, 6);
-			ui_round(ui, b, 3, t->border);
+			Rect b = rect(bars.x + (f32)i * (bw + 6), bars.y + 5, bw, 8);
+			setup_block(ui, b, 1, color_with_alpha(t->text, 0x1a));
 			f32 f = clampf(fill - (f32)i, 0, 1);
 			if (f > 0)
-				ui_round(ui, rect(b.x, b.y, b.w * f, b.h), 3, cols[score]);
+				setup_block(ui, rect(b.x, b.y, b.w * f, b.h), 1, cols[score]);
 		}
 		ui_text_in(ui, ui_font(ui, 12, 600), meter, words[score], cols[score], ALIGN_END);
 		cut_top(&r, 10);
@@ -540,90 +538,111 @@ static void page_account(Ui *ui, Rect r)
 /* ---- Look ------------------------------------------------------------------------------------ */
 
 static struct {
-	Canvas *img[16];
+	Canvas *img[24];
 	int w, h;
 } thumbs;
+
+/* The wallpapers to choose from: the themes' pictures, then the painted ones. */
+static char bit_names[8][32];
+
+static const char *wallpaper_name(int i)
+{
+	if (i < HIVE_THEME_COUNT) {
+		fmt(bit_names[i], sizeof bit_names[i], "bit-%s", HIVE_THEMES[i].id);
+		return bit_names[i];
+	}
+	return WALLPAPER_NAMES[i - HIVE_THEME_COUNT];
+}
+
+static const char *wallpaper_title(int i)
+{
+	return i < HIVE_THEME_COUNT ? HIVE_THEMES[i].name : WALLPAPER_TITLES[i - HIVE_THEME_COUNT];
+}
 
 static const Canvas *wallpaper_thumb(Ui *ui, int i, f32 w, f32 h)
 {
 	int pw = (int)(w * ui->scale), ph = (int)(h * ui->scale);
 	if (thumbs.w != pw || thumbs.h != ph) {
-		for (int k = 0; k < 16; k++)
+		for (int k = 0; k < 24; k++)
 			canvas_free(thumbs.img[k]), thumbs.img[k] = NULL;
 		thumbs.w = pw, thumbs.h = ph;
 	}
 	if (!thumbs.img[i])
-		thumbs.img[i] = wallpaper_render(WALLPAPER_NAMES[i], pw, ph);
+		thumbs.img[i] = wallpaper_render(wallpaper_name(i), pw, ph);
 	return thumbs.img[i];
 }
 
 static int wallpaper_index(void)
 {
 	const char *cur = look_wallpaper(wl.conf);
-	for (int i = 0; i < WALLPAPER_COUNT; i++)
-		if (str_eq(cur, WALLPAPER_NAMES[i]))
+	for (int i = 0; i < HIVE_THEME_COUNT + WALLPAPER_COUNT; i++)
+		if (str_eq(cur, wallpaper_name(i)))
 			return i;
 	return 0;
 }
 
-/* A small desktop that changes as the choices do: the wallpaper, a window
- * in the light or dark style, and a button in the accent colour. */
-static void look_preview(Ui *ui, Rect r)
-{
-	Theme *t = &ui->theme;
-	f32 dk = ui_anim(ui, ui_id(ui, "look-dark"), t->dark ? 1 : 0, 8);
-	if (dk > 0.002f && dk < 0.998f)
-		ui->redraw = true;
-	ui_shadow(ui, r, 12, 30, 10, color_with_alpha(t->shadow, 0x50));
-	Rect scr = r;
-	f32 tw = 16 * 10, th = 9 * 10;
-	const Canvas *wp = wallpaper_thumb(ui, wallpaper_index(), tw * 2, th * 2);
-	ui_image(ui, scr, wp, 12, true);
-	/* top bar and taskbar */
-	ui_round4(ui, rect(scr.x, scr.y, scr.w, 16), 12, 12, 0, 0, color_hex("#000000a0"));
-	ui_round(ui, rect(scr.x + 8, scr.y + 5, 40, 6), 3, color_hex("#ffffffb0"));
-	Rect bar = rect(scr.x, scr.y + scr.h - 26, scr.w, 26);
-	ui_round4(ui, bar, 0, 0, 12, 12, color_hex("#141218e8"));
-	for (int i = 0; i < 6; i++) {
-		static const char *const apps[] = { "drift", "vault", "mail", "music", "harbor", "steam" };
-		ui_app_icon(ui, rect(bar.x + 14 + (f32)i * 24, bar.y + 4, 18, 18), apps[i]);
-	}
-	/* a window */
-	Rect w = rect(scr.x + scr.w * 0.16f, scr.y + scr.h * 0.18f, scr.w * 0.62f, scr.h * 0.58f);
-	Color bg = color_mix(color_hex("#fafafa"), color_hex("#26252b"), dk), head = color_mix(color_hex("#ececef"), color_hex("#323137"), dk);
-	Color line = color_mix(color_hex("#d4d4da"), color_hex("#4a4950"), dk);
-	ui_shadow(ui, w, 8, 16, 6, color_hex("#00000060"));
-	ui_round(ui, w, 8, bg);
-	ui_round4(ui, rect(w.x, w.y, w.w, 20), 8, 8, 0, 0, head);
-	for (int i = 0; i < 3; i++)
-		ui_circle(ui, w.x + w.w - 14 - (f32)i * 12, w.y + 10, 3.5f, line);
-	Rect body = pad4(w, 30, 14, 12, 14);
-	ui_round(ui, rect(body.x, body.y, body.w * 0.6f, 8), 4, line);
-	ui_round(ui, rect(body.x, body.y + 16, body.w * 0.85f, 6), 3, line);
-	ui_round(ui, rect(body.x, body.y + 28, body.w * 0.7f, 6), 3, line);
-	ui_round(ui, rect(body.x, body.y + 40, body.w * 0.78f, 6), 3, line);
-	ui_round(ui, rect(body.x + body.w - 64, body.y + body.h - 22, 64, 22), 6, t->accent);
-	ui_round(ui, rect(body.x + body.w - 50, body.y + body.h - 14, 36, 6), 3, color_with_alpha(COLOR_WHITE, 0xd0));
-}
+/* A theme in a card: its picture with Hive's glass bar over it, its name in
+ * pixels and its colours in a row of blocks. Choosing it sets the accent and
+ * the wallpaper to go with it, and the assistant wears it straight away. */
+static struct {
+	Canvas *img[4];
+	int w, h;
+} art;
 
-static void style_choice(Ui *ui, Rect r, bool dark, bool selected)
+static void theme_card(Ui *ui, Rect r, int i, bool selected)
 {
 	Theme *t = &ui->theme;
-	UiInteract it = ui_interact(ui, ui_id(ui, dark ? "dark" : "light"), r);
-	ui_round(ui, r, 12, dark ? color_hex("#1e1d22") : color_hex("#eeeef1"));
-	Rect w = pad4(r, 12, 14, 0, 14);
-	w.h -= 28;
-	ui_round4(ui, w, 6, 6, 0, 0, dark ? color_hex("#2d2c32") : color_hex("#ffffff"));
-	ui_round(ui, rect(w.x + 8, w.y + 8, w.w * 0.5f, 5), 3, dark ? color_hex("#5a5960") : color_hex("#cfd0d4"));
-	ui_round(ui, rect(w.x + w.w - 30, w.y + w.h - 16, 24, 10), 4, t->accent);
-	ui_text_in(ui, ui_font(ui, 13, selected ? 700 : 500), rect(r.x, r.y + r.h - 26, r.w, 22), dark ? "Dark" : "Light",
-		   dark ? COLOR_WHITE : color_hex("#1b1a1f"), ALIGN_CENTER);
-	if (selected)
-		ui_border(ui, rect_inset(r, -3, -3), 14, 2.5f, t->accent);
-	else if (it.hovered)
-		ui_border(ui, rect_inset(r, -2, -2), 13, 1.5f, t->border_strong);
+	const HiveTheme *h = &HIVE_THEMES[i];
+	UiInteract it = ui_interact(ui, ui_id(ui, h->id), r);
+	f32 hover = ui_fade(ui, ui_id(ui, h->id), it.hovered, 0.15f);
+	if (it.hovered)
+		ui_set_cursor(ui, CURSOR_POINTER);
+	setup_block(ui, rect(r.x + 4, r.y + 4, r.w, r.h), 2, color_hex("#00000050"));
+	setup_card(ui, r, selected, hover);
+	Rect pic = pad4(r, 10, 10, 0, 10);
+	pic.h = r.h - 10 - 46;
+	int pw = (int)(pic.w * ui->scale), ph = (int)(pic.h * ui->scale);
+	if (art.w != pw || art.h != ph) {
+		for (int k = 0; k < 4; k++)
+			canvas_free(art.img[k]), art.img[k] = NULL;
+		art.w = pw, art.h = ph;
+	}
+	if (!art.img[i])
+		art.img[i] = bitart_render(h->id, pw, ph);
+	ui_image(ui, pic, art.img[i], 0, true);
+	/* Hive's bar: three islands of glass */
+	Color glass = color_hex("#ffffff2a");
+	setup_block(ui, rect(pic.x + 8, pic.y + 8, 52, 12), 1, glass);
+	setup_block(ui, rect(pic.x + pic.w / 2 - 22, pic.y + 8, 44, 12), 1, glass);
+	setup_block(ui, rect(pic.x + pic.w - 44, pic.y + 8, 36, 12), 1, glass);
+	for (int k = 0; k < 4; k++)
+		ui_fill(ui, rect(pic.x + 14 + (f32)k * 10, pic.y + 12, 4, 4), k ? color_hex(h->muted) : color_hex(h->accent));
+	/* two tiles side by side */
+	Rect tl = rect(pic.x + 8, pic.y + 28, (pic.w - 24) * 0.55f, pic.h - 38);
+	Rect tr = rect(tl.x + tl.w + 8, tl.y, pic.w - 24 - tl.w, tl.h);
+	setup_block(ui, tl, 1, color_with_alpha(color_hex(h->bg), 0xd8));
+	setup_block(ui, tr, 1, color_with_alpha(color_hex(h->bg), 0xd8));
+	setup_block(ui, rect(tl.x - 2, tl.y - 2, tl.w + 4, 2), 0, color_hex(h->accent));
+	for (int k = 0; k < 3; k++) {
+		ui_fill(ui, rect(tl.x + 8, tl.y + 10 + (f32)k * 10, (tl.w - 16) * (k == 1 ? 0.6f : 0.85f), 4), color_with_alpha(color_hex(h->fg), 0x70));
+		ui_fill(ui, rect(tr.x + 8, tr.y + 10 + (f32)k * 10, (tr.w - 16) * (k == 2 ? 0.5f : 0.8f), 4), color_with_alpha(color_hex(h->fg), 0x50));
+	}
+	/* the name, and the colours */
+	Rect foot = rect(r.x + 14, r.y + r.h - 40, r.w - 28, 30);
+	ui_pixel_text(ui, foot.x, foot.y + 8, h->name, 3, selected ? t->text : color_mix(t->text_dim, t->text, hover));
+	const char *cols[] = { h->bg, h->fg, h->accent, h->accent2, h->muted };
+	for (int k = 0; k < 5; k++) {
+		Rect sw = rect(foot.x + foot.w - (f32)(5 - k) * 18, foot.y + 7, 14, 14);
+		setup_block(ui, sw, 1, color_hex(cols[k]));
+	}
 	if (it.clicked && !selected) {
-		conf_set_bool(wl.conf, "dark", dark);
+		char wall[64];
+		fmt(wall, sizeof wall, "bit-%s", h->id);
+		conf_set(wl.conf, "hive_theme", h->id);
+		conf_set(wl.conf, "accent", h->accent);
+		conf_set(wl.conf, "accent_follow", "false");
+		conf_set(wl.conf, "wallpaper", wall);
+		conf_set_bool(wl.conf, "dark", true);
 		save(ui);
 	}
 }
@@ -632,63 +651,68 @@ static void page_look(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
 	setup_title(ui, &r, wl.changed_at, "Make It Yours",
-		    "Light or dark, a colour for buttons and highlights, and a wallpaper. Everything here changes later in Settings, under Appearance.");
-	/* the little desktop on the left, the style and colour beside it */
-	Rect top = cut_top(&r, 196);
-	Rect pv = cut_left(&top, minf(top.w * 0.46f, 340));
-	look_preview(ui, setup_rise(ui, wl.changed_at, 1, rect(pv.x, pv.y + 22, pv.w, minf(pv.w * 10 / 16, top.h - 22))));
-	cut_left(&top, 26);
-	ui_text_in(ui, ui_font(ui, 13, 700), cut_top(&top, 22), "Style", t->text, ALIGN_START);
-	Rect s = cut_top(&top, 92);
-	f32 cw = (s.w - 14) / 2;
-	bool dark = look_dark(wl.conf);
-	style_choice(ui, rect(s.x, s.y, cw, s.h), false, !dark);
-	style_choice(ui, rect(s.x + cw + 14, s.y, cw, s.h), true, dark);
-	cut_top(&top, 14);
-	ui_text_in(ui, ui_font(ui, 13, 700), cut_top(&top, 22), "Accent colour", t->text, ALIGN_START);
-	Rect row = cut_top(&top, 36);
-	const char *cur = conf_get(wl.conf, "accent", THEME_ACCENT_DEFAULT);
-	f32 step = minf(38, row.w / (f32)THEME_ACCENT_COUNT);
-	for (int i = 0; i < THEME_ACCENT_COUNT; i++) {
-		Rect sw = rect(row.x + (f32)i * step, row.y, step, 34);
+		    "Pick a theme: it colours the whole system, this assistant included. Then an accent and a wallpaper, if you like. All of it "
+		    "changes later in Settings.");
+	const HiveTheme *cur = hive_theme_find(conf_get(wl.conf, "hive_theme", NULL));
+	Rect row = setup_rise(ui, wl.changed_at, 1, cut_top(&r, minf(210, r.h - 150)));
+	f32 cw = (row.w - 24) / 2;
+	for (int i = 0; i < HIVE_THEME_COUNT && i < 2; i++)
+		theme_card(ui, rect(row.x + (f32)i * (cw + 24), row.y, cw, row.h), i, cur == &HIVE_THEMES[i]);
+	cut_top(&r, 22);
+	/* the accent: blocks in a row */
+	Rect ar = setup_rise(ui, wl.changed_at, 2, cut_top(&r, 22));
+	ui_pixel_text(ui, ar.x, ar.y + 4, "ACCENT", 2, t->text_dim);
+	Rect sw_row = rect(ar.x + 80, ar.y - 4, ar.w - 80, 30);
+	const char *acc = look_accent(wl.conf);
+	f32 step = minf(38, sw_row.w / (f32)(THEME_ACCENT_COUNT + 1));
+	for (int i = 0; i <= THEME_ACCENT_COUNT; i++) {
+		/* the theme's own accent first, then the rest */
+		const char *name = i ? THEME_ACCENT_NAMES[i - 1] : cur->accent;
+		Color c = i ? THEME_ACCENT_COLORS[i - 1] : color_hex(cur->accent);
+		Rect sw = rect(sw_row.x + (f32)i * step, sw_row.y, step - 8, 26);
 		ui_push_id(ui, i);
 		UiInteract it = ui_interact(ui, ui_id(ui, "accent"), sw);
-		f32 grow = ui_fade(ui, ui_id(ui, "accent-hover"), it.hovered, 0.12f);
 		ui_pop_id(ui);
-		Color c = THEME_ACCENT_COLORS[i];
-		f32 cx = sw.x + step / 2, cy = sw.y + 17, rr = minf(12, step / 2 - 4);
-		ui_circle(ui, cx, cy, rr + grow * 2, c);
-		if (str_eq(cur, THEME_ACCENT_NAMES[i])) {
-			ui_ring(ui, cx, cy, rr + 4, 2, c);
-			ui_icon(ui, rect(cx - 7, cy - 7, 14, 14), "check", COLOR_WHITE);
-		}
-		if (it.clicked) {
-			conf_set(wl.conf, "accent", THEME_ACCENT_NAMES[i]);
+		bool on = str_eq(acc, name);
+		if (it.hovered)
+			sw = rect(sw.x, sw.y - 2, sw.w, sw.h);
+		setup_block(ui, rect(sw.x + 2, sw.y + 2, sw.w, sw.h), 1, color_hex("#00000060"));
+		setup_block(ui, sw, 1, c);
+		ui_fill(ui, rect(sw.x + 2, sw.y, sw.w - 4, 2), color_with_alpha(COLOR_WHITE, 0x50));
+		if (on)
+			setup_block(ui, rect(sw.x + sw.w / 2 - 3, sw.y + sw.h / 2 - 3, 6, 6), 0, COLOR_WHITE);
+		if (it.clicked && !on) {
+			conf_set(wl.conf, "accent", name);
+			conf_set(wl.conf, "accent_follow", "false");
 			save(ui);
 		}
 	}
-	cut_top(&r, 16);
-	ui_text_in(ui, ui_font(ui, 13, 700), cut_top(&r, 22), "Wallpaper", t->text, ALIGN_START);
-	cut_top(&r, 4);
-	int per = 6;
+	cut_top(&r, 20);
+	/* the wallpaper: the themes' pictures first, then the painted ones */
+	Rect wr = setup_rise(ui, wl.changed_at, 3, cut_top(&r, 22));
+	ui_pixel_text(ui, wr.x, wr.y + 4, "WALLPAPER", 2, t->text_dim);
+	cut_top(&r, 6);
+	r = setup_rise(ui, wl.changed_at, 4, r);
+	int total = HIVE_THEME_COUNT + WALLPAPER_COUNT;
+	int per = r.w > 700 ? 8 : 6;
 	f32 gw = (r.w - (f32)(per - 1) * 10) / (f32)per, gh = gw * 9 / 16;
 	int sel = wallpaper_index();
-	for (int i = 0; i < WALLPAPER_COUNT; i++) {
+	for (int i = 0; i < total; i++) {
 		Rect cell = rect(r.x + (f32)(i % per) * (gw + 10), r.y + (f32)(i / per) * (gh + 10), gw, gh);
 		if (cell.y + cell.h > r.y + r.h)
 			break;
 		ui_push_id(ui, i);
 		UiInteract it = ui_interact(ui, ui_id(ui, "wp"), cell);
 		ui_pop_id(ui);
-		ui_image(ui, cell, wallpaper_thumb(ui, i, gw, gh), 8, true);
+		ui_image(ui, cell, wallpaper_thumb(ui, i, gw, gh), 0, true);
 		if (i == sel)
-			ui_border(ui, rect_inset(cell, -3, -3), 10, 2.5f, t->accent);
+			setup_card(ui, rect_inset(cell, -2, -2), true, 0);
 		else if (it.hovered)
-			ui_border(ui, rect_inset(cell, -2, -2), 9, 1.5f, t->border_strong);
+			setup_card(ui, rect_inset(cell, -2, -2), false, 1);
 		if (it.hovered)
-			ui_tooltip(ui, WALLPAPER_TITLES[i]);
+			ui_tooltip(ui, wallpaper_title(i));
 		if (it.clicked && i != sel) {
-			conf_set(wl.conf, "wallpaper", WALLPAPER_NAMES[i]);
+			conf_set(wl.conf, "wallpaper", wallpaper_name(i));
 			save(ui);
 		}
 	}
@@ -718,8 +742,8 @@ static void summary_row(Ui *ui, Rect *r, const char *icon, const char *what, con
 	Rect row = cut_top(r, 40);
 	ui_icon(ui, rect(row.x, row.y + 11, 18, 18), icon, t->accent);
 	ui_text_in(ui, ui_font(ui, 14, 500), rect(row.x + 30, row.y, 130, row.h), what, t->text_dim, ALIGN_START);
-	ui_text_in(ui, ui_font(ui, 14, 600), rect(row.x + 160, row.y, row.w - 160, row.h), value, t->text, ALIGN_START);
-	ui_separator(ui, row.x, row.y + row.h, row.x + row.w);
+	ui_text_in(ui, ui_font(ui, 14, 700), rect(row.x + 160, row.y, row.w - 160, row.h), value, t->text, ALIGN_START);
+	setup_rule(ui, row.x, row.y + row.h - 1, row.x + row.w);
 }
 
 static void page_done(Ui *ui, Rect r)
@@ -734,7 +758,12 @@ static void page_done(Ui *ui, Rect r)
 		cut_left(&r, 28);
 	sum = setup_rise(ui, wl.changed_at, 1, sum);
 	char look[96];
-	fmt(look, sizeof look, "%s · %s", look_dark(wl.conf) ? "Dark" : "Light", WALLPAPER_TITLES[wallpaper_index()]);
+	const HiveTheme *ht = hive_theme_find(conf_get(wl.conf, "hive_theme", NULL));
+	int wi = wallpaper_index();
+	if (wi < HIVE_THEME_COUNT && &HIVE_THEMES[wi] == ht)
+		fmt(look, sizeof look, "%s, with its picture", ht->name);
+	else
+		fmt(look, sizeof look, "%s · %s", ht->name, wallpaper_title(wi));
 	char who[160];
 	fmt(who, sizeof who, "%s%s", wl.name.len ? sb_str(&wl.name) : "Zurbax User",
 	    (!wl.skip_password && wl.pw.len) ? ", with a password" : ", no password");
@@ -744,18 +773,20 @@ static void page_done(Ui *ui, Rect r)
 	summary_row(ui, &sum, "user", "Account", who);
 	summary_row(ui, &sum, "palette", "Look", look);
 	if (wide) {
-		static const char *const icons[] = { "view-grid", "bag", "gamepad" };
-		static const char *const heads[] = { "Start", "Harbor", "Steam" };
-		static const char *const texts[] = { "Every app, at the left of the taskbar.", "Thousands more apps, one click each.",
-						     "Your games, with Proton for Windows ones." };
+		/* Hive's keys to start with, as keycaps */
+		static const char *const keys[] = { "SUPER+SPACE", "SUPER+ENTER", "SUPER+1-9" };
+		static const char *const texts[] = { "Every app, by name", "A terminal, tiled in", "Your nine workspaces" };
 		for (int i = 0; i < 3; i++) {
-			Rect tip = setup_rise(ui, wl.changed_at, 2 + i, cut_top(&r, 62));
+			Rect tip = setup_rise(ui, wl.changed_at, 2 + i, cut_top(&r, 58));
 			cut_top(&r, 10);
-			ui_round(ui, tip, 12, t->card);
-			ui_border(ui, tip, 12, 1, t->border);
-			ui_icon(ui, rect(tip.x + 16, tip.y + 21, 20, 20), icons[i], t->accent);
-			ui_text_in(ui, ui_font(ui, 14, 700), rect(tip.x + 50, tip.y + 10, tip.w - 60, 22), heads[i], t->text, ALIGN_START);
-			ui_text_in(ui, ui_font(ui, 12, 400), rect(tip.x + 50, tip.y + 32, tip.w - 60, 18), texts[i], t->text_dim, ALIGN_START);
+			setup_card(ui, tip, false, 0);
+			f32 kw = ui_pixel_text_width(keys[i], 2) + 20;
+			Rect cap = rect(tip.x + 14, tip.y + 14, kw, 30);
+			setup_block(ui, rect(cap.x, cap.y + 4, cap.w, cap.h), 1, color_hex("#00000080"));
+			setup_block(ui, cap, 1, color_mix(t->window, COLOR_WHITE, 0.08f));
+			ui_fill(ui, rect(cap.x + 2, cap.y, cap.w - 4, 2), color_with_alpha(COLOR_WHITE, 0x30));
+			ui_pixel_text(ui, cap.x + 10, cap.y + 8, keys[i], 2, t->accent);
+			ui_text_in(ui, ui_font(ui, 13, 600), rect(cap.x + cap.w + 14, tip.y, tip.w - cap.w - 40, tip.h), texts[i], t->text, ALIGN_START);
 		}
 	}
 }
@@ -791,11 +822,11 @@ static void frame(Ui *ui)
 		steps[n++] = STEP_NAMES[p];
 	}
 	SetupSteps s = { .title = wl.live ? "Try or install" : "Setup", .steps = steps, .count = n, .current = cur,
-			 .changed_at = wl.changed_at, .dir = wl.dir, .wallpaper = look_wallpaper(wl.conf) };
+			 .changed_at = wl.changed_at, .dir = wl.dir, .theme = conf_get(wl.conf, "hive_theme", NULL) };
 	Rect page = setup_frame(ui, &s);
 	Rect bottom = cut_bottom(&page, 40);
 	cut_bottom(&page, 18);
-	ui_push_clip(ui, rect(ui->width - page.w - 120, 0, page.w + 120, ui->height));
+	ui_push_clip(ui, setup_pane());
 	switch (wl.page) {
 	case P_WELCOME:
 		page_welcome(ui, page);
@@ -821,24 +852,24 @@ static void frame(Ui *ui)
 	}
 	ui_pop_clip(ui);
 	/* the buttons along the bottom */
-	ui_separator(ui, bottom.x, bottom.y - 10, bottom.x + bottom.w);
+	setup_rule(ui, bottom.x, bottom.y - 12, bottom.x + bottom.w);
 	if (wl.page == P_WELCOME) {
 		if (!wl.live) {
-			if (ui_button_suggested(ui, cut_right(&bottom, 150), "Get Started") || ui_key_pressed(ui, KEY_ENTER, 0))
+			if (setup_button(ui, cut_right(&bottom, 170), "Let's Go!", SETUP_BUTTON_GO) || ui_key_pressed(ui, KEY_ENTER, 0))
 				go(ui, P_KEYBOARD);
 		}
-		if (wl.setup && ui_button_flat(ui, cut_left(&bottom, 130), "Skip Setup")) {
+		if (wl.setup && setup_button(ui, cut_left(&bottom, 130), "Skip Setup", SETUP_BUTTON_FLAT)) {
 			wl.skip_password = true;
 			finish(ui);
 		}
 	} else if (wl.page < P_DONE) {
-		if (ui_button(ui, cut_left(&bottom, 100), "Back"))
+		if (setup_button(ui, cut_left(&bottom, 100), "Back", SETUP_BUTTON))
 			go(ui, wl.page - 1);
 		bool can = wl.page != P_ACCOUNT || account_ready();
-		if (ui_button_suggested(ui, cut_right(&bottom, 120), "Next") && can)
+		if (setup_button(ui, cut_right(&bottom, 130), "Next", SETUP_BUTTON_GO) && can)
 			go(ui, wl.page + 1);
-		cut_right(&bottom, 8);
-		if (ui_button_flat(ui, cut_right(&bottom, 90), "Skip")) {
+		cut_right(&bottom, 10);
+		if (setup_button(ui, cut_right(&bottom, 90), "Skip", SETUP_BUTTON_FLAT)) {
 			if (wl.page == P_ACCOUNT) {
 				sb_clear(&wl.pw);
 				sb_clear(&wl.pw2);
@@ -849,9 +880,9 @@ static void frame(Ui *ui)
 		if (ui_key_pressed(ui, KEY_ENTER, 0) && can && !ui_is_focused(ui, "test") && !ui_is_focused(ui, "wifi-pass"))
 			go(ui, wl.page + 1);
 	} else {
-		if (ui_button(ui, cut_left(&bottom, 100), "Back"))
+		if (setup_button(ui, cut_left(&bottom, 100), "Back", SETUP_BUTTON))
 			go(ui, wl.page - 1);
-		if (ui_button_suggested(ui, cut_right(&bottom, 210), wl.finishing ? "Starting…" : "Start Using " OS_NAME) ||
+		if (setup_button(ui, cut_right(&bottom, 220), wl.finishing ? "Starting…" : "Start Using " OS_NAME, SETUP_BUTTON_GO) ||
 		    ui_key_pressed(ui, KEY_ENTER, 0))
 			finish(ui);
 	}

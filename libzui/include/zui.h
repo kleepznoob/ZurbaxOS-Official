@@ -417,17 +417,31 @@ typedef struct {
 	int current;                    /* count when every step is done */
 	f64 changed_at;                 /* when the page changed, for its entrance */
 	int dir;                        /* 1 forward, -1 back */
-	const char *wallpaper;          /* behind the steps; NULL for the default */
+	const char *theme;              /* the Hive theme it wears; NULL for the default */
 } SetupSteps;
 
-/* Draws the window: the steps on the left, and returns the page's area. */
+/* Draws the window: the theme's picture, the steps on the left, a pane of
+ * glass on the right; returns the page's area on the pane. */
 Rect setup_frame(Ui *ui, const SetupSteps *s);
+Rect setup_pane(void);                  /* inside the pane's edge: the clip for the page */
 f32 setup_title(Ui *ui, Rect *r, f64 changed_at, const char *title, const char *about);
 Rect setup_rise(Ui *ui, f64 changed_at, int index, Rect r);
 bool setup_choice(Ui *ui, Rect r, const char *id, const char *icon, const char *title, const char *text, bool selected, bool enabled,
 		  Color tint);
 void setup_tick(Ui *ui, Rect r, f64 since, bool ok);
 f32 setup_ease(f32 t);
+/* The pieces, in blocks: a shape with k pixel steps at each corner, a card
+ * (with a sight around it when it's chosen), a dotted rule, a button, a bar
+ * of n blocks (a light running along it with shine) and the name built
+ * block by block from start, cell logical pixels a block. */
+enum { SETUP_BUTTON, SETUP_BUTTON_GO, SETUP_BUTTON_DANGER, SETUP_BUTTON_FLAT };
+void setup_block(Ui *ui, Rect r, int k, Color c);
+void setup_card(Ui *ui, Rect r, bool selected, f32 hover);
+void setup_rule(Ui *ui, f32 x0, f32 y, f32 x1);
+bool setup_button(Ui *ui, Rect r, const char *label, int kind);
+void setup_segments(Ui *ui, Rect r, f32 fraction, int n, bool shine);
+f32 setup_wordmark(Ui *ui, f32 x, f32 y, f32 cell, f64 start);
+f32 setup_wordmark_width(f32 cell);
 
 /* ---- App runtime -------------------------------------------------------------------- */
 
