@@ -179,7 +179,7 @@ typedef struct {
 	int front;                /* buffer on screen */
 	bool mode_set;
 	bool can_flip;            /* false: draw straight into the front buffer */
-	Rect prev_damage[16];     /* what changed in the previous frame */
+	Rect prev_damage[DAMAGE_MAX]; /* what changed in the previous frame */
 	int nprev;
 	bool prev_full;
 	DumbBuf cursor;
@@ -265,11 +265,11 @@ static bool set_crtc(Drm *d, DumbBuf *b)
 
 static void dirty_fb(Drm *d, DumbBuf *b, const Rect *damage, int n)
 {
-	struct drm_clip_rect clips[16];
-	for (int i = 0; i < n && i < 16; i++)
+	struct drm_clip_rect clips[DAMAGE_MAX];
+	for (int i = 0; i < n && i < DAMAGE_MAX; i++)
 		clips[i] = (struct drm_clip_rect){ (u16)damage[i].x, (u16)damage[i].y, (u16)(damage[i].x + damage[i].w),
 						   (u16)(damage[i].y + damage[i].h) };
-	struct drm_mode_fb_dirty_cmd cmd = { .fb_id = b->fb, .num_clips = (u32)MIN(n, 16),
+	struct drm_mode_fb_dirty_cmd cmd = { .fb_id = b->fb, .num_clips = (u32)MIN(n, DAMAGE_MAX),
 					     .clips_ptr = (u64)(usize)clips };
 	drm_ioctl(d->fd, DRM_IOCTL_MODE_DIRTYFB, &cmd);
 }
@@ -311,9 +311,9 @@ static bool drm_present(Output *o, const Canvas *frame, const Rect *damage, int 
 		for (int i = 0; i < n; i++)
 			copy_rect(b, frame, damage[i]);
 	}
-	d->nprev = MIN(n, 16);
+	d->nprev = MIN(n, DAMAGE_MAX);
 	memcpy(d->prev_damage, damage, sizeof(Rect) * (usize)d->nprev);
-	d->prev_full = n > 16;
+	d->prev_full = n > DAMAGE_MAX;
 	if (!d->mode_set) {
 		d->mode_set = set_crtc(d, b);
 		if (!d->mode_set) {

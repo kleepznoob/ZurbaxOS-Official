@@ -313,6 +313,10 @@ void ui_sidebar_heading(Ui *ui, Rect r, const char *label);
  * over the blurred wallpaper, which the display lays beneath; solid when
  * transparency effects are off. A sidebar is the usual piece of it. */
 void ui_glass(Ui *ui, Rect r, Color tint);
+/* Text in the 5x7 pixel font (pixfont.c): each pixel a square of cell
+ * logical pixels, (x, y) the top left; returns the width drawn. */
+f32 ui_pixel_text(Ui *ui, f32 x, f32 y, const char *s, f32 cell, Color c);
+f32 ui_pixel_text_width(const char *s, f32 cell);
 void ui_sidebar_background(Ui *ui, Rect r);
 
 /* Text entry. Returns a mask of ENTRY_* events. */

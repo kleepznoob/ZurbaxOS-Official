@@ -69,6 +69,13 @@ static void on_output_fd(Loop *loop, int fd, u32 events, void *data)
 		S.out->on_fd(S.out);
 }
 
+static void on_anim_timer(Loop *loop, void *data)
+{
+	UNUSED(loop), UNUSED(data);
+	S.now = now_s();
+	wallanim_tick();
+}
+
 static void on_status_timer(Loop *loop, void *data)
 {
 	UNUSED(loop), UNUSED(data);
@@ -150,6 +157,7 @@ int main(int argc, char **argv)
 		loop_add_fd(S.loop, S.out->fd, EPOLLIN, on_output_fd, NULL);
 	system_status_poll();
 	loop_timer(S.loop, 2000, 2000, on_status_timer, NULL);
+	loop_timer(S.loop, 125, 125, on_anim_timer, NULL);
 	shell_services_tick();
 	splash_thread_stop();
 	damage_all();

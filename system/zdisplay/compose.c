@@ -110,8 +110,50 @@ void wallpaper_reload(void)
 
 /* ---- Cursors -------------------------------------------------------------------------- */
 
+/* The pixel style's pointers: drawn in square pixels, white-edged ink with
+ * a pixel of shadow. */
+static const char *const PX_ARROW[] = { "W..........", "WW.........", "WKW........", "WKKW.......", "WKKKW......", "WKKKKW.....",
+					"WKKKKKW....", "WKKKKKKW...", "WKKKKKKKW..", "WKKKKKKKKW.", "WKKKKKWWWWW", "WKKWKKW....",
+					"WKW.WKKW...", "WW..WKKW...", "W....WKKW..", ".....WKKW..", "......WW..." };
+static const char *const PX_HAND[] = { "....WW......", "...WKKW.....", "...WKKW.....", "...WKKW.....", "...WKKWWW...",
+				       "...WKKWKKWW.", ".WWWKKWKKWKW", "WKKWKKKKKKKW", "WKKKKKKKKKKW", ".WKKKKKKKKKW",
+				       ".WKKKKKKKKKW", "..WKKKKKKKW.", "..WKKKKKKKW.", "...WKKKKKW..", "...WWWWWWW.." };
+static const char *const PX_BEAM[] = { "WWW.WWW", "WKKWKKW", "WWWKWWW", "..WKW..", "..WKW..", "..WKW..", "..WKW..", "..WKW..",
+				       "..WKW..", "..WKW..", "..WKW..", "WWWKWWW", "WKKWKKW", "WWW.WWW" };
+
+static Canvas *pixel_cursor(const char *const *rows, int n, f32 s, int hot_x, int hot_y, int *hx, int *hy)
+{
+	int cell = MAX(2, (int)roundf(2 * s)), w = (int)strlen(rows[0]);
+	int size = MAX(w, n) * cell + cell;
+	Canvas *c = canvas_new(size, size);
+	for (int pass = 0; pass < 2; pass++)
+		for (int y = 0; y < n; y++)
+			for (int x = 0; x < w; x++) {
+				char ch = rows[y][x];
+				if (ch == '.')
+					continue;
+				u32 col = pass == 0 ? 0x50000000u : ch == 'W' ? 0xffffffffu : 0xff1b1d22u;
+				int ox = (x + (pass == 0)) * cell, oy = (y + (pass == 0)) * cell;
+				for (int yy = oy; yy < oy + cell && yy < size; yy++)
+					for (int xx = ox; xx < ox + cell && xx < size; xx++) {
+						u32 *p = canvas_row(c, yy) + xx;
+						*p = pass == 0 ? (*p ? *p : col) : col;
+					}
+			}
+	*hx = hot_x * cell + cell / 2, *hy = hot_y * cell;
+	return c;
+}
+
 static Canvas *make_cursor(u32 shape, f32 s, int *hx, int *hy)
 {
+	if (S.set.pixel_style) {
+		if (shape == CURSOR_DEFAULT)
+			return pixel_cursor(PX_ARROW, (int)ARRAY_LEN(PX_ARROW), s, 0, 0, hx, hy);
+		if (shape == CURSOR_POINTER)
+			return pixel_cursor(PX_HAND, (int)ARRAY_LEN(PX_HAND), s, 4, 0, hx, hy);
+		if (shape == CURSOR_TEXT)
+			return pixel_cursor(PX_BEAM, (int)ARRAY_LEN(PX_BEAM), s, 3, 7, hx, hy);
+	}
 	int size = (int)ceilf(32 * s);
 	Canvas *c = canvas_new(size, size);
 	Path p = { 0 };
@@ -275,11 +317,21 @@ void compose_init(void)
 	f32 s = S.scale;
 	shadow_build(&shadow_focused, 10 * s, 18 * s, 8 * s, 0.42f);
 	shadow_build(&shadow_normal, 10 * s, 10 * s, 3 * s, 0.26f);
-	for (u32 i = 0; i < 16; i++)
-		S.cursor_img[i] = make_cursor(i, s, &cursor_hot[i][0], &cursor_hot[i][1]);
+	compose_reload_cursors();
+}
+
+/* The pointers again, when the pixel style comes or goes. */
+void compose_reload_cursors(void)
+{
+	for (u32 i = 0; i < 16; i++) {
+		if (S.cursor_img[i])
+			canvas_free(S.cursor_img[i]);
+		S.cursor_img[i] = make_cursor(i, S.scale, &cursor_hot[i][0], &cursor_hot[i][1]);
+	}
 	S.hw_cursor = S.out->cursor_set && S.out->cursor_set(S.out, S.cursor_img[0], cursor_hot[0][0], cursor_hot[0][1]);
 	if (S.hw_cursor)
 		cursor_drawn_shape = 0;
+	damage_all();
 }
 
 /* Splash frames shown while the wallpaper and the shell load, before the
@@ -434,7 +486,7 @@ void compose_frame(void)
 	shell_prepare();
 	if (try_scanout())
 		return;
-	Rect rects[16];
+	Rect rects[DAMAGE_MAX];
 	int n;
 	if (S.full_damage) {
 		rects[0] = full;
@@ -457,6 +509,8 @@ void compose_frame(void)
 			continue;
 		}
 		copy_pixels(frame, bg, (int)d.x, (int)d.y, (int)d.x, (int)d.y, (int)d.w, (int)d.h);
+		if (bg == S.wallpaper)
+			wallanim_draw(frame);
 		if (!S.locked || S.lock_k < 1) {
 			/* in Hive the tiles first, then what floats above them */
 			bool hive = hive_on();

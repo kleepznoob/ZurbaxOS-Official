@@ -512,7 +512,7 @@ static void page_appearance(Ui *ui, Rect r)
 	cut_top(&b, 10);
 
 	section(ui, &b, "Accessibility");
-	Rect rows2 = card_rows(ui, &b, 3, 60);
+	Rect rows2 = card_rows(ui, &b, 4, 60);
 	Rect tr = cut_top(&rows2, 60);
 	ui_separator(ui, tr.x, tr.y + tr.h, tr.x + tr.w);
 	row_label(ui, tr, "Text size", "Makes text larger everywhere");
@@ -521,6 +521,7 @@ static void page_appearance(Ui *ui, Rect r)
 	if (ui_slider(ui, sl, &ts, 0.85f, 1.4f))
 		set_float(ui, "text_scale", roundf(ts * 20) / 20);
 	switch_row(ui, &rows2, 60, false, "Transparency effects", "Glass in the bar, panels and sidebars", "glass", true);
+	switch_row(ui, &rows2, 60, false, "Pixel style", "Windows come and go in pixels, the pixel wallpapers move, pixel pointers", "pixel_style", true);
 	switch_row(ui, &rows2, 60, true, "Reduce motion", "Fewer and shorter animations", "reduce_motion", false);
 
 	ui_scroll_end(ui, b.y - top + 60);

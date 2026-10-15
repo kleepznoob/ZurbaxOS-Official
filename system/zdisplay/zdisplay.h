@@ -21,6 +21,8 @@
 
 /* ---- Output backends ---------------------------------------------------------- */
 
+#define DAMAGE_MAX 64 /* changed rectangles a frame keeps apart; more and the whole screen is drawn */
+
 typedef struct Output Output;
 struct Output {
 	const char *name;
@@ -216,7 +218,7 @@ typedef struct {
 	int nclients;
 
 	/* damage, physical pixels */
-	Rect damage[16];
+	Rect damage[DAMAGE_MAX];
 	int ndamage;
 	bool full_damage;
 
@@ -371,6 +373,9 @@ void hive_zoom(Window *w, bool on);    /* over the other windows, or back */
 void hive_window_minimized(Window *w, bool on); /* to the bar's tray, or back */
 Rect hive_tray_rect(const Window *w);  /* where a minimized window waits in the bar */
 bool pixel_motion(void);               /* the pixel style's animations are on */
+void compose_reload_cursors(void);
+void wallanim_tick(void);              /* eight times a second: what moves on the wallpaper */
+void wallanim_draw(Canvas *frame);     /* over the wallpaper, within frame's clip */
 void hive_frame(Ui *ui);
 void hive_settings_changed(bool was_on);
 int hive_theme_count(void);

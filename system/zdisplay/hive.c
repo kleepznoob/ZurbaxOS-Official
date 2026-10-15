@@ -914,13 +914,17 @@ static void toast(Ui *ui, const HiveTheme *t)
 	f32 a = clampf(minf(age / 0.15f, (TOAST_SECONDS - age) / 0.4f), 0, 1);
 	Font f = ui_font(ui, 15, 700);
 	const char *dots[] = { t->accent, t->accent2, t->fg, t->muted, t->inactive };
-	f32 w = 22 + 5 * 14 + 10 + ui_text_width(ui, f, toast_text) + 24;
+	bool px = S.set.pixel_style;
+	f32 w = 22 + 5 * 14 + 10 + (px ? ui_pixel_text_width(toast_text, 2) : ui_text_width(ui, f, toast_text)) + 24;
 	Rect r = rect(roundf((S.sw - w) / 2), roundf(S.sh - 120), w, 48);
 	glass(ui, r, 24, t, a);
 	for (int i = 0; i < 5; i++)
 		ui_circle(ui, r.x + 28 + (f32)i * 14, r.y + 24, 5, color_scale_alpha(color_hex(dots[i]), a));
-	ui_text(ui, f, r.x + 22 + 5 * 14 + 10, r.y + roundf((48 + font_cap_height(f)) / 2), toast_text,
-		color_scale_alpha(color_hex(t->fg), a));
+	if (px)
+		ui_pixel_text(ui, r.x + 22 + 5 * 14 + 10, r.y + 17, toast_text, 2, color_scale_alpha(color_hex(t->fg), a));
+	else
+		ui_text(ui, f, r.x + 22 + 5 * 14 + 10, r.y + roundf((48 + font_cap_height(f)) / 2), toast_text,
+			color_scale_alpha(color_hex(t->fg), a));
 }
 
 /* ---- The bar: three islands ------------------------------------------------------------------ */
@@ -992,7 +996,11 @@ static void bar(Ui *ui, const HiveTheme *t)
 			ui_round(ui, rect_inset(cell, 2, 1), (h - 12) / 2, hover);
 		char num[4];
 		fmt(num, sizeof num, "%d", i);
-		ui_text_in(ui, f, cell, num, under ? bg : occupied(i) ? fg : color_with_alpha(muted, 0xa0), ALIGN_CENTER);
+		Color nc = under ? bg : occupied(i) ? fg : color_with_alpha(muted, 0xa0);
+		if (S.set.pixel_style) /* the numbers in pixels */
+			ui_pixel_text(ui, roundf(cell.x + (cell.w - ui_pixel_text_width(num, 2)) / 2), roundf(y + (h - 14) / 2), num, 2, nc);
+		else
+			ui_text_in(ui, f, cell, num, nc, ALIGN_CENTER);
 		if (it.clicked)
 			go_to(i);
 	}
@@ -1034,12 +1042,16 @@ static void bar(Ui *ui, const HiveTheme *t)
 	fmt(tm, sizeof tm, S.set.clock_24h ? "%02d:%02d" : "%d:%02d", hour, c.min);
 	fmt(date, sizeof date, "%s%.3s %d %.3s", S.set.clock_24h ? "" : c.hour < 12 ? "am  " : "pm  ", WEEKDAY_NAMES[c.wday], c.day,
 	    MONTH_NAMES[c.month - 1]);
-	f32 tw = ui_text_width(ui, bold, tm), dw = ui_text_width(ui, small, date);
+	bool px = S.set.pixel_style; /* the time in pixels */
+	f32 tw = px ? ui_pixel_text_width(tm, 2) : ui_text_width(ui, bold, tm), dw = ui_text_width(ui, small, date);
 	Rect C = rect(roundf((S.sw - (tw + dw + 50)) / 2), y, tw + dw + 50, h);
 	glass(ui, C, h / 2, t, 1);
 	if (ui_interact(ui, ui_id(ui, "hive-clock"), C).clicked)
 		S.notifications_open = !S.notifications_open;
-	ui_text(ui, bold, C.x + 18, base, tm, fg);
+	if (px)
+		ui_pixel_text(ui, C.x + 18, roundf(y + (h - 14) / 2), tm, 2, fg);
+	else
+		ui_text(ui, bold, C.x + 18, base, tm, fg);
 	ui_circle(ui, C.x + 18 + tw + 7, y + h / 2, 2, accent);
 	ui_text(ui, small, C.x + 18 + tw + 14, base, date, muted);
 
