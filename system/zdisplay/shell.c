@@ -625,6 +625,8 @@ void shell_osd(const char *icon, f32 value)
 
 f32 shell_panel_height(void)
 {
+	if (hive_on())
+		return hive_bar_height();
 	return S.set.topbar && !S.setup_mode ? PANEL_HEIGHT : 0;
 }
 
@@ -645,6 +647,8 @@ static f32 taskbar_gap(void)
 
 f32 shell_taskbar_reserved(void)
 {
+	if (hive_on())
+		return 0;
 	return S.set.dock_autohide || S.setup_mode ? 0 : shell_taskbar_height() + taskbar_gap();
 }
 
@@ -769,6 +773,8 @@ Rect shell_dock_slot(int n, int i)
 /* Is (x, y) on the taskbar? */
 static bool dock_hit(f32 x, f32 y)
 {
+	if (hive_on())
+		return false;
 	f32 gap = taskbar_gap();
 	return y >= S.sh - shell_taskbar_height() - gap && y < S.sh - gap && x >= gap && x < S.sw - gap;
 }
@@ -806,7 +812,16 @@ static void shell_frame(Ui *ui)
 {
 	if (S.locked || S.lock_k > 0)
 		lockscreen_draw(ui);
-	if (!S.locked && !S.setup_mode) {
+	if (!S.locked && !S.setup_mode && hive_on()) {
+		/* Hive: its bar, launcher and panels instead of the top bar, Start
+		 * and the taskbar */
+		hive_frame(ui);
+		clip_history_draw(ui);
+		notifications_draw(ui);
+		controlcenter_draw(ui);
+		if (S.switcher_open)
+			switcher_draw(ui);
+	} else if (!S.locked && !S.setup_mode) {
 		/* Start covers the whole screen and the top bar; the taskbar stays */
 		/* under a settled Start screen the top bar mustn't catch clicks */
 		if (!S.launcher_open || S.launcher_k < 0.98f)
@@ -961,6 +976,8 @@ static bool shell_wants_pointer(void)
 		return true;
 	if (S.setup_mode)
 		return false;
+	if (hive_wants_pointer())
+		return true;
 	if (S.locked || S.launcher_open || S.notifications_open || S.session_menu_open || S.switcher_open || S.dock_menu[0])
 		return true;
 	if (desktop_wants_pointer() || clip_history_open())
@@ -1052,12 +1069,14 @@ bool shell_key(u32 code, u32 state, u32 mods, const char *text)
 	bool pressed = state != KEY_RELEASED;
 	if (S.setup_mode)
 		return false; /* everything goes to the setup assistant */
+	if (hive_key(code, state, mods, text))
+		return true;
 	/* Global shortcuts. Tapping Super alone opens Applications, like elementary. */
 	static bool super_alone;
 	if (state == KEY_RELEASED && (code == KEY_LEFTMETA || code == KEY_RIGHTMETA)) {
 		bool tap = super_alone;
 		super_alone = false;
-		if (tap) {
+		if (tap && !hive_on()) {
 			S.launcher_open = !S.launcher_open;
 			if (S.launcher_open)
 				shell_reload_apps();

@@ -6,6 +6,8 @@
 
 static f32 window_radius(Ui *ui)
 {
+	if (ui->win_states & STATE_TILED) /* Hive's windows stay rounded, zoomed too */
+		return WINDOW_RADIUS;
 	return (ui->win_states & (STATE_MAXIMIZED | STATE_FULLSCREEN | STATE_TILED_LEFT | STATE_TILED_RIGHT)) ? 0 : WINDOW_RADIUS;
 }
 

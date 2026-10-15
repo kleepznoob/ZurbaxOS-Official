@@ -610,7 +610,7 @@ int ui_run(const UiAppDesc *desc)
 	c->scale = c->welcome.scale > 0 ? c->welcome.scale : 1;
 
 	MsgWinCreate wc = { .flags = desc->flags, .width = (u32)desc->width, .height = (u32)desc->height,
-			    .min_width = (u32)desc->min_width, .min_height = (u32)desc->min_height, .corner_radius = 10 };
+			    .min_width = (u32)desc->min_width, .min_height = (u32)desc->min_height, .corner_radius = 12 };
 	str_copy(wc.title, c->ui->title, sizeof wc.title);
 	c->win = 1;
 	send_msg(c, &wc, MSG_WIN_CREATE, sizeof wc, NULL, 0);

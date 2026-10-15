@@ -374,6 +374,17 @@ extern const char *const WALLPAPER_TITLES[];
 extern const int WALLPAPER_COUNT;
 Canvas *wallpaper_render(const char *name, int w, int h);
 
+/* Hive's themes (bitart.c): the colours of each, and its pixel-art
+ * wallpaper, the built-in wallpaper "bit-" followed by its id. */
+typedef struct {
+	const char *id, *name;
+	const char *bg, *fg, *accent, *accent2, *inactive, *muted;
+} HiveTheme;
+extern const HiveTheme HIVE_THEMES[];
+extern const int HIVE_THEME_COUNT;
+const HiveTheme *hive_theme_find(const char *id); /* the first if there's none of that id */
+Canvas *bitart_render(const char *id, int w, int h);
+
 /* ---- Setup assistants (setup.c): Welcome and the Installer share this look ---- */
 
 typedef struct {

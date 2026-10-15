@@ -307,7 +307,10 @@ static void draw_window(Canvas *frame, Window *w)
 	Rect pr = { v.x * S.scale, v.y * S.scale, v.w * S.scale, v.h * S.scale };
 	pr.x = roundf(pr.x), pr.y = roundf(pr.y);
 	if (!rect_empty(rect_intersect(pr, frame->clip)) || !(w->flags & WIN_NO_SHADOW)) {
-		if (!(w->flags & (WIN_NO_SHADOW | WIN_POPUP)) && !(w->states & STATE_FULLSCREEN)) {
+		if (hive_tiled(w)) {
+			/* tiles lie close together: a light shadow each */
+			shadow_draw(frame, &shadow_normal, pr, opacity);
+		} else if (!(w->flags & (WIN_NO_SHADOW | WIN_POPUP)) && !(w->states & STATE_FULLSCREEN)) {
 			bool focused = w == S.focus;
 			const Shadow *sh = focused ? &shadow_focused : &shadow_normal;
 			shadow_draw(frame, sh, pr, opacity);
@@ -321,6 +324,7 @@ static void draw_window(Canvas *frame, Window *w)
 		img = w->last_frame;
 	} else if (w->wl) {
 		wl_window_draw(frame, w, pr, opacity);
+		hive_draw_border(frame, w, pr, opacity);
 		return;
 	} else {
 		if (w->front < 0 || !w->map)
@@ -333,6 +337,7 @@ static void draw_window(Canvas *frame, Window *w)
 		blit(frame, img, (int)pr.x, (int)pr.y, opacity);
 	else
 		blit_scaled(frame, img, rect(0, 0, (f32)img->width, (f32)img->height), pr, opacity);
+	hive_draw_border(frame, w, pr, opacity);
 }
 
 /* A window's picture scaled into pr (physical pixels) on any canvas: the
@@ -411,9 +416,14 @@ void compose_frame(void)
 		}
 		copy_pixels(frame, bg, (int)d.x, (int)d.y, (int)d.x, (int)d.y, (int)d.w, (int)d.h);
 		if (!S.locked || S.lock_k < 1) {
+			/* in Hive the tiles first, then what floats above them */
+			bool hive = hive_on();
+			for (int pass = 0; pass < (hive ? 2 : 1); pass++)
 			for (int k = 0; k < S.nwin; k++) {
 				Window *w = S.windows[k];
-				if (w->minimized && w->minimize_k >= 1)
+				if (hive && (pass == 0) != hive_tiled(w))
+					continue;
+				if ((w->minimized && w->minimize_k >= 1) || hive_window_hidden(w))
 					continue;
 				Rect v = window_visual_rect(w);
 				Rect pr = { v.x * S.scale - 60, v.y * S.scale - 60, v.w * S.scale + 120, v.h * S.scale + 120 };

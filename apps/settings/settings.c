@@ -41,6 +41,7 @@ typedef struct {
 	char conf_path[512];
 	/* appearance */
 	Canvas *thumbs[16];
+	Canvas *hive_thumbs[16];
 	Canvas *custom_thumb;
 	char custom_path[512];
 	/* users */
@@ -173,6 +174,81 @@ static Canvas *thumb_for(int i)
 	return st.thumbs[i];
 }
 
+static Canvas *hive_thumb(int i)
+{
+	if (!st.hive_thumbs[i]) {
+		char name[64];
+		fmt(name, sizeof name, "bit-%s", HIVE_THEMES[i].id);
+		st.hive_thumbs[i] = wallpaper_render(name, 192, 120);
+	}
+	return st.hive_thumbs[i];
+}
+
+/* A Hive theme for everything: its colours, its pixel-art wallpaper, dark. */
+static void apply_hive_theme(Ui *ui, const HiveTheme *h)
+{
+	char wall[64];
+	fmt(wall, sizeof wall, "bit-%s", h->id);
+	conf_set(st.conf, "hive_theme", h->id);
+	conf_set(st.conf, "accent", h->accent);
+	conf_set(st.conf, "accent_follow", "false");
+	conf_set(st.conf, "wallpaper", wall);
+	set_bool(ui, "dark", true);
+}
+
+/* A small picture of a desktop: Classic, windows over each other and a
+ * taskbar, or Hive, tiles side by side under a bar of floating glass. */
+static void desktop_card(Ui *ui, Rect r, bool hive, bool selected)
+{
+	Theme *t = &ui->theme;
+	UiInteract it = ui_interact(ui, ui_id(ui, hive ? "desk-hive" : "desk-classic"), r);
+	Rect pic = cut_top(&r, r.h - 44);
+	const HiveTheme *h = hive_theme_find(get("hive_theme", "tokyo-night"));
+	int wi = 0;
+	for (int k = 0; k < WALLPAPER_COUNT; k++)
+		if (str_eq(WALLPAPER_NAMES[k], get("wallpaper", WALLPAPER_DEFAULT)))
+			wi = k;
+	ui_shadow(ui, pic, 10, 10, 3, color_hex("#00000035"));
+	ui_image(ui, pic, hive ? hive_thumb((int)(h - HIVE_THEMES)) : thumb_for(wi), 10, true);
+	if (hive) {
+		Color glass = color_hex("#ffffff2a"), win = color_hex("#1d1e24f0");
+		ui_round(ui, rect(pic.x + 8, pic.y + 7, 46, 11), 5.5f, glass);
+		ui_round(ui, rect(pic.x + pic.w / 2 - 18, pic.y + 7, 36, 11), 5.5f, glass);
+		ui_round(ui, rect(pic.x + pic.w - 38, pic.y + 7, 30, 11), 5.5f, glass);
+		ui_circle(ui, pic.x + 22, pic.y + 12.5f, 3.5f, color_hex(h->accent));
+		f32 top = pic.y + 24, hh = pic.h - 32, lw = (pic.w - 22) * 0.55f;
+		Rect a = rect(pic.x + 8, top, lw, hh), b1 = rect(a.x + lw + 6, top, pic.w - 22 - lw, (hh - 6) / 2);
+		Rect b2 = rect(b1.x, top + b1.h + 6, b1.w, b1.h);
+		ui_round(ui, a, 5, win);
+		ui_round(ui, b1, 5, win);
+		ui_round(ui, b2, 5, win);
+		ui_border(ui, rect_inset(a, -1.5f, -1.5f), 6.5f, 1.5f, color_hex(h->accent));
+		ui_border(ui, b1, 5, 1, color_hex("#ffffff22"));
+		ui_border(ui, b2, 5, 1, color_hex("#ffffff22"));
+	} else {
+		Color win = t->dark ? color_hex("#2a2b30f0") : color_hex("#fafafaf0");
+		Rect w1 = rect(pic.x + 18, pic.y + 14, pic.w * 0.5f, pic.h * 0.5f), w2 = rect(pic.x + pic.w * 0.38f, pic.y + 30, pic.w * 0.5f, pic.h * 0.48f);
+		ui_shadow(ui, w1, 5, 8, 3, color_hex("#00000040"));
+		ui_round(ui, w1, 5, win);
+		ui_shadow(ui, w2, 5, 8, 3, color_hex("#00000050"));
+		ui_round(ui, w2, 5, win);
+		ui_round(ui, rect(w2.x + 8, w2.y + w2.h - 14, 28, 7), 3.5f, t->accent);
+		ui_round(ui, rect(pic.x + pic.w / 2 - 40, pic.y + pic.h - 16, 80, 11), 5.5f, color_hex("#ffffff40"));
+	}
+	if (selected)
+		ui_border(ui, rect_inset(pic, -3, -3), 12, 2.5f, t->accent);
+	else if (it.hovered)
+		ui_border(ui, rect_inset(pic, -2, -2), 11, 1.5f, t->border_strong);
+	ui_text_in(ui, ui_font(ui, 13, selected ? 700 : 600), rect(r.x, r.y + 6, r.w, 18), hive ? "Hive" : "Classic", t->text, ALIGN_CENTER);
+	ui_text_in(ui, ui_font(ui, 11, 400), rect(r.x, r.y + 24, r.w, 16), hive ? "Tiles and liquid glass, keyboard first" : "Windows you move about, and a taskbar",
+		   t->text_dim, ALIGN_CENTER);
+	if (it.clicked && !selected) {
+		if (hive)
+			apply_hive_theme(ui, h);
+		set_bool(ui, "hive", hive);
+	}
+}
+
 static void style_card(Ui *ui, Rect r, bool dark, bool selected)
 {
 	Theme *t = &ui->theme;
@@ -242,7 +318,48 @@ static void page_appearance(Ui *ui, Rect r)
 	b.y = y0 + 26;
 	b.h = 100000; /* scrolling content: room to lay out everything */
 	f32 top = b.y;
-	page_title(ui, &b, "Appearance", "Make Zurbax yours: style, colour and wallpaper.");
+	page_title(ui, &b, "Appearance", "Make Zurbax yours: desktop, style, colour and wallpaper.");
+
+	/* the desktop itself: Classic, or Hive and its themes */
+	section(ui, &b, "Desktop");
+	bool hive = get_bool("hive", false);
+	Rect desks = cut_top(&b, 178);
+	f32 dw = minf(280, (desks.w - 20) / 2);
+	desktop_card(ui, rect(desks.x, desks.y, dw, desks.h), false, !hive);
+	desktop_card(ui, rect(desks.x + dw + 20, desks.y, dw, desks.h), true, hive);
+	cut_top(&b, 12);
+	if (hive) {
+		section(ui, &b, "Hive Themes");
+		const char *cur_hive = get("hive_theme", "tokyo-night");
+		f32 tw = 160, th = 100, gap = 14;
+		int cols = MAX(1, (int)((b.w + gap) / (tw + gap)));
+		int rows = (HIVE_THEME_COUNT + cols - 1) / cols;
+		Rect grid = cut_top(&b, (f32)rows * (th + 40 + gap));
+		for (int i = 0; i < HIVE_THEME_COUNT; i++) {
+			const HiveTheme *h = &HIVE_THEMES[i];
+			Rect cell = rect(grid.x + (f32)(i % cols) * (tw + gap), grid.y + (f32)(i / cols) * (th + 40 + gap), tw, th);
+			ui_push_id(ui, 400 + i);
+			UiInteract it = ui_interact(ui, ui_id(ui, "hive-theme"), cell);
+			ui_pop_id(ui);
+			bool sel = str_eq(cur_hive, h->id);
+			ui_shadow(ui, cell, 8, 8, 3, color_hex("#00000030"));
+			ui_image(ui, cell, hive_thumb(i), 8, true);
+			if (sel)
+				ui_border(ui, rect_inset(cell, -3, -3), 10, 2.5f, color_hex(h->accent));
+			else if (it.hovered)
+				ui_border(ui, rect_inset(cell, -2, -2), 9, 1.5f, color_with_alpha(t->text, 0x40));
+			ui_text_in(ui, ui_font(ui, 12, sel ? 700 : 500), rect(cell.x, cell.y + th + 4, tw, 18), h->name, t->text, ALIGN_CENTER);
+			const char *dots[] = { h->bg, h->accent, h->accent2, h->fg, h->muted };
+			for (int k = 0; k < 5; k++) {
+				f32 cx = cell.x + tw / 2 + ((f32)k - 2) * 13, cy = cell.y + th + 30;
+				ui_circle(ui, cx, cy, 5, color_hex(dots[k]));
+				ui_ring(ui, cx, cy, 5, 1, color_with_alpha(t->text, 0x30));
+			}
+			if (it.clicked)
+				apply_hive_theme(ui, h);
+		}
+		cut_top(&b, 10);
+	}
 
 	/* whole looks in one click: a style, an accent and a wallpaper that go together */
 	section(ui, &b, "Themes");

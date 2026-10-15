@@ -95,6 +95,8 @@ typedef struct Window {
 	bool configured_once;
 	void *wl;                   /* a Wayland program's surface (wayland.c), or NULL */
 	Rect shown;                 /* logical rect it was last drawn at */
+	int ws;                     /* Hive: its workspace, 1..9 (0 when Hive is off) */
+	bool floating;              /* Hive: above the tiles instead of among them */
 } Window;
 
 struct Client {
@@ -154,6 +156,8 @@ typedef struct {
 	bool topbar;                /* the bar across the top: app menu, clock, status */
 	int taskbar_size;           /* 0 small, 1 medium, 2 large */
 	int taskbar_spacing;        /* the room between app icons: 0 close, 1 medium, 2 wide */
+	bool hive;                  /* the tiling desktop (hive.c) instead of taskbar and Start */
+	char hive_theme[32];        /* its theme: "tokyo-night", "gruvbox"... */
 	bool taskbar_center;        /* the buttons centred, or from the left */
 	bool taskbar_float;         /* a pane of glass off the screen's edges */
 	bool taskbar_labels;        /* app names beside the icons */
@@ -343,6 +347,26 @@ void wm_refit(void);
 /* server.c */
 void server_init(void);
 void server_broadcast_theme(void);
+
+/* ---- hive.c: the tiling desktop ---------------------------------------------------------- */
+bool hive_on(void);
+f32 hive_bar_height(void);
+bool hive_tiled(const Window *w);
+void hive_window_added(Window *w);    /* before it's in the stack: places it */
+void hive_window_removed(Window *w);
+void hive_relayout(bool animate);
+bool hive_window_hidden(const Window *w); /* on another workspace */
+f32 hive_window_offset(const Window *w);  /* sideways while workspaces slide */
+bool hive_animating(void);
+bool hive_key(u32 code, u32 state, u32 mods, const char *text);
+void hive_pointer_motion(void);
+bool hive_wants_pointer(void);
+void hive_draw_border(Canvas *frame, Window *w, Rect pr, f32 opacity);
+void hive_animate(void);              /* each frame: damages what moves */
+void hive_zoom(Window *w, bool on);    /* over the other windows, or back */
+void hive_frame(Ui *ui);
+void hive_settings_changed(bool was_on);
+int hive_theme_count(void);
 void server_send(Client *c, void *msg, u16 type, usize size, u32 win, const int *fds, int nfds);
 void server_frame_done(void);
 void server_pointer_event(Window *w, u32 kind, u32 button);
@@ -444,6 +468,7 @@ bool shell_check_password(const char *pw);
 /* settings.c */
 void settings_load(void);
 void settings_save(void);
+void settings_set(const char *key, const char *value); /* one setting, saved now */
 void settings_apply(void);
 void system_status_poll(void);
 void game_mode_update(void);

@@ -58,6 +58,8 @@ void settings_load(void)
 	s->topbar = conf_get_bool(c, "topbar", true);
 	s->taskbar_size = CLAMP((int)conf_get_int(c, "taskbar_size", 1), 0, 2);
 	s->taskbar_spacing = CLAMP((int)conf_get_int(c, "taskbar_spacing", 1), 0, 2);
+	s->hive = conf_get_bool(c, "hive", false);
+	str_copy(s->hive_theme, conf_get(c, "hive_theme", "tokyo-night"), sizeof s->hive_theme);
 	s->taskbar_center = str_eq(conf_get(c, "taskbar_align", "left"), "center");
 	s->taskbar_float = conf_get_bool(c, "taskbar_float", true);
 	s->taskbar_labels = conf_get_bool(c, "taskbar_labels", false);
@@ -89,6 +91,16 @@ void settings_load(void)
 		mem_free(sys);
 	}
 	fmt(S.screenshot_dir, sizeof S.screenshot_dir, "%s/Pictures/Screenshots", s->home);
+}
+
+void settings_set(const char *key, const char *value)
+{
+	char *path = user_conf_path();
+	Conf *c = conf_load(path);
+	mem_free(path);
+	conf_set(c, key, value);
+	conf_save(c);
+	conf_free(c);
 }
 
 void settings_save(void)

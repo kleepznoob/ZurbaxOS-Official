@@ -3118,7 +3118,9 @@ static void toplevel_configure(WlToplevel *t, bool force)
 	u32 states = 0;
 	if (w) {
 		width = (i32)roundf(w->rect.w), height = (i32)roundf(w->rect.h);
-		if (w->states & STATE_MAXIMIZED)
+		if (w->states & STATE_TILED) /* in Hive: tiled on every side, as tiling desktops say */
+			states |= 1u << XS_TILED_LEFT | 1u << XS_TILED_RIGHT | 1u << XS_TILED_TOP | 1u << XS_TILED_BOTTOM;
+		else if (w->states & STATE_MAXIMIZED)
 			states |= 1u << XS_MAXIMIZED;
 		if (w->states & STATE_FULLSCREEN)
 			states |= 1u << XS_FULLSCREEN;

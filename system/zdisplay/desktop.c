@@ -847,7 +847,8 @@ static Rect icons_bounds(void)
 
 const Canvas *desktop_background(void)
 {
-	if (!nicons || S.setup_mode || !S.wallpaper)
+	/* Hive has no desktop icons: the wallpaper alone */
+	if (!nicons || S.setup_mode || !S.wallpaper || hive_on())
 		return S.wallpaper;
 	if (!layer || layer->width != S.frame->width || layer->height != S.frame->height) {
 		canvas_free(layer);
@@ -895,7 +896,7 @@ void desktop_unfocus(void)
 
 bool desktop_pointer(u32 kind, u32 button)
 {
-	if (S.setup_mode || S.locked || !dir[0])
+	if (S.setup_mode || S.locked || !dir[0] || hive_on())
 		return false;
 	f32 x = S.px, y = S.py;
 	if (kind == POINTER_LEAVE) {
@@ -1005,7 +1006,7 @@ bool desktop_pointer(u32 kind, u32 button)
 bool desktop_key(u32 code, u32 state, u32 mods, const char *text)
 {
 	UNUSED(text);
-	if (!desktop_focused() || S.setup_mode || S.locked || state == KEY_RELEASED || !dir[0])
+	if (!desktop_focused() || S.setup_mode || S.locked || state == KEY_RELEASED || !dir[0] || hive_on())
 		return false;
 	bool any = selected_count() > 0;
 	mods &= ~(u32)MOD_CAPS;

@@ -263,8 +263,10 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		char old_wall[128];
 		str_copy(old_wall, S.set.wallpaper, sizeof old_wall);
 		Rect old_area = work_area();
+		bool was_hive = hive_on();
 		settings_load();
 		settings_apply();
+		hive_settings_changed(was_hive);
 		if (!str_eq(old_wall, S.set.wallpaper))
 			wallpaper_reload();
 		Rect area = work_area();

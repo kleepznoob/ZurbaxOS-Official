@@ -106,6 +106,7 @@ Window *window_create(Client *c, const MsgWinCreate *m)
 		w->rect = rect(0, 0, S.sw, S.sh);
 		w->states |= STATE_FULLSCREEN;
 	}
+	hive_window_added(w);
 	w->appear = S.set.reduce_motion ? 1 : 0;
 	S.windows[S.nwin++] = w;
 	if (!c->main_window)
@@ -139,6 +140,7 @@ Window *window_create_wl(void *surface, const char *title, const char *app_id, f
 		w->rect = place_new(w, (u32)width, (u32)height);
 	if (!(flags & WIN_POPUP))
 		w->parent = NULL;
+	hive_window_added(w);
 	w->appear = S.set.reduce_motion ? 1 : 0;
 	w->mapped = true;
 	S.windows[S.nwin++] = w;
@@ -167,6 +169,7 @@ void window_destroy(Window *w, bool animate)
 	shell_mark_dirty(); /* the dock and panel reflect window state */
 	if (w->closing)
 		return;
+	hive_window_removed(w);
 	window_damage(w);
 	dnd_window_gone(w);
 	if (S.focus == w)
@@ -291,6 +294,10 @@ void window_fullscreen(Window *w, bool on)
 void window_maximize(Window *w, bool on)
 {
 	shell_mark_dirty(); /* the dock and panel reflect window state */
+	if (hive_tiled(w)) {
+		hive_zoom(w, on);
+		return;
+	}
 	if (!(w->flags & WIN_RESIZABLE) && on)
 		return;
 	if (on && !(w->states & STATE_MAXIMIZED)) {
@@ -308,7 +315,7 @@ void window_maximize(Window *w, bool on)
 void window_tile(Window *w, int side)
 {
 	shell_mark_dirty(); /* the dock and panel reflect window state */
-	if (!(w->flags & WIN_RESIZABLE))
+	if (!(w->flags & WIN_RESIZABLE) || hive_tiled(w))
 		return;
 	if (!(w->states & (STATE_MAXIMIZED | STATE_TILED_LEFT | STATE_TILED_RIGHT)))
 		w->saved = w->rect;
@@ -324,6 +331,10 @@ void window_tile(Window *w, int side)
  * size): maximized and tiled windows follow it. */
 void wm_refit(void)
 {
+	if (hive_on()) {
+		hive_relayout(true);
+		return;
+	}
 	Rect wa = work_area();
 	for (int i = 0; i < S.nwin; i++) {
 		Window *w = S.windows[i];
@@ -404,6 +415,7 @@ Rect window_visual_rect(const Window *w)
 		r = rect(lerpf(w->anim_from.x, w->anim_to.x, t), lerpf(w->anim_from.y, w->anim_to.y, t),
 			 lerpf(w->anim_from.w, w->anim_to.w, t), lerpf(w->anim_from.h, w->anim_to.h, t));
 	}
+	r.x += hive_window_offset(w);
 	f32 s = 1;
 	if (w->appear < 1)
 		s *= 0.94f + 0.06f * ease_out_cubic(w->appear);
@@ -471,6 +483,7 @@ void wm_animate(f64 dt_d)
 		S.snap_k = step_toward(S.snap_k, target, dt, 0.15f);
 		damage_rect(S.snap_preview);
 	}
+	hive_animate();
 }
 
 bool wm_any_animation(void)
@@ -480,7 +493,7 @@ bool wm_any_animation(void)
 		if ((w->mapped && w->appear < 1) || w->closing || w->animating_rect || w->minimize_k != (w->minimized ? 1.0f : 0.0f))
 			return true;
 	}
-	return S.snap_k != (S.snap_zone ? 1.0f : 0.0f);
+	return S.snap_k != (S.snap_zone ? 1.0f : 0.0f) || hive_animating();
 }
 
 /* ---- Hit testing and pointer handling ----------------------------------------------------- */
@@ -488,14 +501,16 @@ bool wm_any_animation(void)
 Window *window_at(f32 x, f32 y, u32 *edges)
 {
 	*edges = 0;
+	/* in Hive, what floats is above the tiles whatever the stack says */
+	for (int pass = hive_on() ? 0 : 1; pass < 2; pass++)
 	for (int i = S.nwin - 1; i >= 0; i--) {
 		Window *w = S.windows[i];
-		if (w->closing || w->minimized || !w->mapped)
+		if (w->closing || w->minimized || !w->mapped || hive_window_hidden(w) || (pass == 0 && hive_tiled(w)))
 			continue;
 		Rect r = w->rect;
 		if (rect_contains(r, x, y))
 			return w;
-		bool resizable = (w->flags & WIN_RESIZABLE) && !(w->states & (STATE_MAXIMIZED | STATE_FULLSCREEN));
+		bool resizable = (w->flags & WIN_RESIZABLE) && !(w->states & (STATE_MAXIMIZED | STATE_FULLSCREEN)) && !hive_tiled(w);
 		if (resizable && rect_contains(rect_inset(r, -RESIZE_MARGIN, -RESIZE_MARGIN), x, y)) {
 			u32 e = 0;
 			if (x < r.x + 12) e |= EDGE_LEFT;
@@ -522,7 +537,8 @@ static u32 cursor_for_edges(u32 e)
 
 void wm_begin_move(Window *w)
 {
-	if (!w || (w->states & STATE_FULLSCREEN))
+	/* tiles stay in their place: Super+Shift+arrows swaps them */
+	if (!w || (w->states & STATE_FULLSCREEN) || hive_tiled(w))
 		return;
 	S.grab = GRAB_MOVE;
 	S.grab_window = w;
@@ -623,6 +639,7 @@ void wm_pointer_motion(void)
 		return;
 	}
 	/* Not grabbing: route motion to the window under the pointer. */
+	hive_pointer_motion();
 	u32 edges;
 	Window *under = S.grab_window ? S.grab_window : window_at(S.px, S.py, &edges);
 	if (!S.grab_window && under && edges) {

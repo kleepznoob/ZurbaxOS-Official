@@ -244,6 +244,7 @@ enum {
 	STATE_TILED_LEFT = 1 << 3,
 	STATE_TILED_RIGHT = 1 << 4,
 	STATE_MINIMIZED = 1 << 5,
+	STATE_TILED = 1 << 6, /* placed by a tiling desktop (Hive), side by side with others */
 };
 
 typedef struct {

@@ -491,6 +491,8 @@ Canvas *wallpaper_render(const char *name, int w, int h)
 		return halloween(w, h);
 	if (name && str_eq(name, "golden-rain"))
 		return golden_rain(w, h);
+	if (str_starts(name, "bit-"))
+		return bitart_render(name + 4, w, h);
 	/* A user picture? */
 	if (name && name[0] == '/') {
 		Canvas *img = image_load(name);
