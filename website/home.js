@@ -3,19 +3,17 @@
   const root = document.documentElement;
   root.classList.replace('no-js', 'js');
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // the ordered pattern things build up in, here as in Zurbax (an 8x8 Bayer matrix)
+  const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
+    3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
 
-  // Hive's eight themes, as the system has them: id, name, background, text, the two accents
+  // Hive's themes, as the system has them: id, name, background, text, the two accents
   const THEMES = [
-    ['tokyo-night', 'Tokyo Night', '#1a1b26', '#c0caf5', '#7aa2f7', '#bb9af7'],
-    ['catppuccin', 'Catppuccin', '#1e1e2e', '#cdd6f4', '#cba6f7', '#89b4fa'],
-    ['gruvbox', 'Gruvbox', '#282828', '#ebdbb2', '#fe8019', '#fabd2f'],
-    ['nord', 'Nord', '#2e3440', '#eceff4', '#88c0d0', '#b48ead'],
-    ['everforest', 'Everforest', '#2d353b', '#d3c6aa', '#a7c080', '#83c092'],
-    ['kanagawa', 'Kanagawa', '#1f1f28', '#dcd7ba', '#7e9cd8', '#d27e99'],
-    ['rose-pine', 'Rosé Pine', '#191724', '#e0def4', '#ebbcba', '#c4a7e7'],
-    ['matte-black', 'Matte Black', '#121212', '#e6e6e6', '#e68e0d', '#d35f5f'],
+    ['carbon', 'Carbon', '#121212', '#e6e6e6', '#e68e0d', '#d35f5f'],
+    ['midnight', 'Midnight', '#1a1b26', '#c0caf5', '#7aa2f7', '#bb9af7'],
   ];
-  const byId = id => THEMES.find(t => t[0] === id) || THEMES[0];
+  const OLD = { 'matte-black': 'carbon', 'tokyo-night': 'midnight' }; /* what they were called */
+  const byId = id => THEMES.find(t => t[0] === (OLD[id] || id)) || THEMES[0];
   const swatch = t => `<span class="sw" aria-hidden="true"><i style="background:${t[4]}"></i><i style="background:${t[5]}"></i><i style="background:${t[3]}"></i></span>`;
 
   const picker = document.querySelector('.picker');
@@ -112,11 +110,57 @@
     return api;
   })();
   stars.start();
+
+  // the name in big pixels: letters of 11 by 13, bands of colour from top to
+  // bottom with their edges dithered, a light along each top edge and a
+  // shadow a pixel down and right; it builds up block by block, in the
+  // ordered pattern Zurbax's windows use
+  const LETTERS = {
+    Z: ['.XXXXXXXXX.', 'XXXXXXXXXXX', 'XXXXXXXXXXX', '......XXXX.', '.....XXXX..', '....XXXX...', '...XXXX....', '..XXXX.....', '.XXXX......', 'XXXX.......', 'XXXXXXXXXXX', 'XXXXXXXXXXX', '.XXXXXXXXX.'],
+    U: ['XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXXX...XXXX', '.XXXXXXXXX.', '..XXXXXXX..'],
+    R: ['XXXXXXXXX..', 'XXXXXXXXXX.', 'XXX....XXXX', 'XXX.....XXX', 'XXX....XXXX', 'XXXXXXXXXX.', 'XXXXXXXXX..', 'XXX..XXXX..', 'XXX...XXXX.', 'XXX....XXX.', 'XXX....XXXX', 'XXX.....XXX', 'XXX.....XXX'],
+    B: ['XXXXXXXXX..', 'XXXXXXXXXX.', 'XXX....XXXX', 'XXX.....XXX', 'XXX....XXXX', 'XXXXXXXXXX.', 'XXXXXXXXXX.', 'XXX....XXXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX....XXXX', 'XXXXXXXXXX.', 'XXXXXXXXX..'],
+    A: ['...XXXXX...', '..XXXXXXX..', '.XXXX.XXXX.', 'XXXX...XXXX', 'XXX.....XXX', 'XXX.....XXX', 'XXXXXXXXXXX', 'XXXXXXXXXXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX', 'XXX.....XXX'],
+    X: ['XXX.....XXX', 'XXX.....XXX', 'XXXX...XXXX', '.XXXX.XXXX.', '..XXXXXXX..', '...XXXXX...', '....XXX....', '...XXXXX...', '..XXXXXXX..', '.XXXX.XXXX.', 'XXXX...XXXX', 'XXX.....XXX', 'XXX.....XXX'],
+  };
+  const BAND = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5]; /* the band of each row */
+  (() => {
+    const svg = document.querySelector('.pixel-mark');
+    if (!svg) return;
+    const word = 'ZURBAX', W = 11, H = 13, GAP = 2;
+    const cells = [];
+    [...word].forEach((ch, li) => {
+      const g = LETTERS[ch];
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+        if (g[y][x] === 'X') cells.push({
+          x: li * (W + GAP) + x, y,
+          top: y === 0 || g[y - 1][x] !== 'X',
+          /* a darker edge where the stroke ends on the right or below: the letters stand up */
+          low: x === W - 1 || g[y][x + 1] !== 'X' || y === H - 1 || g[y + 1][x] !== 'X',
+        });
+    });
+    const turn = (x, y) => (BAYER[(y & 7) * 8 + (x & 7)] + 0.5) / 64;
+    const r = (x, y, cls, d) => `<rect x="${x}" y="${y}" width="1.04" height="1.04" class="${cls}" style="--d:${d}s"/>`;
+    let shade = '', body = '', light = '', dark = '';
+    for (const c of cells) {
+      const d = (turn(c.x, c.y) * 0.6).toFixed(3);
+      let b = BAND[c.y];
+      /* where one band meets the next, the two in a checker */
+      if (c.y > 0 && BAND[c.y - 1] !== b && (c.x + c.y) % 2) b = BAND[c.y - 1];
+      shade += r(c.x + 1, c.y + 1, 'sh', d);
+      body += r(c.x, c.y, `px b${b}`, d);
+      if (c.top) light += r(c.x, c.y, 'px hl', d);
+      else if (c.low) dark += r(c.x, c.y, 'px dk', d);
+    }
+    const width = word.length * (W + GAP) - GAP + 1;
+    svg.setAttribute('viewBox', `0 0 ${width} ${H + 1}`);
+    svg.innerHTML = shade + body + dark + light;
+    if (!still) svg.classList.add('build');
+  })();
+
   apply(root.dataset.theme, false);
 
   // a window arriving block by block, in the ordered pattern Zurbax uses
-  const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
-    3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
   const pg = document.querySelector('.pix-grid');
   const cells = [];
   for (let y = 0; y < 10; y++) for (let x = 0; x < 16; x++) {
