@@ -55,6 +55,7 @@ void settings_load(void)
 	s->clock_seconds = conf_get_bool(c, "clock_seconds", false);
 	s->reduce_motion = conf_get_bool(c, "reduce_motion", false);
 	s->glass = conf_get_bool(c, "glass", true);
+	s->pixel_style = conf_get_bool(c, "pixel_style", true);
 	s->dock_autohide = conf_get_bool(c, "dock_autohide", false);
 	s->topbar = conf_get_bool(c, "topbar", true);
 	s->taskbar_size = CLAMP((int)conf_get_int(c, "taskbar_size", 1), 0, 2);

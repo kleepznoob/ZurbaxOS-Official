@@ -26,5 +26,14 @@ void blit_scaled(Canvas *c, const Canvas *src, Rect src_rect, Rect dst, f32 opac
 void blit_scaled_round(Canvas *c, const Canvas *src, Rect src_rect, Rect dst, f32 radius, f32 opacity);
 /* Copies pixels without blending (fast path for opaque content). */
 void copy_pixels(Canvas *c, const Canvas *src, int sx, int sy, int dx, int dy, int w, int h);
+/* Pictures in pixels: cut into square blocks of side block, each with its
+ * turn in an ordered pattern (0..1); the blocks whose turn is below shown
+ * are drawn, the others left out, so as shown goes from 0 to 1 the picture
+ * builds up block by block (and back, falls apart). blit_blocks draws the
+ * blocks as they are, at (dx, dy); blit_mosaic stretches the picture into
+ * dst with each block the one colour of the picture at its middle. */
+void blit_blocks(Canvas *c, const Canvas *src, int dx, int dy, int block, f32 shown);
+void blit_mosaic(Canvas *c, const Canvas *src, Rect dst, int block, f32 shown);
+f32 block_turn(int bx, int by);
 /* High-quality downscale (box filter) producing a new canvas. */
 Canvas *canvas_resize(const Canvas *src, int w, int h);

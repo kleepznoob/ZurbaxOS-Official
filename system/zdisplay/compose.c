@@ -314,6 +314,14 @@ static void draw_window(Canvas *frame, Window *w)
 	if (!w->mapped && !w->last_frame)
 		return;
 	f32 opacity = w->appear * (1 - w->vanish) * (1 - w->minimize_k);
+	/* in pixels a window builds up block by block as it comes, and falls
+	 * apart as it goes, instead of fading */
+	bool pixel = pixel_motion() && !w->wl;
+	f32 shown = 1;
+	if (pixel) {
+		shown = ease_out_cubic(w->appear) * (1 - w->vanish) * (1 - 0.8f * w->minimize_k);
+		opacity = shown > 0.003f ? 1 : 0;
+	}
 	if (opacity <= 0.003f)
 		return;
 	Rect v = window_visual_rect(w);
@@ -326,7 +334,7 @@ static void draw_window(Canvas *frame, Window *w)
 		} else if (!(w->flags & (WIN_NO_SHADOW | WIN_POPUP)) && !(w->states & STATE_FULLSCREEN)) {
 			bool focused = w == S.focus;
 			const Shadow *sh = focused ? &shadow_focused : &shadow_normal;
-			shadow_draw(frame, sh, pr, opacity);
+			shadow_draw(frame, sh, pr, opacity * shown);
 		} else if (w->flags & WIN_POPUP) {
 			shadow_draw(frame, &shadow_normal, pr, opacity * 0.8f);
 		}
@@ -345,9 +353,28 @@ static void draw_window(Canvas *frame, Window *w)
 		src = canvas_wrap(w->map + (usize)w->front * w->slot_bytes, (int)w->bw, (int)w->bh, (int)w->stride);
 		img = &src;
 	}
+	bool exact = fabsf(pr.w - (f32)img->width) < 0.5f && fabsf(pr.h - (f32)img->height) < 0.5f;
+	if (pixel) {
+		/* changing size (maximizing, zooming, flying to be minimized), it
+		 * goes through a mosaic: blocks largest midway, then sharp again */
+		int mosaic = 0;
+		if (w->minimize_k > 0)
+			mosaic = (int)roundf(S.scale * (3 + 9 * w->minimize_k));
+		else if (w->animating_rect && w->anim_dur > 0)
+			mosaic = (int)roundf(S.scale * 9 * sinf(PI_F * clampf((f32)((S.now - w->anim_t0) / w->anim_dur), 0, 1)));
+		if (!exact && mosaic >= 2) {
+			blit_mosaic(frame, img, pr, mosaic, shown);
+			hive_draw_border(frame, w, pr, shown);
+			return;
+		}
+		if (exact && shown < 1) {
+			blit_blocks(frame, img, (int)pr.x, (int)pr.y, (int)roundf(8 * S.scale), shown);
+			hive_draw_border(frame, w, pr, shown);
+			return;
+		}
+	}
 	if (w->nglass)
 		draw_glass(frame, w, pr, opacity);
-	bool exact = fabsf(pr.w - (f32)img->width) < 0.5f && fabsf(pr.h - (f32)img->height) < 0.5f;
 	if (exact)
 		blit(frame, img, (int)pr.x, (int)pr.y, opacity);
 	else

@@ -424,6 +424,68 @@ static void blit_scaled_fast(Canvas *c, const Canvas *src, Rect sr, Rect dst, f3
 	mem_free(line);
 }
 
+/* ---- Pictures in pixels ---------------------------------------------------------------------- */
+
+static const u8 BAYER8[8][8] = {
+	{ 0, 32, 8, 40, 2, 34, 10, 42 },   { 48, 16, 56, 24, 50, 18, 58, 26 }, { 12, 44, 4, 36, 14, 46, 6, 38 },
+	{ 60, 28, 52, 20, 62, 30, 54, 22 }, { 3, 35, 11, 43, 1, 33, 9, 41 },    { 51, 19, 59, 27, 49, 17, 57, 25 },
+	{ 15, 47, 7, 39, 13, 45, 5, 37 },   { 63, 31, 55, 23, 61, 29, 53, 21 },
+};
+
+f32 block_turn(int bx, int by)
+{
+	return ((f32)BAYER8[by & 7][bx & 7] + 0.5f) / 64;
+}
+
+void blit_blocks(Canvas *c, const Canvas *src, int dx, int dy, int block, f32 shown)
+{
+	if (shown >= 1) {
+		blit(c, src, dx, dy, 1);
+		return;
+	}
+	if (shown <= 0 || block < 1)
+		return;
+	int nbx = (src->width + block - 1) / block, nby = (src->height + block - 1) / block;
+	for (int by = 0; by < nby; by++) {
+		int sy = by * block, h = MIN(block, src->height - sy);
+		/* runs of neighbouring blocks drawn together */
+		for (int bx = 0; bx < nbx;) {
+			if (block_turn(bx, by) >= shown) {
+				bx++;
+				continue;
+			}
+			int run = bx;
+			while (run < nbx && block_turn(run, by) < shown)
+				run++;
+			int sx = bx * block, w = MIN(run * block, src->width) - sx;
+			blit_part(c, src, sx, sy, w, h, dx + sx, dy + sy, 256);
+			bx = run;
+		}
+	}
+}
+
+void blit_mosaic(Canvas *c, const Canvas *src, Rect dst, int block, f32 shown)
+{
+	int x0 = (int)roundf(dst.x), y0 = (int)roundf(dst.y), x1 = (int)roundf(dst.x + dst.w), y1 = (int)roundf(dst.y + dst.h);
+	if (x1 <= x0 || y1 <= y0 || shown <= 0 || src->width < 1 || src->height < 1)
+		return;
+	block = MAX(block, 1);
+	f32 kx = (f32)src->width / (f32)(x1 - x0), ky = (f32)src->height / (f32)(y1 - y0);
+	Rect clip = clip_of(c);
+	for (int by = 0, y = y0; y < y1; by++, y += block) {
+		if (y + block <= clip.y || y >= clip.y + clip.h)
+			continue;
+		int sy = CLAMP((int)(((f32)MIN(y + block / 2, y1 - 1) - (f32)y0 + 0.5f) * ky), 0, src->height - 1);
+		const u32 *row = canvas_row(src, sy);
+		for (int bx = 0, x = x0; x < x1; bx++, x += block) {
+			if (shown < 1 && block_turn(bx, by) >= shown)
+				continue;
+			int sx = CLAMP((int)(((f32)MIN(x + block / 2, x1 - 1) - (f32)x0 + 0.5f) * kx), 0, src->width - 1);
+			blend_fill(c, x, y, MIN(block, x1 - x), MIN(block, y1 - y), row[sx], 256);
+		}
+	}
+}
+
 void copy_pixels(Canvas *c, const Canvas *src, int sx, int sy, int dx, int dy, int w, int h)
 {
 	for (int y = 0; y < h; y++) {

@@ -155,6 +155,7 @@ typedef struct {
 	bool clock_seconds;
 	bool reduce_motion;
 	bool glass;                 /* transparency effects */
+	bool pixel_style;           /* windows come, go and change size in pixels; animated pixel wallpapers */
 	bool dock_autohide;         /* the taskbar hides until the pointer reaches the bottom edge */
 	bool topbar;                /* the bar across the top: app menu, clock, status */
 	int taskbar_size;           /* 0 small, 1 medium, 2 large */
@@ -367,6 +368,9 @@ bool hive_wants_pointer(void);
 void hive_draw_border(Canvas *frame, Window *w, Rect pr, f32 opacity);
 void hive_animate(void);              /* each frame: damages what moves */
 void hive_zoom(Window *w, bool on);    /* over the other windows, or back */
+void hive_window_minimized(Window *w, bool on); /* to the bar's tray, or back */
+Rect hive_tray_rect(const Window *w);  /* where a minimized window waits in the bar */
+bool pixel_motion(void);               /* the pixel style's animations are on */
 void hive_frame(Ui *ui);
 void hive_settings_changed(bool was_on);
 int hive_theme_count(void);

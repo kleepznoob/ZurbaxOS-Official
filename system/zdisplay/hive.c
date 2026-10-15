@@ -105,7 +105,7 @@ f32 hive_bar_height(void)
 /* Windows Hive arranges: ordinary resizable top-level ones, unless floated. */
 bool hive_tiled(const Window *w)
 {
-	return hive_on() && w && w->ws > 0 && !w->floating && !(w->flags & (WIN_POPUP | WIN_DIALOG)) && !w->closing;
+	return hive_on() && w && w->ws > 0 && !w->floating && !w->minimized && !(w->flags & (WIN_POPUP | WIN_DIALOG)) && !w->closing;
 }
 
 static Node *find(Node *n, const Window *w)
@@ -185,7 +185,8 @@ static Window *recent_on(int ws, const Window *except)
 	Window *best = NULL;
 	for (int i = 0; i < S.nwin; i++) {
 		Window *w = S.windows[i];
-		if (w != except && w->ws == ws && !w->closing && w->mapped && !(w->flags & WIN_POPUP) && (!best || w->focus_serial > best->focus_serial))
+		if (w != except && w->ws == ws && !w->closing && !w->minimized && w->mapped && !(w->flags & WIN_POPUP) &&
+		    (!best || w->focus_serial > best->focus_serial))
 			best = w;
 	}
 	return best;
@@ -361,7 +362,7 @@ static void move_to(Window *w, int n)
 static bool occupied(int ws)
 {
 	for (int i = 0; i < S.nwin; i++)
-		if (S.windows[i]->ws == ws && !S.windows[i]->closing && S.windows[i]->mapped)
+		if (S.windows[i]->ws == ws && !S.windows[i]->closing && !S.windows[i]->minimized && S.windows[i]->mapped)
 			return true;
 	return false;
 }
@@ -379,7 +380,7 @@ static Window *neighbour(int dx, int dy)
 	f32 best_d = 1e9f;
 	for (int i = 0; i < S.nwin; i++) {
 		Window *w = S.windows[i];
-		if (w == f || w->ws != current || w->closing || !w->mapped || (w->flags & WIN_POPUP))
+		if (w == f || w->ws != current || w->closing || w->minimized || !w->mapped || (w->flags & WIN_POPUP))
 			continue;
 		f32 wx = w->rect.x + w->rect.w / 2, wy = w->rect.y + w->rect.h / 2;
 		f32 along = dx ? (wx - fx) * (f32)dx : (wy - fy) * (f32)dy;
@@ -462,6 +463,31 @@ void hive_zoom(Window *w, bool on)
 	if (on)
 		window_raise(w);
 	relayout_ws(w->ws, true);
+	shell_mark_dirty();
+}
+
+/* Minimized, a window leaves the tiling for the tray in the bar, and the
+ * others close over its place; back, it comes to the workspace you're on. */
+void hive_window_minimized(Window *w, bool on)
+{
+	if (!hive_on() || w->ws <= 0 || (w->flags & (WIN_POPUP | WIN_DIALOG)))
+		return;
+	if (on) {
+		int ws = w->ws;
+		if (find(trees[ws], w)) {
+			unlink(w);
+			relayout_ws(ws, true);
+		}
+	} else {
+		w->ws = current;
+		for (int i = 0; i < S.nwin; i++)
+			if (S.windows[i]->parent == w)
+				S.windows[i]->ws = current;
+		if (!w->floating) {
+			insert(w, current);
+			relayout_ws(current, true);
+		}
+	}
 	shell_mark_dirty();
 }
 
@@ -899,6 +925,21 @@ static void toast(Ui *ui, const HiveTheme *t)
 
 /* ---- The bar: three islands ------------------------------------------------------------------ */
 
+/* where the tray's windows were drawn, for them to fly to and from */
+static struct {
+	const Window *w;
+	Rect r;
+} tray_at[8];
+static int ntray;
+
+Rect hive_tray_rect(const Window *w)
+{
+	for (int i = 0; i < ntray; i++)
+		if (tray_at[i].w == w)
+			return tray_at[i].r;
+	return rect(GAP_OUT + 200, BAR_TOP + 10, 16, 16); /* till the bar is drawn with it */
+}
+
 static void bar(Ui *ui, const HiveTheme *t)
 {
 	if (S.focus && (S.focus->states & STATE_FULLSCREEN) && S.focus->ws == current)
@@ -922,7 +963,15 @@ static void bar(Ui *ui, const HiveTheme *t)
 		icon = a ? a->icon : S.focus->app_id;
 	}
 	f32 name_w = name ? minf(ui_text_width(ui, small, name), 260) : 0;
-	Rect L = rect(GAP_OUT, y, 42 + slot * (f32)last + (name ? 16 + 24 + name_w : 0) + 12, h);
+	/* the tray: windows put away, waiting to come back */
+	Window *tray[8];
+	int nt = 0;
+	for (int i = 0; i < S.nwin && nt < (int)ARRAY_LEN(tray); i++) {
+		Window *w = S.windows[i];
+		if (w->minimized && !w->closing && w->ws > 0 && !(w->flags & WIN_POPUP))
+			tray[nt++] = w;
+	}
+	Rect L = rect(GAP_OUT, y, 42 + slot * (f32)last + (name ? 16 + 24 + name_w : 0) + (nt ? 14 + 26 * (f32)nt : 0) + 12, h);
 	glass(ui, L, h / 2, t, 1);
 	ui_app_icon(ui, rect(L.x + 12, y + (h - 20) / 2, 20, 20), "zurbax");
 	f32 wx = L.x + 40, bl, br;
@@ -947,12 +996,34 @@ static void bar(Ui *ui, const HiveTheme *t)
 		if (it.clicked)
 			go_to(i);
 	}
+	f32 tx = wx + slot * (f32)last;
 	if (name) {
-		f32 x = wx + slot * (f32)last + 8;
+		f32 x = tx + 8;
 		ui_fill(ui, rect(x, y + 11, 1, h - 22), color_hex("#ffffff26"));
 		x += 9;
 		ui_app_icon(ui, rect(x, y + (h - 18) / 2, 18, 18), icon);
 		ui_text_in(ui, small, rect(x + 24, y, name_w + 2, h), name, fg, ALIGN_START);
+		tx = x + 24 + name_w;
+	}
+	ntray = 0;
+	if (nt) {
+		f32 x = tx + 8;
+		ui_fill(ui, rect(x, y + 11, 1, h - 22), color_hex("#ffffff26"));
+		x += 6;
+		for (int i = 0; i < nt; i++, x += 26) {
+			Rect chip = rect(x, y + 5, 26, h - 10);
+			ui_push_id(ui, 200 + i);
+			UiInteract it = ui_interact(ui, ui_id(ui, "tray"), chip);
+			ui_pop_id(ui);
+			if (it.hovered)
+				ui_round(ui, chip, 8, hover);
+			const AppInfo *a = shell_app(tray[i]->app_id);
+			Rect ic = rect(x + 5, y + (h - 16) / 2, 16, 16);
+			ui_app_icon(ui, ic, a ? a->icon : tray[i]->app_id);
+			tray_at[ntray].w = tray[i], tray_at[ntray++].r = ic;
+			if (it.clicked)
+				window_minimize(tray[i], false);
+		}
 	}
 
 	/* the middle island: the time and the date; a click shows what's new */

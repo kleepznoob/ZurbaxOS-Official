@@ -361,6 +361,7 @@ void window_minimize(Window *w, bool on)
 		return;
 	w->minimized = on;
 	w->states = on ? (w->states | STATE_MINIMIZED) : (w->states & ~(u32)STATE_MINIMIZED);
+	hive_window_minimized(w, on);
 	if (S.set.reduce_motion)
 		w->minimize_k = on ? 1 : 0;
 	window_damage(w);
@@ -407,6 +408,11 @@ void wm_show_desktop(bool on)
 
 /* ---- Geometry with animation ---------------------------------------------------------- */
 
+bool pixel_motion(void)
+{
+	return S.set.pixel_style && !S.set.reduce_motion;
+}
+
 Rect window_visual_rect(const Window *w)
 {
 	Rect r = w->rect;
@@ -417,16 +423,17 @@ Rect window_visual_rect(const Window *w)
 	}
 	r.x += hive_window_offset(w);
 	f32 s = 1;
-	if (w->appear < 1)
+	/* (in pixels, coming and going is done block by block, in place) */
+	if (w->appear < 1 && !pixel_motion())
 		s *= 0.94f + 0.06f * ease_out_cubic(w->appear);
-	if (w->closing)
+	if (w->closing && !pixel_motion())
 		s *= 1 - 0.05f * w->vanish;
 	if (s != 1) {
 		f32 nw = r.w * s, nh = r.h * s;
 		r = rect(r.x + (r.w - nw) / 2, r.y + (r.h - nh) / 2 + (1 - s) * 40, nw, nh);
 	}
 	if (w->minimize_k > 0) {
-		Rect dock = shell_dock_icon_rect(w->app_id);
+		Rect dock = hive_on() ? hive_tray_rect(w) : shell_dock_icon_rect(w->app_id);
 		f32 k = ease_in_out_cubic(w->minimize_k);
 		r = rect(lerpf(r.x, dock.x, k), lerpf(r.y, dock.y, k), lerpf(r.w, dock.w, k), lerpf(r.h, dock.h, k));
 	}
@@ -446,11 +453,11 @@ void wm_animate(f64 dt_d)
 		Window *w = S.windows[i];
 		bool moving = false;
 		if (w->mapped && w->appear < 1) {
-			w->appear = step_toward(w->appear, 1, dt, APPEAR_SECONDS);
+			w->appear = step_toward(w->appear, 1, dt, pixel_motion() ? 0.30f : APPEAR_SECONDS);
 			moving = true;
 		}
 		if (w->closing) {
-			w->vanish = step_toward(w->vanish, 1, dt, CLOSE_SECONDS);
+			w->vanish = step_toward(w->vanish, 1, dt, pixel_motion() ? 0.26f : CLOSE_SECONDS);
 			moving = true;
 		}
 		f32 mk = w->minimized ? 1.0f : 0.0f;

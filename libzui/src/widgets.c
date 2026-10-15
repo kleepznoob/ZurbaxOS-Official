@@ -575,25 +575,46 @@ void ui_window_background(Ui *ui, Color c)
 		ui_border(ui, r, rad, 1, color_hex(ui->theme.dark ? "#ffffff1a" : "#00000030"));
 }
 
-/* The window controls: small round buttons on a faint disc; close turns
- * red under the pointer. */
-static bool window_button(Ui *ui, Rect r, const char *icon, const char *id, bool danger)
+/* The window controls: three glyphs drawn in pixels, side by side in a
+ * capsule of glass. _ puts the window away, a frame fills the screen with
+ * it (two frames bring it back), an X closes it. Under the pointer a tile
+ * of the button's colour builds up behind the glyph block by block, the
+ * glyph's pixels light up in a sweep from its corner, and a press sinks it
+ * by a pixel. */
+static const char *const GLYPH_MIN[7] = { ".......", ".......", ".......", ".......", ".......", "XXXXXXX", "XXXXXXX" };
+static const char *const GLYPH_MAX[7] = { "XXXXXXX", "XXXXXXX", "X.....X", "X.....X", "X.....X", "X.....X", "XXXXXXX" };
+static const char *const GLYPH_RESTORE[7] = { "..XXXXX", "..XXXXX", "XXXXX.X", "XXXXX.X", "X...XXX", "X...X..", "XXXXX.." };
+static const char *const GLYPH_CLOSE[7] = { "X.....X", "XX...XX", ".XX.XX.", "..XXX..", ".XX.XX.", "XX...XX", "X.....X" };
+
+static bool window_button(Ui *ui, Rect r, const char *const *glyph, const char *id, Color hot)
 {
 	UiId bid = ui_id(ui, id);
 	UiInteract it = ui_interact(ui, bid, r);
-	f32 hover = ui_fade(ui, bid, it.hovered, 0.12f);
+	f32 k = ui_fade(ui, bid, it.hovered, 0.18f);
 	Theme *t = &ui->theme;
-	f32 cx = r.x + r.w / 2, cy = r.y + r.h / 2, rad = r.w / 2;
-	Color disc = t->dark ? color_hex("#ffffff14") : color_hex("#0000000e");
-	Color hot = danger ? t->danger : (t->dark ? color_hex("#ffffff26") : color_hex("#0000001c"));
-	Color c = color_mix(disc, hot, hover);
-	if (it.held && it.hovered)
-		c = danger ? color_lighten(t->danger, -0.1f) : (t->dark ? color_hex("#ffffff33") : color_hex("#00000028"));
-	if (!ui->window_focused && hover == 0)
-		c = color_scale_alpha(c, 0.6f);
-	ui_circle(ui, cx, cy, rad, c);
-	Color fg = danger ? color_mix(t->text_dim, COLOR_WHITE, hover) : color_mix(t->text_dim, t->text, hover);
-	ui_icon(ui, center_in(r, 14, 14), icon, fg);
+	bool held = it.held && it.hovered;
+	f32 cell = 2, sink = held ? 1 : 0;
+	/* the tile, block by block: a square with its corners stepped off */
+	if (k > 0) {
+		const int n = 10; /* blocks a side, of 2 pixels */
+		f32 tx = roundf(r.x + (r.w - n * cell) / 2), ty = roundf(r.y + (r.h - n * cell) / 2) + sink;
+		Color tile = held ? color_lighten(hot, -0.12f) : hot;
+		for (int by = 0; by < n; by++)
+			for (int bx = 0; bx < n; bx++) {
+				bool corner = (bx == 0 || bx == n - 1) && (by == 0 || by == n - 1);
+				if (!corner && block_turn(bx, by) < k)
+					ui_fill(ui, rect(tx + (f32)bx * cell, ty + (f32)by * cell, cell, cell), tile);
+			}
+	}
+	/* the glyph, its pixels lighting in a sweep */
+	Color idle = ui->window_focused ? t->text_dim : color_scale_alpha(t->text_dim, 0.55f);
+	f32 gx = roundf(r.x + (r.w - 7 * cell) / 2), gy = roundf(r.y + (r.h - 7 * cell) / 2) + sink;
+	for (int y = 0; y < 7; y++)
+		for (int x = 0; x < 7; x++)
+			if (glyph[y][x] == 'X') {
+				bool lit = k * 1.6f > (f32)(x + y) / 12;
+				ui_fill(ui, rect(gx + (f32)x * cell, gy + (f32)y * cell, cell, cell), lit ? COLOR_WHITE : idle);
+			}
 	return it.clicked;
 }
 
@@ -602,7 +623,11 @@ Rect ui_headerbar(Ui *ui, Rect r, const char *title, u32 flags)
 	Theme *t = &ui->theme;
 	f32 rad = window_radius(ui);
 	if (!(flags & HEADER_TRANSPARENT)) {
-		ui_round4(ui, r, rad, rad, 0, 0, (flags & HEADER_FLAT) ? t->window : t->header_top);
+		Color top = (flags & HEADER_FLAT) ? t->window : t->header_top;
+		if (t->glass) /* glass, the wallpaper frosted through it */
+			ui_glass(ui, r, color_with_alpha(top, t->dark ? 0x9c : 0xc8));
+		else
+			ui_round4(ui, r, rad, rad, 0, 0, top);
 		if (!(flags & HEADER_FLAT))
 			ui_fill(ui, rect(r.x, r.y + r.h - 1, r.w, 1), t->border);
 	}
@@ -614,21 +639,28 @@ Rect ui_headerbar(Ui *ui, Rect r, const char *title, u32 flags)
 	ui->header_max = it.pressed_now && ui->click_count >= 2 && !(flags & HEADER_NO_MAXIMIZE);
 	ui->header_menu = it.right_clicked;
 
-	/* minimize, maximize and close, at the right */
-	f32 size = 24, gap = 10, x = r.x + r.w - 12 - size, y = r.y + roundf((r.h - size) / 2);
-	if (window_button(ui, rect(x, y, size, size), "window-close", "__close", true))
-		ui->action = ACTION_CLOSE;
-	if (!(flags & HEADER_NO_MAXIMIZE)) {
-		x -= size + gap;
-		bool maxed = ui->win_states & STATE_MAXIMIZED;
-		if (window_button(ui, rect(x, y, size, size), maxed ? "window-restore" : "window-maximize", "__max", false))
-			ui->action = ACTION_TOGGLE_MAXIMIZE;
-	}
+	/* minimize, maximize and close, at the right, in their capsule */
+	Theme *th = &ui->theme;
+	int nbtn = 1 + !(flags & HEADER_NO_MAXIMIZE) + !(flags & HEADER_NO_MINIMIZE);
+	f32 bw = 28, bh = 26, cap_w = bw * (f32)nbtn + 6;
+	Rect cap = rect(r.x + r.w - 10 - cap_w, r.y + roundf((r.h - bh) / 2), cap_w, bh);
+	ui_round(ui, cap, bh / 2, th->dark ? color_hex("#ffffff0e") : color_hex("#0000000a"));
+	ui_border(ui, cap, bh / 2, 1, th->dark ? color_hex("#ffffff1c") : color_hex("#00000016"));
+	f32 x = cap.x + 3, y = cap.y;
 	if (!(flags & HEADER_NO_MINIMIZE)) {
-		x -= size + gap;
-		if (window_button(ui, rect(x, y, size, size), "window-minimize", "__min", false))
+		if (window_button(ui, rect(x, y, bw, bh), GLYPH_MIN, "__min", th->warning))
 			ui->action = ACTION_MINIMIZE;
+		x += bw;
 	}
+	if (!(flags & HEADER_NO_MAXIMIZE)) {
+		bool maxed = ui->win_states & STATE_MAXIMIZED;
+		if (window_button(ui, rect(x, y, bw, bh), maxed ? GLYPH_RESTORE : GLYPH_MAX, "__max", th->accent))
+			ui->action = ACTION_TOGGLE_MAXIMIZE;
+		x += bw;
+	}
+	if (window_button(ui, rect(x, y, bw, bh), GLYPH_CLOSE, "__close", th->danger))
+		ui->action = ACTION_CLOSE;
+	x = cap.x;
 	Rect inner = { r.x + 8, r.y, x - 10 - (r.x + 8), r.h };
 	if (title && !(flags & HEADER_NO_TITLE)) {
 		/* centred on the window, but never under the controls */
