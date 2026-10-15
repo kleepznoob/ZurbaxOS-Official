@@ -25,8 +25,8 @@ static Look read_look(void)
 	char *path = str_fmt("%s/.config/zurbax/settings.conf", P.home);
 	Conf *c = conf_load(path);
 	mem_free(path);
-	l.dark = conf_get_bool(c, "dark", false);
-	const char *accent = conf_get(c, "accent", THEME_ACCENT_DEFAULT);
+	l.dark = look_dark(c);
+	const char *accent = look_accent(c);
 	l.accent = accent[0] == '#' ? color_hex(accent) : theme_accent_named(accent);
 	l.reduce_motion = conf_get_bool(c, "reduce_motion", false);
 	l.text_scale = (f32)conf_get_float(c, "text_scale", 1.0);

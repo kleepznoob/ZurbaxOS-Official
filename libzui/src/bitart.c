@@ -32,6 +32,30 @@ const HiveTheme *hive_theme_find(const char *id)
 	return &HIVE_THEMES[0];
 }
 
+bool look_hive(const Conf *c)
+{
+	return conf_get_bool(c, "hive", HIVE_DEFAULT);
+}
+
+bool look_dark(const Conf *c)
+{
+	return conf_get_bool(c, "dark", look_hive(c));
+}
+
+const char *look_accent(const Conf *c)
+{
+	return conf_get(c, "accent", look_hive(c) ? hive_theme_find(conf_get(c, "hive_theme", NULL))->accent : THEME_ACCENT_DEFAULT);
+}
+
+const char *look_wallpaper(const Conf *c)
+{
+	static char hive_wall[64];
+	if (!look_hive(c))
+		return conf_get(c, "wallpaper", WALLPAPER_DEFAULT);
+	fmt(hive_wall, sizeof hive_wall, "bit-%s", hive_theme_find(conf_get(c, "hive_theme", NULL))->id);
+	return conf_get(c, "wallpaper", hive_wall);
+}
+
 /* ---- Pixels ------------------------------------------------------------------------------ */
 
 #define W (c->width)

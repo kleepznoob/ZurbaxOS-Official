@@ -39,10 +39,10 @@ void settings_load(void)
 	Conf *c = conf_load(path);
 	mem_free(path);
 	Settings *s = &S.set;
-	s->dark = conf_get_bool(c, "dark", false);
-	str_copy(s->accent_name, conf_get(c, "accent", THEME_ACCENT_DEFAULT), sizeof s->accent_name);
+	s->dark = look_dark(c);
+	str_copy(s->accent_name, look_accent(c), sizeof s->accent_name);
 	s->accent = s->accent_name[0] == '#' ? color_hex(s->accent_name) : theme_accent_named(s->accent_name);
-	str_copy(s->wallpaper, conf_get(c, "wallpaper", WALLPAPER_DEFAULT), sizeof s->wallpaper);
+	str_copy(s->wallpaper, look_wallpaper(c), sizeof s->wallpaper);
 	s->text_scale = (f32)conf_get_float(c, "text_scale", 1.0);
 	s->scale_override = (f32)conf_get_float(c, "display_scale", 0);
 	s->natural_scroll = conf_get_bool(c, "natural_scroll", true);
@@ -59,7 +59,7 @@ void settings_load(void)
 	s->topbar = conf_get_bool(c, "topbar", true);
 	s->taskbar_size = CLAMP((int)conf_get_int(c, "taskbar_size", 1), 0, 2);
 	s->taskbar_spacing = CLAMP((int)conf_get_int(c, "taskbar_spacing", 1), 0, 2);
-	s->hive = conf_get_bool(c, "hive", false);
+	s->hive = look_hive(c);
 	str_copy(s->hive_theme, conf_get(c, "hive_theme", "tokyo-night"), sizeof s->hive_theme);
 	s->taskbar_center = str_eq(conf_get(c, "taskbar_align", "left"), "center");
 	s->taskbar_float = conf_get_bool(c, "taskbar_float", true);

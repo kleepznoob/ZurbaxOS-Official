@@ -206,7 +206,7 @@ static void desktop_card(Ui *ui, Rect r, bool hive, bool selected)
 	const HiveTheme *h = hive_theme_find(get("hive_theme", "tokyo-night"));
 	int wi = 0;
 	for (int k = 0; k < WALLPAPER_COUNT; k++)
-		if (str_eq(WALLPAPER_NAMES[k], get("wallpaper", WALLPAPER_DEFAULT)))
+		if (str_eq(WALLPAPER_NAMES[k], look_wallpaper(st.conf)))
 			wi = k;
 	ui_shadow(ui, pic, 10, 10, 3, color_hex("#00000035"));
 	ui_image(ui, pic, hive ? hive_thumb((int)(h - HIVE_THEMES)) : thumb_for(wi), 10, true);
@@ -278,7 +278,7 @@ static void style_card(Ui *ui, Rect r, bool dark, bool selected)
  * kept bright and saturated enough to read on buttons. */
 static void accent_from_wallpaper(Ui *ui)
 {
-	Canvas *c = wallpaper_render(get("wallpaper", WALLPAPER_DEFAULT), 96, 54);
+	Canvas *c = wallpaper_render(look_wallpaper(st.conf), 96, 54);
 	if (!c)
 		return;
 	f64 r = 0, g = 0, bl = 0, wsum = 0;
@@ -322,7 +322,7 @@ static void page_appearance(Ui *ui, Rect r)
 
 	/* the desktop itself: Classic, or Hive and its themes */
 	section(ui, &b, "Desktop");
-	bool hive = get_bool("hive", false);
+	bool hive = look_hive(st.conf);
 	Rect desks = cut_top(&b, 178);
 	f32 dw = minf(280, (desks.w - 20) / 2);
 	desktop_card(ui, rect(desks.x, desks.y, dw, desks.h), false, !hive);
@@ -379,8 +379,8 @@ static void page_appearance(Ui *ui, Rect r)
 			ui_push_id(ui, 300 + (i64)i);
 			UiInteract it = ui_interact(ui, ui_id(ui, "theme"), card);
 			ui_pop_id(ui);
-			bool on = str_eq(get("wallpaper", WALLPAPER_DEFAULT), THEMES[i].wallpaper) && get_bool("dark", false) == THEMES[i].dark &&
-				  str_eq(get("accent", THEME_ACCENT_DEFAULT), THEMES[i].accent);
+			bool on = str_eq(look_wallpaper(st.conf), THEMES[i].wallpaper) && look_dark(st.conf) == THEMES[i].dark &&
+				  str_eq(look_accent(st.conf), THEMES[i].accent);
 			Rect pic = rect(card.x, card.y, card.w, card.h - 34);
 			int wi = 0;
 			for (int k = 0; k < WALLPAPER_COUNT; k++)
@@ -412,14 +412,14 @@ static void page_appearance(Ui *ui, Rect r)
 
 	section(ui, &b, "Style");
 	Rect styles = cut_top(&b, 150);
-	bool dark = get_bool("dark", false);
+	bool dark = look_dark(st.conf);
 	style_card(ui, rect(styles.x, styles.y, 210, styles.h), false, !dark);
 	style_card(ui, rect(styles.x + 230, styles.y, 210, styles.h), true, dark);
 	cut_top(&b, 12);
 
 	section(ui, &b, "Accent Colour");
 	Rect acc = cut_top(&b, 44);
-	const char *cur = get("accent", THEME_ACCENT_DEFAULT);
+	const char *cur = look_accent(st.conf);
 	for (int i = 0; i < THEME_ACCENT_COUNT; i++) {
 		Rect sw = rect(acc.x + (f32)i * 52, acc.y, 44, 44);
 		ui_push_id(ui, i);
@@ -466,7 +466,7 @@ static void page_appearance(Ui *ui, Rect r)
 	cut_top(&b, 14);
 
 	section(ui, &b, "Wallpaper");
-	const char *wall = get("wallpaper", WALLPAPER_DEFAULT);
+	const char *wall = look_wallpaper(st.conf);
 	f32 tw = 160, th = 100, gap = 14;
 	int cols = MAX(1, (int)((b.w + gap) / (tw + gap)));
 	int n = WALLPAPER_COUNT + 1;
@@ -1724,7 +1724,7 @@ static void init(Ui *ui)
 	st.has_password = conf_get_bool(u, "has_password", false);
 	conf_free(u);
 	mem_free(path);
-	const char *w = get("wallpaper", WALLPAPER_DEFAULT);
+	const char *w = look_wallpaper(st.conf);
 	if (w[0] == '/')
 		st.custom_thumb = image_load_thumb(w, 320);
 	load_about();

@@ -1,6 +1,7 @@
 /* Flint's built-in commands. */
 #include "flint.h"
 #include "zui/proto.h"
+#include "zui.h"
 
 int job_foreground(int index);
 int job_background(int index);
@@ -1500,8 +1501,8 @@ static int cmd_theme(int argc, char **argv)
 	Conf *c = conf_load(path);
 	mem_free(path);
 	if (argc < 2) {
-		outf("Style: %s · Accent: %s · Wallpaper: %s\n", conf_get_bool(c, "dark", false) ? "dark" : "light",
-		     conf_get(c, "accent", "iris"), conf_get(c, "wallpaper", "halloween"));
+		outf("Desktop: %s · Style: %s · Accent: %s · Wallpaper: %s\n", look_hive(c) ? "Hive" : "Classic", look_dark(c) ? "dark" : "light",
+		     look_accent(c), look_wallpaper(c));
 		out("Change it with: theme dark | theme light | theme accent NAME | theme wallpaper NAME\n");
 		conf_free(c);
 		return 0;

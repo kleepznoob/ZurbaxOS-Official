@@ -559,7 +559,7 @@ static const Canvas *wallpaper_thumb(Ui *ui, int i, f32 w, f32 h)
 
 static int wallpaper_index(void)
 {
-	const char *cur = conf_get(wl.conf, "wallpaper", WALLPAPER_DEFAULT);
+	const char *cur = look_wallpaper(wl.conf);
 	for (int i = 0; i < WALLPAPER_COUNT; i++)
 		if (str_eq(cur, WALLPAPER_NAMES[i]))
 			return i;
@@ -641,7 +641,7 @@ static void page_look(Ui *ui, Rect r)
 	ui_text_in(ui, ui_font(ui, 13, 700), cut_top(&top, 22), "Style", t->text, ALIGN_START);
 	Rect s = cut_top(&top, 92);
 	f32 cw = (s.w - 14) / 2;
-	bool dark = conf_get_bool(wl.conf, "dark", false);
+	bool dark = look_dark(wl.conf);
 	style_choice(ui, rect(s.x, s.y, cw, s.h), false, !dark);
 	style_choice(ui, rect(s.x + cw + 14, s.y, cw, s.h), true, dark);
 	cut_top(&top, 14);
@@ -734,7 +734,7 @@ static void page_done(Ui *ui, Rect r)
 		cut_left(&r, 28);
 	sum = setup_rise(ui, wl.changed_at, 1, sum);
 	char look[96];
-	fmt(look, sizeof look, "%s · %s", conf_get_bool(wl.conf, "dark", false) ? "Dark" : "Light", WALLPAPER_TITLES[wallpaper_index()]);
+	fmt(look, sizeof look, "%s · %s", look_dark(wl.conf) ? "Dark" : "Light", WALLPAPER_TITLES[wallpaper_index()]);
 	char who[160];
 	fmt(who, sizeof who, "%s%s", wl.name.len ? sb_str(&wl.name) : "Zurbax User",
 	    (!wl.skip_password && wl.pw.len) ? ", with a password" : ", no password");
@@ -791,7 +791,7 @@ static void frame(Ui *ui)
 		steps[n++] = STEP_NAMES[p];
 	}
 	SetupSteps s = { .title = wl.live ? "Try or install" : "Setup", .steps = steps, .count = n, .current = cur,
-			 .changed_at = wl.changed_at, .dir = wl.dir, .wallpaper = conf_get(wl.conf, "wallpaper", WALLPAPER_DEFAULT) };
+			 .changed_at = wl.changed_at, .dir = wl.dir, .wallpaper = look_wallpaper(wl.conf) };
 	Rect page = setup_frame(ui, &s);
 	Rect bottom = cut_bottom(&page, 40);
 	cut_bottom(&page, 18);

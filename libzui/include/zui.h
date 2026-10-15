@@ -393,6 +393,15 @@ typedef struct {
 extern const HiveTheme HIVE_THEMES[];
 extern const int HIVE_THEME_COUNT;
 const HiveTheme *hive_theme_find(const char *id); /* the first if there's none of that id */
+
+/* Hive is the desktop unless the settings say otherwise; and what isn't set
+ * of the look follows the desktop: under Hive its theme's dark style,
+ * accent and pixel-art wallpaper. */
+#define HIVE_DEFAULT true
+bool look_hive(const Conf *c);
+bool look_dark(const Conf *c);
+const char *look_accent(const Conf *c);
+const char *look_wallpaper(const Conf *c);
 Canvas *bitart_render(const char *id, int w, int h);
 
 /* ---- Setup assistants (setup.c): Welcome and the Installer share this look ---- */
