@@ -48,6 +48,39 @@
     stars.recolour();
   };
 
+  // changing theme: the page goes under a storm of blocks in the new
+  // theme's colours, in the ordered pattern, and comes out of it changed
+  const wipe = (id, keep) => {
+    const t = byId(id);
+    if (t[0] === root.dataset.theme) return;
+    if (still) return apply(id, keep);
+    const cv = document.createElement('canvas');
+    cv.className = 'px-wipe';
+    cv.setAttribute('aria-hidden', 'true');
+    const S = 26, w = cv.width = Math.ceil(innerWidth / S), h = cv.height = Math.ceil(innerHeight / S);
+    document.body.append(cv);
+    const cx = cv.getContext('2d');
+    const turn = (x, y) => (BAYER[(y & 7) * 8 + (x & 7)] + 0.5) / 64;
+    const t0 = performance.now(), IN = 260, OUT = 340;
+    let applied = false;
+    const step = now => {
+      const e = now - t0;
+      cx.clearRect(0, 0, w, h);
+      if (e >= IN && !applied) { applied = true; apply(id, keep); }
+      /* coming in, the blocks lay themselves over the page; going out, they lift */
+      const k = e < IN ? Math.floor((e / IN) * 12) / 12 * 1.15 : 1.15 - Math.floor(((e - IN) / OUT) * 12) / 12 * 1.15;
+      if (e >= IN + OUT) { cv.remove(); return; }
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const v = turn(x, y);
+        if (v >= k) continue;
+        cx.fillStyle = v > k - 0.12 ? t[4] : v > k - 0.22 ? t[5] : t[2];
+        cx.fillRect(x, y, 1, 1);
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
   const closeList = () => { pickList.hidden = true; pickBtn.setAttribute('aria-expanded', 'false'); };
   pickBtn.addEventListener('click', e => {
     e.stopPropagation();
@@ -56,8 +89,8 @@
   });
   document.addEventListener('click', closeList);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeList(); });
-  pickList.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { apply(b.dataset.theme, true); closeList(); } });
-  grid.addEventListener('click', e => { const b = e.target.closest('button'); if (b) apply(b.dataset.theme, true); });
+  pickList.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { wipe(b.dataset.theme, true); closeList(); } });
+  grid.addEventListener('click', e => { const b = e.target.closest('button'); if (b) wipe(b.dataset.theme, true); });
 
   // the hero's stars: big square pixels that twinkle, as on the wallpapers
   const stars = (() => {
@@ -142,7 +175,7 @@
     });
     const turn = (x, y) => (BAYER[(y & 7) * 8 + (x & 7)] + 0.5) / 64;
     const r = (x, y, cls, d) => `<rect x="${x}" y="${y}" width="1.04" height="1.04" class="${cls}" style="--d:${d}s"/>`;
-    let shade = '', body = '', light = '', dark = '';
+    let shade = '', body = '', light = '', dark = '', sweep = '';
     for (const c of cells) {
       const d = (turn(c.x, c.y) * 0.6).toFixed(3);
       let b = BAND[c.y];
@@ -154,8 +187,11 @@
       else if (c.low) dark += r(c.x, c.y, 'px dk', d);
     }
     const width = word.length * (W + GAP) - GAP + 1;
+    /* a light that sweeps across the name every few seconds, a diagonal of pixels */
+    if (!still) for (const c of cells)
+      sweep += `<rect x="${c.x}" y="${c.y}" width="1.04" height="1.04" class="sw" style="--s:${((c.x + (H - c.y) * 0.6) / (width + 8)).toFixed(3)}"/>`;
     svg.setAttribute('viewBox', `0 0 ${width} ${H + 1}`);
-    svg.innerHTML = shade + body + dark + light;
+    svg.innerHTML = shade + body + dark + light + sweep;
     if (!still) svg.classList.add('build');
   })();
 
