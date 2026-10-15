@@ -17,8 +17,8 @@
  * keys. Dialogs, menus and windows that can't be resized float above, as
  * Super+V makes any.
  *
- * Themes (Tokyo Night, Catppuccin, Gruvbox, Nord, Everforest, Kanagawa, Rosé
- * Pine, Matte Black) colour the rings, the glass and the apps' accent, and
+ * Its themes (Carbon, black and orange, the default; Midnight, deep blue and
+ * violet) colour the rings, the glass and the apps' accent, and
  * each brings a pixel-art wallpaper the system paints for it (libzui's "bit-"
  * ones).
  */

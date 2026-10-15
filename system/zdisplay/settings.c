@@ -61,7 +61,7 @@ void settings_load(void)
 	s->taskbar_size = CLAMP((int)conf_get_int(c, "taskbar_size", 1), 0, 2);
 	s->taskbar_spacing = CLAMP((int)conf_get_int(c, "taskbar_spacing", 1), 0, 2);
 	s->hive = look_hive(c);
-	str_copy(s->hive_theme, conf_get(c, "hive_theme", "tokyo-night"), sizeof s->hive_theme);
+	str_copy(s->hive_theme, hive_theme_find(conf_get(c, "hive_theme", NULL))->id, sizeof s->hive_theme);
 	s->taskbar_center = str_eq(conf_get(c, "taskbar_align", "left"), "center");
 	s->taskbar_float = conf_get_bool(c, "taskbar_float", true);
 	s->taskbar_labels = conf_get_bool(c, "taskbar_labels", false);

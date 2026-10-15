@@ -163,7 +163,7 @@ typedef struct {
 	int taskbar_size;           /* 0 small, 1 medium, 2 large */
 	int taskbar_spacing;        /* the room between app icons: 0 close, 1 medium, 2 wide */
 	bool hive;                  /* the tiling desktop (hive.c) instead of taskbar and Start */
-	char hive_theme[32];        /* its theme: "tokyo-night", "gruvbox"... */
+	char hive_theme[32];        /* its theme: "carbon" or "midnight" */
 	bool taskbar_center;        /* the buttons centred, or from the left */
 	bool taskbar_float;         /* a pane of glass off the screen's edges */
 	bool taskbar_labels;        /* app names beside the icons */

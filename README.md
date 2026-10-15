@@ -98,13 +98,13 @@ clock; the status), and the launcher, the keys and the power menu are
 panes of glass. Nine workspaces slide across. Everything is a keystroke
 away (Super+Return a terminal, Super+Space the launcher, Super+W closes,
 Super+Z zooms a window, Super+V floats it, Super+1…9 workspaces), and
-Super+K shows every key as keycaps. Eight themes (Tokyo Night,
-Catppuccin, Gruvbox, Nord, Everforest, Kanagawa, Rosé Pine, Matte Black,
-Super+Ctrl+Space for the next) colour the rings, the glass and the apps,
-and each brings its own pixel-art wallpaper, painted on the spot with
-dithered gradients: a city by a river, a cat watching the moon, a desert
-at sundown, an aurora over snow, a forest with fireflies, Fuji over a sea
-of waves, a moonlit lake, a sun setting on a grid.
+Super+K shows every key as keycaps. Two themes, Carbon (black and
+orange, the default) and Midnight (deep blue and violet), Super+Ctrl+Space
+to switch, colour the rings, the glass and the apps, and each brings its
+own pixel-art wallpaper painted on the spot with dithered gradients: a sun
+going down striped over a grid, and a city by a river at night. The
+wallpapers move: stars twinkle and shoot, lines run down the grid, the
+water glitters.
 
 **Glass.** Apps' sidebars (Settings, Files, Music, Mail, Notes, Calendar,
 Photos) are frosted glass the wallpaper shows through, as are the

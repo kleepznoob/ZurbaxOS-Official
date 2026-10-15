@@ -2,16 +2,14 @@
  * Wallanim: Hive's pixel-art wallpapers come alive.
  *
  * Over a "bit-" wallpaper a few sprites move on the same grid of big pixels
- * as the picture: stars twinkle and now and then one shoots across, snow
- * falls on Nord, fireflies wander the forest and the cat's hill, petals
- * drift over Kanagawa and Rosé Pine, birds cross the desert, the water
- * glitters under the city and the moon, and lines run down Matte Black's
- * grid towards you. Eight times a second the sprites are worked out again
- * (from the time alone: nothing is kept but what was drawn), and those that
- * changed have their old and new squares marked to be drawn again, so only
- * they are; the compositor draws them over the wallpaper, under the
- * windows. With the pixel style off, reduce motion on, the screen locked or
- * something full screen, nothing moves and nothing is woken.
+ * as the picture: on Midnight stars twinkle, now and then one shoots across,
+ * and the water glitters under the city; on Carbon the stars are fainter and
+ * lines run down the grid towards you. Eight times a second the sprites are
+ * worked out again (from the time alone: nothing is kept but what was
+ * drawn), and those that changed have their old and new squares marked to
+ * be drawn again, so only they are; the compositor draws them over the
+ * wallpaper, under the windows. With the pixel style off, reduce motion on,
+ * the screen locked or something full screen, nothing moves.
  */
 #include "zdisplay.h"
 
@@ -125,65 +123,6 @@ static void shooting(int s, Color c)
 	end();
 }
 
-static void snow(int base, int n, Color c)
-{
-	for (int i = 0; i < n; i++) {
-		begin(base + i);
-		f32 speed = 2.5f + 4 * h1(i, 31);
-		f32 y = fmodf(h1(i, 32) * (f32)gh + t * speed, (f32)gh + 4) - 2;
-		f32 x = h1(i, 33) * (f32)gw + sinf(t * (0.5f + h1(i, 34)) + (f32)i) * 2.5f;
-		dot(x, y, c, 0.9f);
-		if (h1(i, 35) > 0.82f) /* the big flakes */
-			dot(x - 1, y, c, 0.45f), dot(x + 1, y, c, 0.45f), dot(x, y - 1, c, 0.45f), dot(x, y + 1, c, 0.45f);
-		end();
-	}
-}
-
-static void fireflies(int base, int n, f32 y0, f32 y1, Color core, Color glow)
-{
-	for (int i = 0; i < n; i++) {
-		begin(base + i);
-		f32 x = h1(i, 41) * (f32)gw + sinf(t * (0.25f + 0.35f * h1(i, 42)) + (f32)i * 1.7f) * 9;
-		f32 y = (y0 + (y1 - y0) * h1(i, 43)) * (f32)gh + sinf(t * (0.4f + 0.5f * h1(i, 44)) + (f32)i) * 3;
-		f32 v = 0.5f + 0.5f * sinf(t * (1.2f + 1.8f * h1(i, 45)) + (f32)i * 2.3f);
-		v *= v;
-		dot(x, y, core, v);
-		dot(x - 1, y, glow, v * 0.4f), dot(x + 1, y, glow, v * 0.4f), dot(x, y - 1, glow, v * 0.4f), dot(x, y + 1, glow, v * 0.4f);
-		end();
-	}
-}
-
-static void petals(int base, int n, const Color *cols, int ncols)
-{
-	for (int i = 0; i < n; i++) {
-		begin(base + i);
-		f32 vx = 2.5f + 3.5f * h1(i, 51), vy = 2 + 3 * h1(i, 52);
-		f32 x = fmodf(h1(i, 53) * (f32)gw + t * vx, (f32)gw + 10) - 5 + sinf(t * 1.3f + (f32)i) * 1.5f;
-		f32 y = fmodf(h1(i, 54) * (f32)gh + t * vy, (f32)gh + 10) - 5;
-		Color c = cols[i % ncols];
-		dot(x, y, c, 0.9f);
-		if (h1(i, 55) > 0.45f) /* tumbling: its other half above or beside */
-			dot(x + 1, y + (((int)(t * 3) + i) & 1 ? 0 : -1), c, 0.7f);
-		end();
-	}
-}
-
-static void birds(int base, int n, Color c)
-{
-	static const char *const FLAP[2][3] = { { "X...X", ".X.X.", "..X.." }, { ".....", "XX.XX", "..X.." } };
-	for (int i = 0; i < n; i++) {
-		begin(base + i);
-		f32 x = fmodf(h1(i, 61) * (f32)gw + t * (4.5f + 2 * h1(i, 62)), (f32)gw + 14) - 7;
-		f32 y = (0.2f + 0.12f * h1(i, 63)) * (f32)gh + sinf(t * 0.8f + (f32)i);
-		int f = ((int)(t * 5) + i * 2) & 1;
-		for (int r = 0; r < 3; r++)
-			for (int k = 0; k < 5; k++)
-				if (FLAP[f][r][k] == 'X')
-					dot(x + (f32)k, y + (f32)r, c, 1);
-		end();
-	}
-}
-
 /* light catching ripples: short dashes that come and go in a band */
 static void glitter(int base, int n, f32 x0, f32 x1, f32 y0, f32 y1, const Color *cols, int ncols)
 {
@@ -218,46 +157,21 @@ static int active(void)
 		return -1;
 	if (S.focus && (S.focus->states & STATE_FULLSCREEN) && !S.focus->minimized)
 		return -1;
-	const char *id = S.set.wallpaper + 4;
-	for (int i = 0; i < HIVE_THEME_COUNT; i++)
-		if (str_eq(HIVE_THEMES[i].id, id))
-			return i;
-	return -1;
+	/* the picture painted for that name, old names included */
+	return (int)(hive_theme_find(S.set.wallpaper + 4) - HIVE_THEMES);
 }
 
 static void picture(const char *id)
 {
-	if (str_eq(id, "tokyo-night")) {
+	if (str_eq(id, "midnight")) {
 		const Color w[] = { color_hex("#7aa2f7"), color_hex("#bb9af7"), color_hex("#e0af68"), color_hex("#7dcfff") };
 		twinkles(0, 26, 0.6f, color_hex("#c0caf5"), 7);
 		shooting(30, color_hex("#c0caf5"));
 		glitter(31, 16, 0, 1, 0.72f, 1, w, 4);
-	} else if (str_eq(id, "catppuccin")) {
-		twinkles(0, 26, 0.55f, color_hex("#b4befe"), 11);
-		shooting(30, color_hex("#f5e0dc"));
-		fireflies(31, 7, 0.88f, 0.98f, color_hex("#f9e2af"), color_hex("#a6e3a1"));
-	} else if (str_eq(id, "gruvbox")) {
-		twinkles(0, 10, 0.3f, color_hex("#ebdbb2"), 19);
-		birds(12, 3, color_hex("#1d2021"));
-	} else if (str_eq(id, "nord")) {
-		twinkles(0, 14, 0.45f, color_hex("#e5e9f0"), 23);
-		shooting(16, color_hex("#eceff4"));
-		snow(17, 44, color_hex("#eceff4"));
-	} else if (str_eq(id, "everforest")) {
-		twinkles(0, 8, 0.35f, color_hex("#d3c6aa"), 29);
-		fireflies(10, 18, 0.66f, 0.98f, color_hex("#dbbc7f"), color_hex("#a7c080"));
-	} else if (str_eq(id, "kanagawa")) {
-		const Color p[] = { color_hex("#d27e99"), color_hex("#e6a5b8") };
-		twinkles(0, 10, 0.45f, color_hex("#dcd7ba"), 37);
-		petals(12, 24, p, 2);
-	} else if (str_eq(id, "rose-pine")) {
-		const Color p[] = { color_hex("#ebbcba"), color_hex("#eb6f92") }, g[] = { color_hex("#f6c177") };
-		twinkles(0, 22, 0.55f, color_hex("#e0def4"), 41);
-		petals(24, 14, p, 2);
-		glitter(40, 12, 0.6f, 0.68f, 0.64f, 1, g, 1);
-	} else if (str_eq(id, "matte-black")) {
-		twinkles(0, 12, 0.5f, color_hex("#5c5c5c"), 43);
-		floor_lines(14, 0.64f, color_hex("#e68e0d"));
+	} else if (str_eq(id, "carbon")) {
+		twinkles(0, 14, 0.5f, color_hex("#7a7a7a"), 43);
+		shooting(16, color_hex("#bebebe"));
+		floor_lines(17, 0.64f, color_hex("#e68e0d"));
 	}
 }
 

@@ -203,7 +203,7 @@ static void desktop_card(Ui *ui, Rect r, bool hive, bool selected)
 	Theme *t = &ui->theme;
 	UiInteract it = ui_interact(ui, ui_id(ui, hive ? "desk-hive" : "desk-classic"), r);
 	Rect pic = cut_top(&r, r.h - 44);
-	const HiveTheme *h = hive_theme_find(get("hive_theme", "tokyo-night"));
+	const HiveTheme *h = hive_theme_find(get("hive_theme", NULL));
 	int wi = 0;
 	for (int k = 0; k < WALLPAPER_COUNT; k++)
 		if (str_eq(WALLPAPER_NAMES[k], look_wallpaper(st.conf)))
@@ -330,7 +330,7 @@ static void page_appearance(Ui *ui, Rect r)
 	cut_top(&b, 12);
 	if (hive) {
 		section(ui, &b, "Hive Themes");
-		const char *cur_hive = get("hive_theme", "tokyo-night");
+		const char *cur_hive = hive_theme_find(get("hive_theme", NULL))->id;
 		f32 tw = 160, th = 100, gap = 14;
 		int cols = MAX(1, (int)((b.w + gap) / (tw + gap)));
 		int rows = (HIVE_THEME_COUNT + cols - 1) / cols;
