@@ -395,7 +395,7 @@ static void month_grid(Ui *ui, Rect r)
 static void agenda(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	ui_fill(ui, r, t->sidebar);
+	ui_sidebar_background(ui, r);
 	ui_vseparator(ui, r.x, r.y, r.y + r.h);
 	Rect in = pad(r, 18);
 	char big[8];

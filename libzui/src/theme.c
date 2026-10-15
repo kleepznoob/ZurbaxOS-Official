@@ -30,6 +30,7 @@ void theme_build(Theme *t, const ThemeInfo *info)
 	memset(t, 0, sizeof *t);
 	t->dark = info && info->dark;
 	t->reduce_motion = info && info->reduce_motion;
+	t->glass = info && info->glass;
 	t->text_scale = (info && info->text_scale > 0.5f) ? info->text_scale : 1.0f;
 	Color accent = (info && info->accent) ? info->accent | 0xff000000u : THEME_ACCENT_COLORS[0];
 	t->accent = accent;

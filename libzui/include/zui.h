@@ -23,6 +23,7 @@
 typedef struct {
 	bool dark;
 	bool reduce_motion;
+	bool glass;         /* transparency effects are on */
 	f32 text_scale;
 	Color accent, accent_hover, accent_pressed, on_accent;
 	Color window;       /* window background */
@@ -78,6 +79,10 @@ typedef struct Ui {
 	f32 width, height;      /* logical window size */
 	Theme theme;
 	u32 win_states;         /* STATE_* from the server */
+	Rect glass[WIN_GLASS_MAX];      /* this frame's glass, in window coordinates */
+	int nglass;
+	Rect glass_sent[WIN_GLASS_MAX]; /* as the display last heard it */
+	int nglass_sent;
 
 	/* time */
 	f64 now;                /* seconds, monotonic */
@@ -304,6 +309,11 @@ void ui_tooltip(Ui *ui, const char *text);               /* for the widget just 
 UiInteract ui_row(Ui *ui, Rect r, UiId id, bool selected);
 bool ui_sidebar_item(Ui *ui, Rect r, const char *icon, const char *label, bool selected);
 void ui_sidebar_heading(Ui *ui, Rect r, const char *label);
+/* Glass: r drawn see-through in tint (its alpha says how much shows through)
+ * over the blurred wallpaper, which the display lays beneath; solid when
+ * transparency effects are off. A sidebar is the usual piece of it. */
+void ui_glass(Ui *ui, Rect r, Color tint);
+void ui_sidebar_background(Ui *ui, Rect r);
 
 /* Text entry. Returns a mask of ENTRY_* events. */
 enum { ENTRY_CHANGED = 1, ENTRY_SUBMIT = 2, ENTRY_ESCAPE = 4, ENTRY_FOCUSED = 8, ENTRY_UP = 16, ENTRY_DOWN = 32 };

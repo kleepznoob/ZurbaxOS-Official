@@ -295,6 +295,20 @@ void compose_splash_frame(Rect area)
 	S.out->present(S.out, S.frame, &area, 1);
 }
 
+/* Under a window's glass, the blurred wallpaper, inside the window's shape. */
+static void draw_glass(Canvas *frame, Window *w, Rect pr, f32 opacity)
+{
+	if (!S.set.glass || w->rect.w <= 0 || w->rect.h <= 0)
+		return;
+	f32 kx = pr.w / w->rect.w, ky = pr.h / w->rect.h;
+	bool square = (w->states & (STATE_MAXIMIZED | STATE_FULLSCREEN | STATE_TILED_LEFT | STATE_TILED_RIGHT)) && !(w->states & STATE_TILED);
+	f32 rad = square ? 0 : w->radius * kx;
+	for (int i = 0; i < w->nglass; i++) {
+		Rect g = w->glass[i];
+		glass_backdrop(frame, rect(pr.x + g.x * kx, pr.y + g.y * ky, g.w * kx, g.h * ky), pr, rad, opacity);
+	}
+}
+
 static void draw_window(Canvas *frame, Window *w)
 {
 	if (!w->mapped && !w->last_frame)
@@ -332,6 +346,8 @@ static void draw_window(Canvas *frame, Window *w)
 		src = canvas_wrap(w->map + (usize)w->front * w->slot_bytes, (int)w->bw, (int)w->bh, (int)w->stride);
 		img = &src;
 	}
+	if (w->nglass)
+		draw_glass(frame, w, pr, opacity);
 	bool exact = fabsf(pr.w - (f32)img->width) < 0.5f && fabsf(pr.h - (f32)img->height) < 0.5f;
 	if (exact)
 		blit(frame, img, (int)pr.x, (int)pr.y, opacity);

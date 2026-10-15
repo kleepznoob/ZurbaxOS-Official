@@ -348,6 +348,18 @@ static void render(Client *c)
 	c->ui->redraw = false;
 	ui_frame(c->ui, c->desc->frame);
 	c->dirty = c->ui->redraw;
+	/* the glass, if it moved, before the picture that has it */
+	Ui *ui = c->ui;
+	if (ui->nglass != ui->nglass_sent || memcmp(ui->glass, ui->glass_sent, sizeof(Rect) * (usize)ui->nglass) != 0) {
+		MsgWinGlass g = { .count = (u32)ui->nglass };
+		for (int i = 0; i < ui->nglass; i++) {
+			g.rects[i][0] = ui->glass[i].x, g.rects[i][1] = ui->glass[i].y;
+			g.rects[i][2] = ui->glass[i].w, g.rects[i][3] = ui->glass[i].h;
+		}
+		send_msg(c, &g, MSG_WIN_GLASS, sizeof g, NULL, 0);
+		memcpy(ui->glass_sent, ui->glass, sizeof ui->glass);
+		ui->nglass_sent = ui->nglass;
+	}
 	MsgWinCommit m = { .slot = (u32)slot };
 	send_msg(c, &m, MSG_WIN_COMMIT, sizeof m, NULL, 0);
 	c->slot_busy[slot] = true;

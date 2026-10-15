@@ -396,7 +396,7 @@ static void frame(Ui *ui)
 	Rect win = rect(0, 0, ui->width, ui->height);
 	ui_headerbar(ui, cut_top(&win, 46), "Help", 0);
 	Rect side = cut_left(&win, 250);
-	ui_fill(ui, side, t->sidebar);
+	ui_sidebar_background(ui, side);
 	ui_vseparator(ui, side.x + side.w, side.y, side.y + side.h);
 	Rect s = pad4(side, 12, 12, 8, 12);
 	ui_entry(ui, cut_top(&s, 34), "search", &search, "Search help", ENTRY_SEARCH);

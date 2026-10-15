@@ -67,6 +67,8 @@ typedef struct Window {
 	struct Window *parent;
 	Rect rect;                  /* logical, content area */
 	Rect saved;                 /* geometry before maximize/tile */
+	Rect glass[WIN_GLASS_MAX];  /* its glass, in window coordinates (MSG_WIN_GLASS) */
+	int nglass;
 	u32 states;
 	u32 min_w, min_h;
 	f32 radius;
@@ -152,6 +154,7 @@ typedef struct {
 	bool clock_24h;
 	bool clock_seconds;
 	bool reduce_motion;
+	bool glass;                 /* transparency effects */
 	bool dock_autohide;         /* the taskbar hides until the pointer reaches the bottom edge */
 	bool topbar;                /* the bar across the top: app menu, clock, status */
 	int taskbar_size;           /* 0 small, 1 medium, 2 large */
@@ -431,6 +434,7 @@ void glass_panel(Ui *ui, Rect r, f32 radius, f32 alpha);
 void glass_card(Ui *ui, Rect r, f32 radius, f32 alpha);
 void glass_panel_style(Ui *ui, Rect r, f32 radius, f32 alpha, bool dark);
 void glass_card_style(Ui *ui, Rect r, f32 radius, f32 alpha, bool dark);
+void glass_backdrop(Canvas *dst, Rect d, Rect shape, f32 radius, f32 opacity); /* under a window's glass */
 Notice *shell_notify(const char *app, const char *icon, const char *title, const char *body); /* NULL when held back */
 void shell_osd(const char *icon, f32 value);
 void shell_lock(void);

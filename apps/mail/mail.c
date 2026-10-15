@@ -2037,7 +2037,7 @@ static void sidebar(Ui *ui, Rect area)
 {
 	Theme *t = &ui->theme;
 	Acct *a = cur_acct();
-	ui_fill(ui, area, t->sidebar);
+	ui_sidebar_background(ui, area);
 	Rect r = pad2(area, 10, 10);
 	/* Compose, the big friendly button */
 	Rect cb = cut_top(&r, 46);

@@ -512,7 +512,7 @@ static void page_appearance(Ui *ui, Rect r)
 	cut_top(&b, 10);
 
 	section(ui, &b, "Accessibility");
-	Rect rows2 = card_rows(ui, &b, 2, 60);
+	Rect rows2 = card_rows(ui, &b, 3, 60);
 	Rect tr = cut_top(&rows2, 60);
 	ui_separator(ui, tr.x, tr.y + tr.h, tr.x + tr.w);
 	row_label(ui, tr, "Text size", "Makes text larger everywhere");
@@ -520,6 +520,7 @@ static void page_appearance(Ui *ui, Rect r)
 	Rect sl = center_in(cut_right(&tr, 240), 230, 24);
 	if (ui_slider(ui, sl, &ts, 0.85f, 1.4f))
 		set_float(ui, "text_scale", roundf(ts * 20) / 20);
+	switch_row(ui, &rows2, 60, false, "Transparency effects", "Glass in the bar, panels and sidebars", "glass", true);
 	switch_row(ui, &rows2, 60, true, "Reduce motion", "Fewer and shorter animations", "reduce_motion", false);
 
 	ui_scroll_end(ui, b.y - top + 60);
@@ -1656,7 +1657,7 @@ static void frame(Ui *ui)
 	Rect side = cut_left(&win, 250);
 	Rect tools = ui_headerbar(ui, header, PAGES[st.page].title, 0);
 	UNUSED(tools);
-	ui_fill(ui, side, t->sidebar);
+	ui_sidebar_background(ui, side);
 	ui_vseparator(ui, side.x + side.w - 1, side.y, side.y + side.h);
 	Rect s = pad4(side, 10, 10, 0, 10);
 	int ev = ui_entry(ui, cut_top(&s, 32), "search", &st.search, "Search settings", ENTRY_SEARCH);

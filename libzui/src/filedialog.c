@@ -246,7 +246,7 @@ bool ui_file_dialog(Ui *ui, const char *id, char *out_path, usize cap)
 	ui_separator(ui, foot.x, foot.y, foot.x + foot.w);
 	/* Places. */
 	Rect side = cut_left(&c, 170);
-	ui_fill(ui, side, t->sidebar);
+	ui_sidebar_background(ui, side);
 	ui_vseparator(ui, side.x + side.w, side.y, side.y + side.h);
 	Rect sp = pad(side, 8);
 	static const struct {

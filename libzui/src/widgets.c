@@ -639,6 +639,37 @@ Rect ui_headerbar(Ui *ui, Rect r, const char *title, u32 flags)
 	return inner;
 }
 
+/* ---- Glass --------------------------------------------------------------------------------------- */
+
+void ui_glass(Ui *ui, Rect r, Color tint)
+{
+	if (!ui->theme.glass || ui->in_overlay || !ui->canvas) {
+		ui_fill(ui, r, tint | 0xff000000u);
+		return;
+	}
+	/* written, not blended: what was drawn there gives way to the tint, the
+	 * window's own shape (its rounded corners) kept */
+	f32 s = ui->scale;
+	Rect d = rect_intersect(rect(roundf((r.x + ui->ox) * s), roundf((r.y + ui->oy) * s), roundf(r.w * s), roundf(r.h * s)), ui->canvas->clip);
+	u32 p = color_premul(tint);
+	for (int y = (int)d.y; y < (int)(d.y + d.h); y++) {
+		u32 *row = canvas_row(ui->canvas, y);
+		for (int x = (int)d.x; x < (int)(d.x + d.w); x++) {
+			u32 a = row[x] >> 24;
+			row[x] = a >= 255 ? p : blend_premul(0, p, a + (a >> 7));
+		}
+	}
+	Rect g = rect_intersect(rect(r.x + ui->ox, r.y + ui->oy, r.w, r.h), rect(0, 0, ui->width, ui->height));
+	if (ui->nglass < WIN_GLASS_MAX && g.w > 0 && g.h > 0)
+		ui->glass[ui->nglass++] = g;
+}
+
+void ui_sidebar_background(Ui *ui, Rect r)
+{
+	Theme *t = &ui->theme;
+	ui_glass(ui, r, color_with_alpha(t->sidebar, t->dark ? 0x88 : 0xd0));
+}
+
 /* ---- Popovers ---------------------------------------------------------------------------------- */
 
 void ui_popover_toggle(Ui *ui, const char *id)

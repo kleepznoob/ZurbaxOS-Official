@@ -21,6 +21,7 @@ static ThemeInfo current_theme(void)
 	ThemeInfo t = { 0 };
 	t.dark = S.set.dark;
 	t.reduce_motion = S.set.reduce_motion;
+	t.glass = S.set.glass;
 	t.accent = S.set.accent;
 	t.text_scale = S.set.text_scale > 0 ? S.set.text_scale : 1;
 	return t;
@@ -136,6 +137,15 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 	case MSG_WIN_TITLE:
 		if (w && len >= sizeof(MsgWinTitle))
 			str_copy(w->title, ((const MsgWinTitle *)buf)->title, sizeof w->title);
+		break;
+	case MSG_WIN_GLASS:
+		if (w && len >= sizeof(MsgWinGlass)) {
+			const MsgWinGlass *m = (const MsgWinGlass *)buf;
+			w->nglass = (int)MIN(m->count, (u32)WIN_GLASS_MAX);
+			for (int i = 0; i < w->nglass; i++)
+				w->glass[i] = rect(m->rects[i][0], m->rects[i][1], m->rects[i][2], m->rects[i][3]);
+			window_damage(w);
+		}
 		break;
 	case MSG_WIN_ACTION: {
 		if (!w || len < sizeof(MsgWinAction))
@@ -277,7 +287,7 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 		break;
 	}
 	case MSG_WIN_SET_SIZE:
-		if (w && len >= sizeof(MsgWinSetSize) && !(w->states & (STATE_MAXIMIZED | STATE_FULLSCREEN | STATE_TILED_LEFT | STATE_TILED_RIGHT))) {
+		if (w && len >= sizeof(MsgWinSetSize) && !(w->states & (STATE_MAXIMIZED | STATE_FULLSCREEN | STATE_TILED_LEFT | STATE_TILED_RIGHT | STATE_TILED))) {
 			const MsgWinSetSize *m = (const MsgWinSetSize *)buf;
 			Rect wa = work_area();
 			f32 nw = clampf((f32)MAX(m->width, w->min_w), 120, wa.w), nh = clampf((f32)MAX(m->height, w->min_h), 80, wa.h);

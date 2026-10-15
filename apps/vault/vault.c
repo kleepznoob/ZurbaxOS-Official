@@ -659,7 +659,7 @@ static void path_bar(Ui *ui, Rect r)
 static void sidebar(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	ui_fill(ui, r, t->sidebar);
+	ui_sidebar_background(ui, r);
 	ui_vseparator(ui, r.x + r.w - 1, r.y, r.y + r.h);
 	Rect s = pad(r, 8);
 	ui_sidebar_heading(ui, cut_top(&s, 26), "Places");

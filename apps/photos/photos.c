@@ -338,7 +338,7 @@ static void viewer(Ui *ui, Rect r)
 static void info_panel(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	ui_fill(ui, r, t->sidebar);
+	ui_sidebar_background(ui, r);
 	ui_vseparator(ui, r.x, r.y, r.y + r.h);
 	Photo *p = &ph.photos[ph.current];
 	Rect in = pad(r, 18);

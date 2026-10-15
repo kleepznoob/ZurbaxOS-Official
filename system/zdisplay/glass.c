@@ -199,11 +199,47 @@ static Kept *glass_for(Rect d, f32 rad, bool dark)
 	return slot;
 }
 
+/* ---- Under windows' glass ---------------------------------------------------------------- */
+
+void glass_backdrop(Canvas *dst, Rect d, Rect shape, f32 rad, f32 opacity)
+{
+	const Canvas *b = S.wallpaper_blur;
+	if (!b || opacity <= 0.004f)
+		return;
+	Rect c = rect_intersect(rect_intersect(d, shape), dst->clip);
+	int x0 = MAX((int)roundf(c.x), 0), y0 = MAX((int)roundf(c.y), 0);
+	int x1 = MIN((int)roundf(c.x + c.w), MIN(b->width, dst->width)), y1 = MIN((int)roundf(c.y + c.h), MIN(b->height, dst->height));
+	f32 cx = shape.x + shape.w / 2, cy = shape.y + shape.h / 2, hw = shape.w / 2 - rad, hh = shape.h / 2 - rad;
+	u32 k = (u32)(clampf(opacity, 0, 1) * 256);
+	for (int y = y0; y < y1; y++) {
+		const u32 *s = canvas_row(b, y);
+		u32 *o = canvas_row(dst, y);
+		f32 py = (f32)y + 0.5f, qy = fabsf(py - cy) - hh;
+		for (int x = x0; x < x1; x++) {
+			u32 a = k;
+			if (rad > 0 && qy > 0) { /* by a rounded corner: only what's inside it */
+				f32 qx = fabsf((f32)x + 0.5f - cx) - hw;
+				if (qx > 0) {
+					f32 cov = clamp01(rad + 0.5f - sqrtf(qx * qx + qy * qy));
+					if (cov <= 0)
+						continue;
+					a = (u32)(cov * (f32)k);
+				}
+			}
+			o[x] = a >= 256 ? (s[x] | 0xff000000u) : blend_premul(o[x], s[x] | 0xff000000u, a);
+		}
+	}
+}
+
 /* dark: the dark style's tint, whatever the theme (the taskbar can differ) */
 void glass_panel_style(Ui *ui, Rect r, f32 radius, f32 alpha, bool dark)
 {
-	if (alpha <= 0.004f || !S.wallpaper_blur)
+	if (alpha <= 0.004f)
 		return;
+	if (!S.set.glass || !S.wallpaper_blur) { /* transparency effects off: a solid pane */
+		ui_round(ui, r, radius, color_scale_alpha(color_hex(dark ? "#1d1e23f4" : "#f6f6f8f4"), alpha));
+		return;
+	}
 	Rect d = ui_to_device(ui, r);
 	if (d.w < 1 || d.h < 1)
 		return;

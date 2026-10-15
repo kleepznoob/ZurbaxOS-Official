@@ -1069,6 +1069,7 @@ bool ui_frame(Ui *ui, void (*draw)(Ui *ui))
 	ui->ox = ui->oy = 0;
 	ui->depth = 0;
 	ui->id_depth = 0;
+	ui->nglass = 0;
 	ui->clip = rect(0, 0, ui->width, ui->height);
 	ui->overlay_rect_prev = ui->overlay_rect;
 	ui->overlay_rect = rect(0, 0, 0, 0);

@@ -41,6 +41,7 @@ enum {
 	MSG_ACCOUNT,        /* change the user's name or password (Settings) */
 	MSG_RUMBLE,         /* shake a game controller (the focused app only) */
 	MSG_DRAG_START,     /* + memfd of paths (+ memfd of a picture): drag files out of a window */
+	MSG_WIN_GLASS,      /* the parts of the window that are glass */
 
 	/* server -> app */
 	MSG_WELCOME = 64,
@@ -210,6 +211,15 @@ typedef struct {
 	u32 thumb_w, thumb_h;
 } MsgDragStart;
 
+/* Parts of a window made of glass: the app draws them see-through and the
+ * display lays the blurred wallpaper beneath. */
+#define WIN_GLASS_MAX 4
+typedef struct {
+	MsgHeader h;
+	u32 count;
+	f32 rects[WIN_GLASS_MAX][4]; /* x, y, width, height in the window's logical pixels */
+} MsgWinGlass;
+
 /* The clipboard's kind for files: "copy" or "cut" on the first line, then one
  * path per line. Text fields asking for text get the paths alone. */
 #define CLIPBOARD_FILES "x-zurbax/files"
@@ -220,7 +230,7 @@ typedef struct {
 	u8 dark;
 	u8 reduce_motion;
 	u8 high_contrast;
-	u8 _pad;
+	u8 glass;              /* transparency effects: glass where windows ask for it */
 	u32 accent;            /* 0xAARRGGBB */
 	f32 text_scale;        /* user font size multiplier */
 	u32 _reserved[4];

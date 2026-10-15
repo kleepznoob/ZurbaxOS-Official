@@ -860,7 +860,7 @@ static void view_album(Ui *ui, Rect r)
 static void player_bar(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	ui_fill(ui, r, t->sidebar);
+	ui_sidebar_background(ui, r);
 	ui_separator(ui, r.x, r.y, r.x + r.w);
 	mutex_lock(&mu.lock);
 	int track = mu.playing_track;

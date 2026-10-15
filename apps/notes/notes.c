@@ -228,7 +228,7 @@ static const char *group_of(const Note *n)
 static void sidebar(Ui *ui, Rect r)
 {
 	Theme *t = &ui->theme;
-	ui_fill(ui, r, t->sidebar);
+	ui_sidebar_background(ui, r);
 	ui_vseparator(ui, r.x + r.w - 1, r.y, r.y + r.h);
 	Rect s = pad4(r, 10, 10, 0, 10);
 	ui_entry(ui, cut_top(&s, 32), "search", &nt.search, "Search notes", ENTRY_SEARCH);
