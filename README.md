@@ -86,6 +86,30 @@ search the web in Drift or Flathub's apps in Harbor. The lock screen shows
 the wallpaper, the date over a large clock, waiting notifications, and you
 with a password field. Plus notification sounds and screenshots (Print
 Screen).
+
+**Hive.** A second desktop to pick in Settings → Appearance: a tiling one
+made of liquid glass. Windows share the screen side by side (each new one
+splits the window in focus), with airy gaps between; every window is a
+rounded pane with a rim of light, and the one in focus wears a ring of the
+theme's two accents and a soft glow that passes from window to window
+with the focus. The bar floats as three islands of glass (the
+workspaces, where a bead of the accent flows from one to the next; the
+clock; the status), and the launcher, the keys and the power menu are
+panes of glass. Nine workspaces slide across. Everything is a keystroke
+away (Super+Return a terminal, Super+Space the launcher, Super+W closes,
+Super+Z zooms a window, Super+V floats it, Super+1…9 workspaces), and
+Super+K shows every key as keycaps. Eight themes (Tokyo Night,
+Catppuccin, Gruvbox, Nord, Everforest, Kanagawa, Rosé Pine, Matte Black,
+Super+Ctrl+Space for the next) colour the rings, the glass and the apps,
+and each brings its own pixel-art wallpaper, painted on the spot with
+dithered gradients: a city by a river, a cat watching the moon, a desert
+at sundown, an aurora over snow, a forest with fireflies, Fuji over a sea
+of waves, a moonlit lake, a sun setting on a grid.
+
+**Glass.** Apps' sidebars (Settings, Files, Music, Mail, Notes, Calendar,
+Photos) are frosted glass the wallpaper shows through, as are the
+shell's bars and panels; "Transparency effects" in Settings turns it off.
+
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
 French, Spanish) are built in. Wallpapers: Silk (the default: folds of
 warm coral and amber light drifting across deep aubergine, the same
