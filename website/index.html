@@ -1,226 +1,241 @@
 <!doctype html>
-<html lang="en" class="no-js">
+<html lang="en" data-theme="tokyo-night" class="no-js">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zurbax 2.1 LTS</title>
-<meta name="description" content="Zurbax is a desktop operating system written from the first line. Steam and Proton, Bridge for Windows programs, thousands of apps from Flathub, and a driver for every part of every PC, on one install image.">
+<title>Zurbax — liquid glass, moving pixels</title>
+<meta name="description" content="Zurbax is a desktop operating system written from the first line: Hive, a tiling desktop of liquid glass and moving pixels, eight themes, Steam and Proton, Flathub, and a driver for every part of every PC on one install image.">
 <link rel="canonical" href="https://www.zurbax.com/">
 <meta property="og:site_name" content="Zurbax">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Zurbax 2.1 LTS">
-<meta property="og:description" content="A desktop operating system written from the first line. Steam, Flathub and every graphics card, on one install image.">
-<meta property="og:image" content="https://www.zurbax.com/images/desktop.jpg?v=3">
+<meta property="og:title" content="Zurbax — liquid glass, moving pixels">
+<meta property="og:description" content="A desktop operating system written from the first line. Tiled, glass, pixel-alive, and ready to play.">
+<meta property="og:image" content="https://www.zurbax.com/images/hive/hive-tokyo-night.jpg">
 <meta property="og:url" content="https://www.zurbax.com/">
-<meta name="theme-color" content="#ff5a1f">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#1a1b26">
 <link rel="icon" href="/favicon.ico?v=4" sizes="48x48">
 <link rel="icon" href="/images/favicon-32.png?v=4" type="image/png" sizes="32x32">
 <link rel="icon" href="/images/tab-icon.svg?v=4" type="image/svg+xml">
-<link rel="icon" href="/images/icon-192.png?v=4" type="image/png" sizes="192x192">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=4">
-<meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@graph":[
  {"@type":"WebSite","name":"Zurbax","url":"https://www.zurbax.com/"},
- {"@type":"Organization","name":"Zurbax","url":"https://www.zurbax.com/","logo":"https://www.zurbax.com/images/icon-512.png"},
  {"@type":"SoftwareApplication","name":"Zurbax","applicationCategory":"OperatingSystem","operatingSystem":"PC (x86-64, UEFI)",
-  "description":"A free desktop operating system written from the first line, with Steam and Proton, thousands of apps from Flathub and drivers for every graphics card.",
-  "url":"https://www.zurbax.com/","image":"https://www.zurbax.com/images/desktop.jpg","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+  "description":"A free desktop operating system written from the first line, with a tiling desktop of liquid glass, Steam and Proton, Flathub and drivers for every graphics card.",
+  "url":"https://www.zurbax.com/","image":"https://www.zurbax.com/images/hive/hive-tokyo-night.jpg","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 ]}
+</script>
+<script>
+/* the theme first, before anything is drawn: the one you chose last time */
+(() => { try { const t = localStorage.getItem('zurbax-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {} })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css">
-<script>
-/* Halloween: purple with a pumpkin through October, unless switched off */
-(() => { const d = new Date(), m = d.getMonth(), day = d.getDate(); let on = m === 9 || (m === 10 && day <= 2);
-  try { const s = localStorage.getItem('zurbax-halloween'); if (s) on = s === 'on'; } catch (e) {}
-  if (on) { document.documentElement.classList.add('halloween'); document.querySelector('meta[name=theme-color]').content = '#4a1d7a'; } })();
-</script>
-<script src="/site.js" defer></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/home.css?v=1">
+<script src="/home.js?v=1" defer></script>
 </head>
 <body>
 
-<header class="top">
-  <a class="mark" href="/"><img src="/images/logo.svg" alt="" width="28" height="28"><span>Zurbax</span></a>
-  <nav>
-    <button class="spooky" type="button" aria-label="Halloween look" aria-pressed="false" title="Halloween look"><svg class="pumpkin" viewBox="0 0 120 112" aria-hidden="true"><path d="M58 26c-1-9 3-17 12-20l3 6c-6 2-8 7-8 14z" fill="#3f6b2a"/><ellipse cx="34" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="86" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="46" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="74" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="60" cy="68" rx="27" ry="42" fill="#ff8f26"/><path d="M33.5 62.9h18.3l-9.1-16.3zM86.5 62.9H68.2l9.1-16.3zM60 67l-4.6 7.6h9.2zM29.4 76.7Q60 86.4 90.6 76.7l-8.2 12.7-6.1-5.1-7.6 10.2-7.2-6.1-7.6 7.1-6.6-9.1-8.7 5.1z" fill="#ffd84a"/></svg></button>
-    <a href="#tour">Tour</a>
-    <a href="#play">Games</a>
-    <a href="#security">Security</a>
-    <a href="#install">Install</a>
-    <a href="/guide">Guide</a>
-    <a class="get" href="#download">Download</a>
-  </nav>
+<header class="bar">
+  <div class="wrap bar-in">
+    <a class="brand" href="/"><img src="/images/logo.svg" alt="" width="24" height="24"><span>zurbax</span></a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#hive">Hive</a>
+      <a href="#themes">Themes</a>
+      <a href="#pixels">Pixels</a>
+      <a href="#games">Games</a>
+      <a href="#install">Install</a>
+      <a href="/guide">Guide</a>
+    </nav>
+    <div class="bar-end">
+      <div class="picker">
+        <button class="picker-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Theme">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="picker-name">Tokyo Night</span>
+        </button>
+        <ul class="picker-list" role="menu" hidden></ul>
+      </div>
+      <a class="btn small" href="#install">Install</a>
+    </div>
+  </div>
 </header>
+
+<a class="strip" href="#hive"><span class="tag">new</span> Hive: a tiling desktop of liquid glass and moving pixels, coming with Zurbax 2.2 <span aria-hidden="true">→</span></a>
 
 <main>
 
 <section class="hero">
-  <div class="hero-copy">
-    <p class="version">Zurbax 2.1 LTS</p>
-    <h1><span class="line">Welcome to</span> <span class="line">Zurbax.</span></h1>
-    <svg class="pumpkin" viewBox="0 0 120 112" aria-hidden="true"><path d="M58 26c-1-9 3-17 12-20l3 6c-6 2-8 7-8 14z" fill="#3f6b2a"/><ellipse cx="34" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="86" cy="68" rx="30" ry="40" fill="#e06a12"/><ellipse cx="46" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="74" cy="68" rx="31" ry="41" fill="#f07d1c"/><ellipse cx="60" cy="68" rx="27" ry="42" fill="#ff8f26"/><path d="M33.5 62.9h18.3l-9.1-16.3zM86.5 62.9H68.2l9.1-16.3zM60 67l-4.6 7.6h9.2zM29.4 76.7Q60 86.4 90.6 76.7l-8.2 12.7-6.1-5.1-7.6 10.2-7.2-6.1-7.6 7.1-6.6-9.1-8.7 5.1z" fill="#ffd84a"/></svg>
-  </div>
-  <div class="hero-side">
-    <p class="intro">A desktop operating system written from the first line, with Steam, thousands of apps and the drivers for every graphics card already on it. Start it from a USB stick and it's ready.</p>
+  <div class="hero-bg" aria-hidden="true"><canvas class="stars"></canvas></div>
+  <div class="wrap hero-in">
+    <p class="kicker">zurbax 2.1 lts · written from the first line</p>
+    <h1 class="mark">Zurbax</h1>
+    <p class="tag-line">A desktop operating system of <em>liquid glass</em> and <em>moving pixels</em>. Tiled, themed, and fast, with Steam and every driver already on it.</p>
     <div class="cta">
-      <a class="btn" href="#download" data-get>Download <span class="arrow" aria-hidden="true">→</span></a>
-      <span class="meta">One image for every PC · Free</span>
+      <a class="btn" href="#install">Get Zurbax</a>
+      <a class="btn ghost" href="#see">See it in action</a>
     </div>
-    <ul class="hero-facts">
-      <li><b>Every graphics card</b>AMD, Intel and NVIDIA, on one image</li>
-      <li><b>Steam and Proton</b>Your Windows games, ready to play</li>
-      <li><b>Thousands of apps</b>All of Flathub, one click each</li>
-    </ul>
+    <p class="fine">One image for every PC made in the last twelve years · Free · No account, no telemetry</p>
   </div>
-  <div class="monitor hero-monitor" aria-label="Zurbax starting up, then its desktop">
-    <div class="screen">
-      <div class="boot" aria-hidden="true"><img src="/images/logo.svg" alt="" width="72" height="72"><i class="spin"></i></div>
-      <img class="shot plain" src="/images/desktop.jpg?v=3" alt="The Zurbax desktop" width="1280" height="720">
-      <img class="shot spooky-shot" src="/images/desktop-halloween.jpg?v=2" alt="The Zurbax desktop with the Halloween theme" width="1280" height="720" loading="lazy">
-    </div>
-    <div class="stand" aria-hidden="true"></div>
+  <div class="wrap">
+    <figure class="screen">
+      <img class="shot" src="/images/hive/hive-tokyo-night.jpg" alt="Hive: Files, Music and a terminal side by side under a floating bar of glass" width="1600" height="900">
+    </figure>
   </div>
 </section>
 
-<div class="ticker" aria-hidden="true">
-  <div class="ticker-track">
-    <span>Steam</span><span>Proton</span><span>Flathub</span><span>AMD Radeon</span><span>Intel Arc</span><span>NVIDIA GeForce</span><span>Xbox controllers</span><span>DualSense</span><span>Wi-Fi</span><span>Bluetooth</span><span>GNOME</span>
-    <span>Steam</span><span>Proton</span><span>Flathub</span><span>AMD Radeon</span><span>Intel Arc</span><span>NVIDIA GeForce</span><span>Xbox controllers</span><span>DualSense</span><span>Wi-Fi</span><span>Bluetooth</span><span>GNOME</span>
+<section class="about wrap">
+  <div class="about-copy">
+    <h2>An operating system, made whole.</h2>
+    <p>Zurbax is written line by line in C: its graphics, its window system and desktop, its toolkit, its apps, its network and sound, its installer and its updates, on Ember, a Linux kernel with its own patches. Nothing borrowed is bolted on, so the whole thing looks like one thing and starts in seconds.</p>
+    <p>Then it opens the door to everything else: Steam and Proton for your games, all of Flathub for apps, Bridge for Windows programs, and GNOME if you want it.</p>
   </div>
-</div>
-
-<section id="tour" class="tour">
-  <div class="tour-copy">
-    <h2 class="section-title">Have a look around.</h2>
-    <article class="stop" data-shot="/images/desktop.jpg?v=3">
-      <h3>The desktop</h3>
-      <p>A top bar with the clock, Wi-Fi and sound. A taskbar along the bottom with your apps and a preview of every window. Nothing you have to set up first.</p>
-    </article>
-    <article class="stop" data-shot="/images/launcher.jpg?v=3">
-      <h3>Every app on one screen</h3>
-      <p>Press the grid and everything you have is there, sorted into Internet, Office, Media, Games and the rest. Start typing to find anything, settings included.</p>
-    </article>
-    <article class="stop" data-shot="/images/settings.jpg?v=3">
-      <h3>Made to your taste</h3>
-      <p>Light or dark. Ten accent colours, or the one your wallpaper suggests. Ten wallpapers drawn by the system itself, or your own photo.</p>
-    </article>
-    <article class="stop" data-shot="/images/harbor.jpg?v=3">
-      <h3>Thousands of apps</h3>
-      <p>Harbor, the app store, brings the whole of Flathub: Firefox, Discord, Spotify, GIMP, OBS. Eight favourites are already installed when you arrive.</p>
-    </article>
-    <article class="stop" data-shot="/images/lock.jpg?v=3">
-      <h3>Two desktops, your files in both</h3>
-      <p>Choose Zurbax's own desktop or GNOME when you sign in. The same wallpapers, the same taskbar, the same files.</p>
-    </article>
-  </div>
-  <div class="tour-stage">
-    <div class="monitor">
-      <div class="screen">
-        <img class="shot current" src="/images/desktop.jpg?v=3" alt="" width="1280" height="720">
-        <img class="shot next" src="/images/desktop.jpg?v=3" alt="" width="1280" height="720">
-      </div>
-      <div class="stand" aria-hidden="true"></div>
-    </div>
-  </div>
-</section>
-
-<section class="spread">
-  <h2 class="section-title">Its own apps, all of them.</h2>
-  <p class="lede">Mail, Music, Photos, Files, a web browser, a dashboard for your day, Notes, Calendar, Writer and twenty more. Each one is made for this desktop, so they look and behave as one.</p>
-  <div class="collage">
-    <figure class="c1 rise"><img src="/images/dashboard.jpg?v=3" alt="Dashboard" loading="lazy" width="1440" height="810"><figcaption>Dashboard</figcaption></figure>
-    <figure class="c2 rise"><img src="/images/music.jpg?v=3" alt="Music" loading="lazy" width="1440" height="810"><figcaption>Music</figcaption></figure>
-    <figure class="c3 rise"><img src="/images/mail.jpg?v=3" alt="Mail" loading="lazy" width="1440" height="810"><figcaption>Mail</figcaption></figure>
-    <figure class="c4 rise"><img src="/images/photos.jpg?v=3" alt="Photos" loading="lazy" width="1440" height="810"><figcaption>Photos</figcaption></figure>
-    <figure class="c5 rise"><img src="/images/vault.jpg?v=3" alt="Files" loading="lazy" width="1440" height="810"><figcaption>Files</figcaption></figure>
-  </div>
-</section>
-
-<section id="play" class="play">
-  <div class="play-head">
-    <h2 class="section-title">Built to play.</h2>
-    <p class="lede">Steam runs your Windows library through Proton. Bridge runs any other Windows game or program, with its cover, keeps your Steam games on the same shelf, and plays Fortnite in the cloud. Plug in a controller and it works, rumble included.</p>
-  </div>
-  <figure class="play-shot rise"><img src="/images/harbor-app.jpg?v=3" alt="A game's page in Harbor" loading="lazy" width="1440" height="900"></figure>
-  <table class="drivers rise">
-    <caption>Every graphics card, on the same image</caption>
-    <thead><tr><th>Graphics</th><th>Cards</th><th>Driver</th><th>Vulkan</th></tr></thead>
-    <tbody>
-      <tr><td>AMD</td><td>Radeon HD 7000 to RX 9000, Ryzen graphics</td><td>amdgpu</td><td>RADV</td></tr>
-      <tr><td>AMD, older</td><td>Radeon HD 2000 to HD 6000</td><td>radeon</td><td>—</td></tr>
-      <tr><td>Intel</td><td>HD, UHD, Iris Xe, Arc, Core Ultra</td><td>i915, xe</td><td>ANV</td></tr>
-      <tr><td>NVIDIA</td><td>GeForce RTX 20 to 50, GTX 16</td><td>nouveau with GSP</td><td>NVK</td></tr>
-      <tr><td>NVIDIA, older</td><td>GeForce GTX 600 to 10</td><td>nouveau</td><td>NVK</td></tr>
-    </tbody>
-  </table>
-  <p class="lede drivers-note rise">And every other driver a PC can have, about 5,000 of them, for Wi-Fi, sound, cameras, printers and the rest, each signed and loaded only for the hardware it finds.</p>
-</section>
-
-<section id="security" class="secure">
-  <div class="play-head">
-    <h2 class="section-title">Safe by design. Supported to 2028.</h2>
-    <p class="lede">Zurbax 2.1 is a long-term support release. Security updates arrive every two weeks until October 2028, signed and checked before they install, and one restart finishes them.</p>
-  </div>
-  <ul class="guards">
-    <li class="rise"><span>Every 2 weeks</span><h3>Security updates</h3><p>The newest long-term Linux kernel and fixes for the system, every other Tuesday. They install on their own.</p></li>
-    <li class="rise"><span>Signed</span><h3>Checked before they install</h3><p>Each update is signed by Zurbax and every file checked against its fingerprint. A tampered one is thrown away.</p></li>
-    <li class="rise"><span>Lockdown</span><h3>A kernel nothing can change</h3><p>Not even the administrator can rewrite the running kernel or read its memory.</p></li>
-    <li class="rise"><span>ASLR</span><h3>Nothing in the same place twice</h3><p>Every program loads at a random address, with stack canaries and zeroed memory to stop attacks early.</p></li>
-    <li class="rise"><span>Sandbox</span><h3>Apps kept apart</h3><p>Apps can't read each other's memory, and Flatpak apps get only what they're given.</p></li>
-    <li class="rise"><span>Private</span><h3>Nothing collected</h3><p>No telemetry, no ads, no account needed, and nothing on Zurbax listens to the network.</p></li>
+  <ul class="tenets">
+    <li><b>One image.</b> Every graphics card, every Wi-Fi chip, about five thousand drivers, loaded only for what's there.</li>
+    <li><b>Yours.</b> No account to make, no telemetry, nothing listening on the network.</li>
+    <li><b>Kept safe.</b> Signed security updates every two weeks, until October 2028.</li>
+    <li><b>Quick.</b> From the firmware's logo to your desktop with not a line of text in between.</li>
   </ul>
 </section>
 
-<section id="install" class="install">
-  <h2 class="section-title">From download to desktop in four steps.</h2>
-  <p class="lede install-more">Every detail, from boot menu keys to games and fixing problems, is in <a href="/guide">the guide</a>.</p>
-  <ol class="steps">
-    <li class="rise"><b>1</b><h3>Download</h3><p>One image works on every PC made in the last twelve years. It holds the drivers, the apps and Steam.</p></li>
-    <li class="rise"><b>2</b><h3>Make the stick</h3><p>Open balenaEtcher or Rufus, pick the file and a 16 GB USB stick, and press Flash.</p></li>
-    <li class="rise"><b>3</b><h3>Start from it</h3><p>Restart, open the boot menu (F12, F8 or Esc) and choose the stick. Zurbax opens to a desktop you can try.</p></li>
-    <li class="rise"><b>4</b><h3>Install</h3><p>Choose Install Zurbax, pick a disk, set a name and password. A few minutes later it's yours.</p></li>
-  </ol>
+<section id="see" class="see wrap">
+  <div class="head">
+    <h2>See it in action</h2>
+    <p>Real screens, straight from Zurbax.</p>
+  </div>
+  <div class="gallery">
+    <figure class="card rise"><img src="/images/hive/hive-tokyo-night.jpg" alt="" loading="lazy" width="1600" height="900"><figcaption><b>Tiles, not clutter</b><span>Each window splits the one in focus. Gaps, glass, a ring of light around the one you're in.</span></figcaption></figure>
+    <figure class="card rise"><img src="/images/hive/hive-launcher.jpg" alt="" loading="lazy" width="1600" height="900"><figcaption><b>Super + Space</b><span>A pane of glass: type, press Enter, it's open.</span></figcaption></figure>
+    <figure class="card rise"><img src="/images/hive/hive-keys.jpg" alt="" loading="lazy" width="1600" height="900"><figcaption><b>Every key at a glance</b><span>Super + K shows them all, as keycaps.</span></figcaption></figure>
+    <figure class="card rise"><img src="/images/hive/hive-settings.jpg" alt="" loading="lazy" width="1600" height="900"><figcaption><b>Glass all the way in</b><span>Apps' headers and sidebars are frosted glass the wallpaper shows through.</span></figcaption></figure>
+  </div>
 </section>
 
-<section id="download" class="download">
-  <div class="dl-inner">
-    <h2>Zurbax 2.1</h2>
-    <p class="dl-sub">One image for every computer: the system, Steam and Proton, Bridge for Windows programs, eight ready apps and a driver for every part of every PC.</p>
-    <div class="dl-actions">
-      <a class="btn big dark" data-full href="#">Download Zurbax 2.1 <span class="arrow" aria-hidden="true">→</span></a>
-      <p class="dl-size" data-full-note>About 7 GB · ISO for USB sticks and DVDs</p>
+<section id="hive" class="hive">
+  <div class="wrap hive-in">
+    <div class="hive-copy">
+      <p class="kicker">the desktop</p>
+      <h2>Hive. Everything a keystroke away.</h2>
+      <p>Windows share the screen side by side and nine workspaces slide across. The bar floats as three islands of glass, and a bead of your accent flows from workspace to workspace. The window in focus wears a ring of the theme's two colours and a soft glow that follows you.</p>
+      <p>Its window buttons are drawn in pixels: a tile of colour builds up behind each one block by block as you point at it. Put a window away and it waits in a tray in the bar.</p>
     </div>
-    <dl class="needs">
-      <div><dt>Computer</dt><dd>64-bit PC with UEFI</dd></div>
-      <div><dt>Memory</dt><dd>4 GB, 8 GB for games</dd></div>
-      <div><dt>Disk</dt><dd>40 GB free</dd></div>
-      <div><dt>USB stick</dt><dd>16 GB or more</dd></div>
+    <dl class="keys rise">
+      <div><dt><kbd>Super</kbd><kbd>Return</kbd></dt><dd>Terminal</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>Space</kbd></dt><dd>Launcher</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>W</kbd></dt><dd>Close the window</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>Z</kbd></dt><dd>Zoom it over the rest</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>V</kbd></dt><dd>Float it, or tile it</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>1-9</kbd></dt><dd>Go to a workspace</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>Shift</kbd><kbd>1-9</kbd></dt><dd>Move the window there</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>Ctrl</kbd><kbd>Space</kbd></dt><dd>Next theme</dd></div>
+      <div><dt><kbd>Super</kbd><kbd>K</kbd></dt><dd>Every key</dd></div>
     </dl>
+  </div>
+</section>
+
+<section id="themes" class="themes wrap">
+  <div class="head">
+    <h2>Eight themes. This page wears them too.</h2>
+    <p>Each one colours the rings, the glass and every app, and brings its own pixel-art wallpaper, painted by the system itself. Pick one and watch.</p>
+  </div>
+  <ul class="theme-grid"></ul>
+</section>
+
+<section id="pixels" class="pixels">
+  <div class="wrap pixels-in">
+    <div class="pix-demo rise" aria-hidden="true"><div class="pix-grid"></div><span class="pix-label">a window, arriving</span></div>
+    <div class="pix-copy">
+      <p class="kicker">the pixel style</p>
+      <h2>It moves.</h2>
+      <p>The wallpapers are alive, on their own grid of big pixels: stars twinkle and now and then one shoots across, snow falls over Nord, fireflies wander the forest, petals drift past Fuji, birds cross the desert, light glitters on the water.</p>
+      <p>Windows build up block by block as they open and fall apart the same way as they close. Maximize one, or send it to the tray, and it passes through a mosaic on the way. The pointer, the clock and the workspace numbers are drawn in pixels too.</p>
+      <p class="fine">All of it costs about a quarter of one percent of a processor, and one switch in Settings turns it off.</p>
+    </div>
+  </div>
+</section>
+
+<section id="games" class="trio wrap">
+  <div class="head">
+    <h2>Built to play.</h2>
+    <p>Plug in a controller and it works, rumble included.</p>
+  </div>
+  <div class="cards">
+    <article class="card text rise"><b>Steam and Proton</b><p>Your Windows library through Proton, from Steam's own client, ready on the install image.</p></article>
+    <article class="card text rise"><b>Bridge</b><p>Any other Windows game or program, with its cover, on the same shelf as your Steam games.</p></article>
+    <article class="card text rise"><b>Every graphics card</b><p>AMD, Intel and NVIDIA, Vulkan on all three, on one image: amdgpu and RADV, i915 and Xe, nouveau with NVK.</p></article>
+  </div>
+</section>
+
+<section class="trio wrap">
+  <div class="head">
+    <h2>For people who make things.</h2>
+  </div>
+  <div class="cards">
+    <article class="card text rise"><b>Forge</b><p>A terminal with tabs, Super + Return away, in every theme.</p></article>
+    <article class="card text rise"><b>All of Flathub</b><p>Firefox, Discord, Spotify, GIMP, OBS and thousands more from Harbor, the app store, one click each.</p></article>
+    <article class="card text rise"><b>A Linux layer</b><p>GNOME and its apps, your Linux programs and their portals, side by side with Zurbax's own.</p></article>
+  </div>
+</section>
+
+<section id="install" class="install">
+  <div class="wrap install-in">
+    <div class="get rise">
+      <p class="kicker">install</p>
+      <h2>Get Zurbax</h2>
+      <p>One image for every computer: the system, Steam and Proton, Bridge, eight ready apps and a driver for every part of every PC. Flash it to a USB stick, start from it, and install in a few minutes.</p>
+      <div class="get-actions">
+        <a class="btn big" data-get href="/download/2.1/zurbax.iso">Download Zurbax 2.1 LTS</a>
+        <span class="fine">About 7 GB · ISO for USB sticks · <a href="/download/2.1/SHA256SUMS">SHA-256 sums</a></span>
+      </div>
+      <p class="fine note">Hive and the pixel style arrive with Zurbax 2.2; 2.1 opens on the Classic desktop.</p>
+    </div>
+    <div class="try rise">
+      <h3>Try it first</h3>
+      <p>Start it from the stick and use it without installing anything, or run it in a virtual machine on a Mac or an iPad with UTM.</p>
+      <a class="btn ghost" href="/guide#utm">The UTM guide</a>
+      <a class="btn ghost" href="/guide">The full guide</a>
+    </div>
+  </div>
+</section>
+
+<section class="trio wrap">
+  <div class="head">
+    <h2>Runs on what you have.</h2>
+  </div>
+  <div class="cards">
+    <article class="card text rise"><b>New laptops and desktops</b><p>Core Ultra, Ryzen, Arc, Radeon RX 9000 and GeForce RTX 50 included: the newest Ember kernel and firmware for all of it.</p></article>
+    <article class="card text rise"><b>Twelve-year-old PCs</b><p>Any 64-bit PC with UEFI and 4 GB of memory, 8 GB for games, and 40 GB of disk.</p></article>
+    <article class="card text rise"><b>Macs with Intel chips</b><p>Hold Option as it starts and pick the stick. <a href="/guide#start">How to start from it</a>.</p></article>
   </div>
 </section>
 
 </main>
 
-<footer>
-  <span class="mark small"><img src="/images/logo.svg" alt="" width="18" height="18">Zurbax</span>
-  <span>Written line by line. © 2026</span>
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-brand">
+      <a class="brand" href="/"><img src="/images/logo.svg" alt="" width="22" height="22"><span>zurbax</span></a>
+      <p>Written line by line. © 2026</p>
+    </div>
+    <nav class="foot-cols" aria-label="More">
+      <div><h4>Explore</h4><a href="#hive">Hive</a><a href="#themes">Themes</a><a href="#pixels">Pixels</a><a href="#games">Games</a></div>
+      <div><h4>Get it</h4><a href="#install">Download</a><a href="/download/2.1/SHA256SUMS">Checksums</a><a href="/guide">Guide</a><a href="/guide#utm">On a Mac or iPad</a></div>
+      <div><h4>Help</h4><a href="/guide#keys">Keyboard shortcuts</a><a href="/guide#trouble">When something's wrong</a><a href="/guide#security">Updates and security</a><a href="/guide#faq">Questions</a></div>
+    </nav>
+  </div>
 </footer>
 
 <div class="next" id="next" role="dialog" aria-modal="true" aria-labelledby="next-title" hidden>
   <div class="next-card">
     <button class="next-close" data-close aria-label="Close">×</button>
-    <p class="next-kicker" data-next-kicker>Your download has started</p>
+    <p class="kicker">your download has started</p>
     <h2 id="next-title">While it downloads</h2>
     <ol class="next-steps">
       <li><b>1</b><div><h3>Get a flashing tool</h3><p><a href="https://etcher.balena.io" target="_blank" rel="noopener">balenaEtcher</a> on Windows, Mac or Linux, or <a href="https://rufus.ie" target="_blank" rel="noopener">Rufus</a> on Windows.</p></div></li>
-      <li><b>2</b><div><h3>Flash the stick</h3><p>Choose the Zurbax file, then your USB stick, then Flash. It takes a few minutes.</p></div></li>
-      <li><b>3</b><div><h3>Start from it</h3><p>Restart the computer and pick the stick in its boot menu: usually F12, F8, F11 or Esc right after power-on. On a Mac with an Intel chip, hold Option.</p></div></li>
+      <li><b>2</b><div><h3>Flash the stick</h3><p>Choose the Zurbax file, then a USB stick of 16 GB or more, then Flash.</p></div></li>
+      <li><b>3</b><div><h3>Start from it</h3><p>Restart and pick the stick in the boot menu: usually F12, F8, F11 or Esc right after power-on. On an Intel Mac, hold Option.</p></div></li>
       <li><b>4</b><div><h3>Choose Install Zurbax</h3><p>The Welcome window walks you through the rest.</p></div></li>
     </ol>
-    <p class="next-fine" data-next-fine>If the download didn't start, <a data-next-link href="#">use this link</a>.</p>
   </div>
 </div>
 
