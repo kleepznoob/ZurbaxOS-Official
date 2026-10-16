@@ -110,8 +110,9 @@ void wallpaper_reload(void)
 
 /* ---- Cursors -------------------------------------------------------------------------- */
 
-/* The pixel style's pointers: drawn in square pixels, white-edged ink with
- * a pixel of shadow. */
+/* The pixel style's pointers: drawn in square pixels, white with a dark
+ * edge (seen on the dark themes and the light ones alike) and a pixel of
+ * shadow. */
 static const char *const PX_ARROW[] = { "W..........", "WW.........", "WKW........", "WKKW.......", "WKKKW......", "WKKKKW.....",
 					"WKKKKKW....", "WKKKKKKW...", "WKKKKKKKW..", "WKKKKKKKKW.", "WKKKKKWWWWW", "WKKWKKW....",
 					"WKW.WKKW...", "WW..WKKW...", "W....WKKW..", ".....WKKW..", "......WW..." };
@@ -121,9 +122,15 @@ static const char *const PX_HAND[] = { "....WW......", "...WKKW.....", "...WKKW.
 static const char *const PX_BEAM[] = { "WWW.WWW", "WKKWKKW", "WWWKWWW", "..WKW..", "..WKW..", "..WKW..", "..WKW..", "..WKW..",
 				       "..WKW..", "..WKW..", "..WKW..", "WWWKWWW", "WKKWKKW", "WWW.WWW" };
 
+/* Pointers stay within 64 pixels square, the size every graphics card's
+ * cursor plane takes: a bigger one would be drawn into each frame instead,
+ * a step behind the mouse (and twice over, in a virtual machine). */
+#define CURSOR_MAX 64
+
 static Canvas *pixel_cursor(const char *const *rows, int n, f32 s, int hot_x, int hot_y, int *hx, int *hy)
 {
-	int cell = MAX(2, (int)roundf(2 * s)), w = (int)strlen(rows[0]);
+	int w = (int)strlen(rows[0]);
+	int cell = CLAMP((int)roundf(2 * s), 1, CURSOR_MAX / (MAX(w, n) + 1));
 	int size = MAX(w, n) * cell + cell;
 	Canvas *c = canvas_new(size, size);
 	for (int pass = 0; pass < 2; pass++)
@@ -132,7 +139,7 @@ static Canvas *pixel_cursor(const char *const *rows, int n, f32 s, int hot_x, in
 				char ch = rows[y][x];
 				if (ch == '.')
 					continue;
-				u32 col = pass == 0 ? 0x50000000u : ch == 'W' ? 0xffffffffu : 0xff1b1d22u;
+				u32 col = pass == 0 ? 0x50000000u : ch == 'W' ? 0xff111214u : 0xfff6f6f6u;
 				int ox = (x + (pass == 0)) * cell, oy = (y + (pass == 0)) * cell;
 				for (int yy = oy; yy < oy + cell && yy < size; yy++)
 					for (int xx = ox; xx < ox + cell && xx < size; xx++) {
@@ -154,6 +161,7 @@ static Canvas *make_cursor(u32 shape, f32 s, int *hx, int *hy)
 		if (shape == CURSOR_TEXT)
 			return pixel_cursor(PX_BEAM, (int)ARRAY_LEN(PX_BEAM), s, 3, 7, hx, hy);
 	}
+	s = minf(s, (f32)CURSOR_MAX / 32);
 	int size = (int)ceilf(32 * s);
 	Canvas *c = canvas_new(size, size);
 	Path p = { 0 };
@@ -328,9 +336,14 @@ void compose_reload_cursors(void)
 			canvas_free(S.cursor_img[i]);
 		S.cursor_img[i] = make_cursor(i, S.scale, &cursor_hot[i][0], &cursor_hot[i][1]);
 	}
+	bool had = S.hw_cursor;
 	S.hw_cursor = S.out->cursor_set && S.out->cursor_set(S.out, S.cursor_img[0], cursor_hot[0][0], cursor_hot[0][1]);
-	if (S.hw_cursor)
+	if (S.hw_cursor) {
 		cursor_drawn_shape = 0;
+		S.out->cursor_move(S.out, (int)(S.px * S.scale), (int)(S.py * S.scale));
+	} else if (had && S.out->cursor_set) {
+		S.out->cursor_set(S.out, NULL, 0, 0); /* no frozen pointer left on the plane */
+	}
 	damage_all();
 }
 

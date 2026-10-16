@@ -33,7 +33,7 @@ struct Output {
 	/* Copies the damaged parts of `frame` to the screen and schedules a flip.
 	 * Returns false if the previous flip is still pending. */
 	bool (*present)(Output *o, const Canvas *frame, const Rect *damage, int ndamage);
-	bool (*cursor_set)(Output *o, const Canvas *image, int hot_x, int hot_y); /* false: no hw cursor */
+	bool (*cursor_set)(Output *o, const Canvas *image, int hot_x, int hot_y); /* false: no hw cursor; NULL empties it */
 	void (*cursor_move)(Output *o, int x, int y); /* x, y: the hotspot position */
 	int cursor_hot_x, cursor_hot_y;
 	void (*set_gamma)(Output *o, f32 r, f32 g, f32 b); /* night light */
@@ -468,6 +468,7 @@ typedef struct {
 } Taskbar;
 void shell_taskbar(Taskbar *t);
 int shell_status_icons(const char *icons[8], int *battery_at);
+void shell_anchor_panels(Rect clock, Rect status);
 Rect shell_dock_slot(int n, int i);
 f32 shell_panel_height(void);             /* the top bar, or 0 when it's turned off */
 f32 shell_taskbar_height(void);

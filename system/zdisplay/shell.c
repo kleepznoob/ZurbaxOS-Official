@@ -931,6 +931,8 @@ static void clear_overlay(bool all)
 	}
 }
 
+static bool shell_wants_pointer(void);
+
 void shell_prepare(void)
 {
 	if (!dirty && !ui->redraw && !(ui->wake_at > 0 && now_s() >= ui->wake_at))
@@ -952,6 +954,14 @@ void shell_prepare(void)
 	ui->win_states = STATE_ACTIVE;
 	ui->window_focused = true;
 	ui_frame(ui, shell_frame);
+	/* over the shell, the shell's own pointer: a hand on what can be pressed */
+	if (!S.setup_mode && !S.selecting_area && S.grab == GRAB_NONE && !dnd_active() && (shell_wants_pointer() || pointer_on_shell)) {
+		u32 shape = ui->cursor ? ui->cursor : CURSOR_DEFAULT;
+		if (S.cursor != shape) {
+			S.cursor = shape;
+			cursor_update();
+		}
+	}
 	for (int i = 0; i < nprev; i++)
 		damage_rect(prev_surfaces[i]);
 	for (int i = 0; i < nsurfaces; i++)

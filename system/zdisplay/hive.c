@@ -8,12 +8,16 @@
  * the other and a soft glow of them, which pass from window to window as the
  * focus does. The maximize button zooms a window over the others.
  *
- * Around them, glass: the bar floats as three islands of it (the workspaces,
- * where a bead of the accent flows from one to the next; the clock; the
- * status), and the launcher, the keys and the power menu are panes of it.
- * Nine workspaces; going from one to another slides the screen across.
- * Everything is a keystroke away (Super+Return a terminal, Super+Space the
- * launcher, Super+W closes, Super+1..9 workspaces...), and Super+K shows the
+ * Around them, glass: the bar floats as three islands of it (the logo and
+ * the workspaces, where a bead of the accent flows from one to the next;
+ * the taskbar; the clock and the status), and the launcher, the keys and
+ * the power menu are panes of it. Nine workspaces; going from one to
+ * another slides the screen across. Everything works with the mouse alone:
+ * the logo opens the launcher, the taskbar holds the pinned apps and the
+ * open ones (a click opens one, switches to it, puts it away or brings it
+ * back), the clock opens the calendar and the status quick settings. And
+ * everything is a keystroke away (Super+Return a terminal, Super+Space the
+ * launcher, Super+W closes, Super+1..9 workspaces...); Super+K shows the
  * keys. Dialogs, menus and windows that can't be resized float above, as
  * Super+V makes any.
  *
@@ -944,6 +948,68 @@ Rect hive_tray_rect(const Window *w)
 	return rect(GAP_OUT + 200, BAR_TOP + 10, 16, 16); /* till the bar is drawn with it */
 }
 
+/* An app's window to bring forward from the taskbar: the one used last. */
+static Window *app_window(const char *app_id, int *count, bool *any_shown)
+{
+	Window *best = NULL;
+	*count = 0;
+	*any_shown = false;
+	for (int i = 0; i < S.nwin; i++) {
+		Window *w = S.windows[i];
+		if (w->closing || (w->flags & WIN_POPUP) || w->parent || !str_eq(w->app_id, app_id))
+			continue;
+		(*count)++;
+		if (!w->minimized)
+			*any_shown = true;
+		if (!best || w->focus_serial > best->focus_serial)
+			best = w;
+	}
+	return best;
+}
+
+/* What a click on an app in the taskbar does: opens it when it isn't, puts
+ * its window away when it's the one in front, and otherwise brings it back
+ * (from the tray, and from another workspace) and in front. */
+static void taskbar_click(const char *app_id)
+{
+	int count;
+	bool shown;
+	Window *w = app_window(app_id, &count, &shown);
+	close_overlays();
+	if (!w) {
+		shell_launch(app_id, NULL);
+		return;
+	}
+	if (w == S.focus && !w->minimized && w->ws == current) {
+		window_minimize(w, true);
+		return;
+	}
+	if (w->minimized)
+		window_minimize(w, false);
+	if (w->ws != current)
+		go_to(w->ws);
+	if (zoomed[current] && zoomed[current] != w)
+		hive_zoom(zoomed[current], false);
+	window_focus(w);
+	if (!hive_tiled(w))
+		window_raise(w);
+	shell_mark_dirty();
+}
+
+/* A label under something in the bar, while the pointer is on it. (Drawn
+ * here rather than as a toolkit tooltip, so the shell knows where it was
+ * and clears it after.) */
+static void bar_tip(Ui *ui, Rect under, const char *text)
+{
+	Font f = ui_font(ui, 12, 600);
+	f32 w = ui_text_width(ui, f, text) + 18;
+	Rect tip = rect(roundf(clampf(under.x + under.w / 2 - w / 2, 4, S.sw - w - 4)), BAR_H + 6, w, 26);
+	shell_surface(tip);
+	ui_round(ui, tip, 8, color_hex("#16171cf2"));
+	ui_border(ui, tip, 8, 1, color_hex("#ffffff22"));
+	ui_text_in(ui, f, tip, text, COLOR_WHITE, ALIGN_CENTER);
+}
+
 static void bar(Ui *ui, const HiveTheme *t)
 {
 	if (S.focus && (S.focus->states & STATE_FULLSCREEN) && S.focus->ws == current)
@@ -953,32 +1019,32 @@ static void bar(Ui *ui, const HiveTheme *t)
 	Font f = ui_font(ui, 13, 600), small = ui_font(ui, 12, 500), bold = ui_font(ui, 14, 700);
 	f32 y = BAR_TOP, h = BAR_PILL, base = y + roundf((h + font_cap_height(f)) / 2);
 
-	/* the left island: the logo, the workspaces with the bead among them, and
-	 * the window in focus */
+	/* the left island: the logo, which opens the apps, and the workspaces
+	 * with the bead among them */
 	const f32 slot = 26;
 	int last = 5;
 	for (int i = 6; i <= WORKSPACES; i++)
 		if (occupied(i) || i == current)
 			last = i;
-	const char *name = NULL, *icon = NULL;
-	if (S.focus && S.focus->ws == current && !S.focus->closing) {
-		const AppInfo *a = shell_app(S.focus->app_id);
-		name = S.focus->title[0] ? S.focus->title : a ? a->name : S.focus->app_id;
-		icon = a ? a->icon : S.focus->app_id;
-	}
-	f32 name_w = name ? minf(ui_text_width(ui, small, name), 260) : 0;
-	/* the tray: windows put away, waiting to come back */
-	Window *tray[8];
-	int nt = 0;
-	for (int i = 0; i < S.nwin && nt < (int)ARRAY_LEN(tray); i++) {
-		Window *w = S.windows[i];
-		if (w->minimized && !w->closing && w->ws > 0 && !(w->flags & WIN_POPUP))
-			tray[nt++] = w;
-	}
-	Rect L = rect(GAP_OUT, y, 42 + slot * (f32)last + (name ? 16 + 24 + name_w : 0) + (nt ? 14 + 26 * (f32)nt : 0) + 12, h);
+	Rect L = rect(GAP_OUT, y, 46 + slot * (f32)last + 8, h);
 	glass(ui, L, h / 2, t, 1);
-	ui_app_icon(ui, rect(L.x + 12, y + (h - 20) / 2, 20, 20), "zurbax");
-	f32 wx = L.x + 40, bl, br;
+	Rect logo = rect(L.x + 5, y + 4, 34, h - 8);
+	UiInteract li = ui_interact(ui, ui_id(ui, "hive-logo"), logo);
+	if (li.hovered || launcher_open)
+		ui_round(ui, logo, (h - 8) / 2, launcher_open ? color_with_alpha(accent, 0x45) : hover);
+	ui_app_icon(ui, rect(logo.x + 7, y + (h - 20) / 2, 20, 20), "zurbax");
+	if (li.hovered) {
+		ui_set_cursor(ui, CURSOR_POINTER);
+		if (!launcher_open)
+			bar_tip(ui, logo, "Apps  (Super+Space)");
+	}
+	if (li.clicked) {
+		if (launcher_open)
+			launcher_open = false;
+		else
+			open_launcher();
+	}
+	f32 wx = L.x + 44, bl, br;
 	bead_edges(&bl, &br);
 	f32 bh = 24 - minf(6, (br - bl) * 6); /* thinner as it stretches */
 	Rect bead = rect(wx + bl * slot + 1, y + (h - bh) / 2, (br - bl) * slot + slot - 2, bh);
@@ -994,6 +1060,8 @@ static void bar(Ui *ui, const HiveTheme *t)
 		bool under = c > bl - 0.5f && c < br + 0.5f;
 		if (it.hovered && !under)
 			ui_round(ui, rect_inset(cell, 2, 1), (h - 12) / 2, hover);
+		if (it.hovered)
+			ui_set_cursor(ui, CURSOR_POINTER);
 		char num[4];
 		fmt(num, sizeof num, "%d", i);
 		Color nc = under ? bg : occupied(i) ? fg : color_with_alpha(muted, 0xa0);
@@ -1004,37 +1072,10 @@ static void bar(Ui *ui, const HiveTheme *t)
 		if (it.clicked)
 			go_to(i);
 	}
-	f32 tx = wx + slot * (f32)last;
-	if (name) {
-		f32 x = tx + 8;
-		ui_fill(ui, rect(x, y + 11, 1, h - 22), color_hex("#ffffff26"));
-		x += 9;
-		ui_app_icon(ui, rect(x, y + (h - 18) / 2, 18, 18), icon);
-		ui_text_in(ui, small, rect(x + 24, y, name_w + 2, h), name, fg, ALIGN_START);
-		tx = x + 24 + name_w;
-	}
-	ntray = 0;
-	if (nt) {
-		f32 x = tx + 8;
-		ui_fill(ui, rect(x, y + 11, 1, h - 22), color_hex("#ffffff26"));
-		x += 6;
-		for (int i = 0; i < nt; i++, x += 26) {
-			Rect chip = rect(x, y + 5, 26, h - 10);
-			ui_push_id(ui, 200 + i);
-			UiInteract it = ui_interact(ui, ui_id(ui, "tray"), chip);
-			ui_pop_id(ui);
-			if (it.hovered)
-				ui_round(ui, chip, 8, hover);
-			const AppInfo *a = shell_app(tray[i]->app_id);
-			Rect ic = rect(x + 5, y + (h - 16) / 2, 16, 16);
-			ui_app_icon(ui, ic, a ? a->icon : tray[i]->app_id);
-			tray_at[ntray].w = tray[i], tray_at[ntray++].r = ic;
-			if (it.clicked)
-				window_minimize(tray[i], false);
-		}
-	}
 
-	/* the middle island: the time and the date; a click shows what's new */
+	/* the right island: the time and the date (a click: the calendar and
+	 * what's new), how busy the computer is, and the status (a click: quick
+	 * settings; the power button: the power menu) */
 	Civil c;
 	civil_local(time_unix(), &c);
 	char tm[16], date[32];
@@ -1044,18 +1085,6 @@ static void bar(Ui *ui, const HiveTheme *t)
 	    MONTH_NAMES[c.month - 1]);
 	bool px = S.set.pixel_style; /* the time in pixels */
 	f32 tw = px ? ui_pixel_text_width(tm, 2) : ui_text_width(ui, bold, tm), dw = ui_text_width(ui, small, date);
-	Rect C = rect(roundf((S.sw - (tw + dw + 50)) / 2), y, tw + dw + 50, h);
-	glass(ui, C, h / 2, t, 1);
-	if (ui_interact(ui, ui_id(ui, "hive-clock"), C).clicked)
-		S.notifications_open = !S.notifications_open;
-	if (px)
-		ui_pixel_text(ui, C.x + 18, roundf(y + (h - 14) / 2), tm, 2, fg);
-	else
-		ui_text(ui, bold, C.x + 18, base, tm, fg);
-	ui_circle(ui, C.x + 18 + tw + 7, y + h / 2, 2, accent);
-	ui_text(ui, small, C.x + 18 + tw + 14, base, date, muted);
-
-	/* the right island: how busy the computer is, then the usual status */
 	const char *icons[8];
 	int bat, ni = shell_status_icons(icons, &bat);
 	int cpu = cpu_percent();
@@ -1063,34 +1092,117 @@ static void bar(Ui *ui, const HiveTheme *t)
 	fmt(cpus, sizeof cpus, "%d%%", cpu);
 	if (bat >= 0 && S.battery >= 0)
 		fmt(pct, sizeof pct, "%d%%", S.battery);
-	f32 rw = 16 + 30 + ui_text_width(ui, small, cpus) + 12 + (f32)ni * 26 + (pct[0] ? ui_text_width(ui, small, pct) + 4 : 0) + 10;
+	f32 clock_w = 12 + tw + 14 + dw + 12;
+	f32 rw = 4 + clock_w + 9 + 12 + 30 + ui_text_width(ui, small, cpus) + 10 + (f32)ni * 26 + (pct[0] ? ui_text_width(ui, small, pct) + 4 : 0) + 8;
 	Rect R = rect(S.sw - GAP_OUT - rw, y, rw, h);
 	glass(ui, R, h / 2, t, 1);
-	f32 x = R.x + 16;
+	Rect clock = rect(R.x + 4, y + 4, clock_w, h - 8);
+	UiInteract ci = ui_interact(ui, ui_id(ui, "hive-clock"), clock);
+	if (ci.hovered || S.notifications_open)
+		ui_round(ui, clock, (h - 8) / 2, S.notifications_open ? color_with_alpha(accent, 0x30) : hover);
+	if (ci.hovered)
+		ui_set_cursor(ui, CURSOR_POINTER);
+	if (ci.clicked) {
+		S.notifications_open = !S.notifications_open;
+		S.session_menu_open = false;
+		close_overlays();
+	}
+	if (px)
+		ui_pixel_text(ui, clock.x + 12, roundf(y + (h - 14) / 2), tm, 2, fg);
+	else
+		ui_text(ui, bold, clock.x + 12, base, tm, fg);
+	ui_circle(ui, clock.x + 12 + tw + 7, y + h / 2, 2, accent);
+	ui_text(ui, small, clock.x + 12 + tw + 14, base, date, muted);
+	f32 x = clock.x + clock.w + 4;
+	ui_fill(ui, rect(x, y + 11, 1, h - 22), color_hex("#ffffff26"));
+	x += 12;
 	Rect track = rect(x, y + h / 2 - 3, 24, 6);
 	ui_round(ui, track, 3, color_hex("#ffffff24"));
 	ui_round(ui, rect(track.x, track.y, maxf(6, 24 * (f32)cpu / 100), 6), 3, accent);
 	x += 30;
 	ui_text(ui, small, x, base, cpus, muted);
-	x += ui_text_width(ui, small, cpus) + 12;
+	x += ui_text_width(ui, small, cpus) + 10;
+	Rect status = rect(x, y + 4, R.x + R.w - 6 - x, h - 8);
+	shell_anchor_panels(clock, status);
 	for (int i = 0; i < ni; i++) {
 		Rect hit = rect(x, y + 5, 26, h - 10);
 		ui_push_id(ui, 100 + i);
 		UiInteract it = ui_interact(ui, ui_id(ui, "st"), hit);
 		ui_pop_id(ui);
+		bool power = str_eq(icons[i], "system-shutdown");
+		bool lit = power ? power_open : S.session_menu_open;
+		if (it.hovered || lit)
+			ui_round(ui, hit, 13, lit ? color_with_alpha(accent, 0x30) : hover);
 		if (it.hovered)
-			ui_round(ui, hit, 13, hover);
+			ui_set_cursor(ui, CURSOR_POINTER);
 		ui_icon(ui, rect(x + 5, y + (h - 16) / 2, 16, 16), icons[i], it.hovered ? accent : fg);
 		if (it.clicked) {
-			if (str_eq(icons[i], "system-shutdown"))
-				close_overlays(), power_open = true;
-			else
-				S.notifications_open = !S.notifications_open;
+			S.notifications_open = false;
+			if (power) {
+				bool was = power_open;
+				close_overlays();
+				S.session_menu_open = false;
+				power_open = !was;
+			} else {
+				close_overlays();
+				S.session_menu_open = !S.session_menu_open;
+			}
 		}
 		x += 26;
 		if (i == bat && pct[0]) {
 			ui_text(ui, small, x, base, pct, fg);
 			x += ui_text_width(ui, small, pct) + 4;
+		}
+	}
+
+	/* the middle island: the taskbar. The pinned apps, then any others that
+	 * are open; a line under each that's open, longer under the one in
+	 * front, dim when all its windows are put away in the tray. */
+	char ids[24][48];
+	int n = shell_dock_items(ids, 24);
+	f32 room = R.x - (L.x + L.w) - 2 * 14 - 16;
+	f32 cw = n ? clampf(room / (f32)n, 28, 38) : 38;
+	int shown = n;
+	while (shown > 0 && (f32)shown * cw > room)
+		shown--;
+	ntray = 0;
+	if (shown > 0) {
+		f32 mw = (f32)shown * cw + 16;
+		f32 mx = clampf(roundf((S.sw - mw) / 2), L.x + L.w + 14, R.x - 14 - mw);
+		Rect M = rect(mx, y, mw, h);
+		glass(ui, M, h / 2, t, 1);
+		for (int i = 0; i < shown; i++) {
+			Rect chip = rect(M.x + 8 + (f32)i * cw, y + 4, cw, h - 8);
+			int count;
+			bool any_shown;
+			Window *top = app_window(ids[i], &count, &any_shown);
+			bool front = top && top == S.focus && !top->minimized && top->ws == current;
+			ui_push_id(ui, 300 + i);
+			UiInteract it = ui_interact(ui, ui_id(ui, "task"), chip);
+			ui_pop_id(ui);
+			if (front || it.hovered)
+				ui_round(ui, rect_inset(chip, 2, 0), 9, front ? color_with_alpha(accent, it.hovered ? 0x40 : 0x2c) : hover);
+			const AppInfo *a = shell_app(ids[i]);
+			f32 is = cw >= 34 ? 22 : 18;
+			Rect ic = rect(roundf(chip.x + (chip.w - is) / 2), roundf(y + (h - is) / 2 - 2), is, is);
+			ui_app_icon(ui, ic, a ? a->icon : ids[i]);
+			if (count) {
+				f32 lw = front ? 14 : 6;
+				Color lc = front ? accent : any_shown ? color_with_alpha(fg, 0xc0) : color_with_alpha(muted, 0xc0);
+				ui_fill(ui, rect(roundf(chip.x + (chip.w - lw) / 2), y + h - 8, lw, 2), lc);
+			}
+			/* where its windows in the tray fly to and from */
+			for (int k = 0; k < S.nwin && ntray < (int)ARRAY_LEN(tray_at); k++) {
+				Window *w = S.windows[k];
+				if (w->minimized && !w->closing && str_eq(w->app_id, ids[i]))
+					tray_at[ntray].w = w, tray_at[ntray++].r = ic;
+			}
+			if (it.hovered) {
+				ui_set_cursor(ui, CURSOR_POINTER);
+				bar_tip(ui, chip, a ? a->name : ids[i]);
+			}
+			if (it.clicked)
+				taskbar_click(ids[i]);
 		}
 	}
 	ui->wake_at = ui->wake_at > 0 && ui->wake_at < S.now + 2 ? ui->wake_at : S.now + 2;
@@ -1285,12 +1397,18 @@ static void power(Ui *ui, const HiveTheme *t)
 void hive_frame(Ui *ui)
 {
 	const HiveTheme *t = theme();
-	bar(ui, t);
 	/* a click outside them closes them (Hive has the pointer while they're
 	 * open; nothing is drawn over the screen, which would cost a redraw of
-	 * all of it every time) */
-	if ((launcher_open || help_open || power_open) && ui_interact(ui, ui_id(ui, "hive-outside"), rect(0, 0, S.sw, S.sh)).clicked)
-		close_overlays();
+	 * all of it every time). It sits under everything, and counts only when
+	 * nothing drawn after it took the press: a press and its release in one
+	 * frame (a tap, a click in a virtual machine) reach the first thing
+	 * under them at once, so the bar's buttons and the launcher's rows have
+	 * to be asked first. */
+	UiId outside_id = ui_id(ui, "hive-outside");
+	UiInteract outside = { 0 };
+	if (launcher_open || help_open || power_open)
+		outside = ui_interact(ui, outside_id, rect(0, 0, S.sw, S.sh));
+	bar(ui, t);
 	if (!launcher_open)
 		sel_y = -1;
 	if (launcher_open)
@@ -1299,6 +1417,10 @@ void hive_frame(Ui *ui)
 		help(ui, t);
 	if (power_open)
 		power(ui, t);
+	if (outside.clicked && (!outside.pressed_now || ui->pressed_owner == outside_id)) {
+		close_overlays();
+		ui->redraw = true;
+	}
 	toast(ui, t);
 	if (hive_animating())
 		ui->redraw = true;

@@ -359,7 +359,13 @@ static void drm_on_fd(Output *o)
 static bool drm_cursor_set(Output *o, const Canvas *img, int hot_x, int hot_y)
 {
 	Drm *d = o->impl;
-	if (!img || (u32)img->width > d->cursor_w || (u32)img->height > d->cursor_h)
+	if (!img) {
+		/* none: the plane is emptied */
+		struct drm_mode_cursor2 off = { .flags = DRM_MODE_CURSOR_BO, .crtc_id = d->crtc };
+		drm_ioctl(d->fd, DRM_IOCTL_MODE_CURSOR2, &off);
+		return false;
+	}
+	if ((u32)img->width > d->cursor_w || (u32)img->height > d->cursor_h)
 		return false;
 	if (!d->cursor.map && !dumb_create(d, &d->cursor, d->cursor_w, d->cursor_h, false))
 		return false;

@@ -185,14 +185,12 @@ void input_pointer_abs(f32 x, f32 y)
 		return;
 	S.px = nx;
 	S.py = ny;
-	cursor_update();
-	if (dnd_active()) {
+	cursor_update(); /* where it is, straight away */
+	if (dnd_active())
 		dnd_motion();
-		return;
-	}
-	if (shell_pointer(POINTER_MOTION, 0))
-		return;
-	wm_pointer_motion();
+	else if (!shell_pointer(POINTER_MOTION, 0))
+		wm_pointer_motion();
+	cursor_update(); /* and the shape of what's under it now, not of what was */
 }
 
 void input_pointer_rel(f32 dx, f32 dy)

@@ -174,8 +174,12 @@ void window_destroy(Window *w, bool animate)
 	dnd_window_gone(w);
 	if (S.focus == w)
 		S.focus = NULL;
-	if (S.pointer_window == w)
+	if (S.pointer_window == w) {
+		/* its cursor goes with it (a hand left over from its close button) */
 		S.pointer_window = NULL;
+		S.cursor = CURSOR_DEFAULT;
+		cursor_update();
+	}
 	if (S.grab_window == w) {
 		S.grab_window = NULL;
 		S.grab = GRAB_NONE;

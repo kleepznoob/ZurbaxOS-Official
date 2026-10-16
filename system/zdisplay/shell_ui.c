@@ -106,6 +106,14 @@ static Taskbar tb;              /* this frame's taskbar layout */
 static f32 tb_dy;               /* how far it has slid away */
 static Rect app_menu_btn, clock_btn, status_btn, bell_btn, start_btn;
 static u64 dock_menu_opened_frame;
+
+/* Hive draws its own bar: where its clock and status are, for the calendar
+ * and quick settings to open under them. */
+void shell_anchor_panels(Rect clock, Rect status)
+{
+	clock_btn = clock;
+	status_btn = status;
+}
 static bool app_menu_open;
 
 static struct {
