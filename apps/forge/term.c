@@ -12,6 +12,10 @@ static Cell blank(const Term *t)
 
 static Cell *cell(Term *t, int x, int y)
 {
+#ifdef TERM_CHECKED
+	if (x < 0 || x >= t->cols || y < 0 || y >= t->rows)
+		die("term: cell %d,%d outside %dx%d", x, y, t->cols, t->rows);
+#endif
 	return &t->screen[(usize)y * (usize)t->cols + (usize)x];
 }
 
@@ -128,8 +132,10 @@ static void scroll_up(Term *t, int n)
 	for (int k = 0; k < n; k++) {
 		if (t->top == 0)
 			push_scrollback(t, 0);
-		memmove(cell(t, 0, t->top), cell(t, 0, t->top + 1), sizeof(Cell) * (usize)t->cols * (usize)(t->bottom - t->top));
-		memmove(&t->wrapped[t->top], &t->wrapped[t->top + 1], sizeof(bool) * (usize)(t->bottom - t->top));
+		if (t->bottom > t->top) {
+			memmove(cell(t, 0, t->top), cell(t, 0, t->top + 1), sizeof(Cell) * (usize)t->cols * (usize)(t->bottom - t->top));
+			memmove(&t->wrapped[t->top], &t->wrapped[t->top + 1], sizeof(bool) * (usize)(t->bottom - t->top));
+		}
 		t->wrapped[t->bottom] = false;
 		Cell b = blank(t);
 		for (int x = 0; x < t->cols; x++)
@@ -142,8 +148,10 @@ static void scroll_down(Term *t, int n)
 {
 	n = MIN(n, t->bottom - t->top + 1);
 	for (int k = 0; k < n; k++) {
-		memmove(cell(t, 0, t->top + 1), cell(t, 0, t->top), sizeof(Cell) * (usize)t->cols * (usize)(t->bottom - t->top));
-		memmove(&t->wrapped[t->top + 1], &t->wrapped[t->top], sizeof(bool) * (usize)(t->bottom - t->top));
+		if (t->bottom > t->top) {
+			memmove(cell(t, 0, t->top + 1), cell(t, 0, t->top), sizeof(Cell) * (usize)t->cols * (usize)(t->bottom - t->top));
+			memmove(&t->wrapped[t->top + 1], &t->wrapped[t->top], sizeof(bool) * (usize)(t->bottom - t->top));
+		}
 		t->wrapped[t->top] = false;
 		Cell b = blank(t);
 		for (int x = 0; x < t->cols; x++)
@@ -391,7 +399,8 @@ static void csi_dispatch(Term *t, char f)
 			t->top = t->cy;
 			/* Delete lines: shift up within the region, without keeping history. */
 			for (int k = 0; k < MIN(n, t->bottom - t->top + 1); k++) {
-				memmove(cell(t, 0, t->top), cell(t, 0, t->top + 1), sizeof(Cell) * (usize)t->cols * (usize)(t->bottom - t->top));
+				if (t->bottom > t->top)
+					memmove(cell(t, 0, t->top), cell(t, 0, t->top + 1), sizeof(Cell) * (usize)t->cols * (usize)(t->bottom - t->top));
 				Cell b = blank(t);
 				for (int x = 0; x < t->cols; x++)
 					*cell(t, x, t->bottom) = b;
@@ -402,13 +411,15 @@ static void csi_dispatch(Term *t, char f)
 		break;
 	case 'P': {
 		n = MIN(n, t->cols - t->cx);
-		memmove(cell(t, t->cx, t->cy), cell(t, t->cx + n, t->cy), sizeof(Cell) * (usize)(t->cols - t->cx - n));
+		if (t->cols - t->cx - n > 0)
+			memmove(cell(t, t->cx, t->cy), cell(t, t->cx + n, t->cy), sizeof(Cell) * (usize)(t->cols - t->cx - n));
 		clear_cells(t, t->cols - n, t->cy, t->cols, t->cy);
 		break;
 	}
 	case '@': {
 		n = MIN(n, t->cols - t->cx);
-		memmove(cell(t, t->cx + n, t->cy), cell(t, t->cx, t->cy), sizeof(Cell) * (usize)(t->cols - t->cx - n));
+		if (t->cols - t->cx - n > 0)
+			memmove(cell(t, t->cx + n, t->cy), cell(t, t->cx, t->cy), sizeof(Cell) * (usize)(t->cols - t->cx - n));
 		clear_cells(t, t->cx, t->cy, t->cx + n, t->cy);
 		break;
 	}
