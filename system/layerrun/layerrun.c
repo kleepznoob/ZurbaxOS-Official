@@ -481,6 +481,37 @@ static void session_env(const char *user, const char *home)
 	setenv_("_JAVA_AWT_WM_NONREPARENTING", "1");
 }
 
+/* The home folders, named the freedesktop way. Flatpak only shares
+ * Downloads and the rest with an app when this file names them; without it
+ * Firefox saved into its sandbox's memory and the file was gone when it
+ * closed. */
+static void user_dirs(const char *home)
+{
+	if (str_eq(home, "/"))
+		return;
+	char *conf = str_fmt("%s/.config/user-dirs.dirs", home);
+	if (!file_exists(conf)) {
+		static const char *const std[] = { "Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos" };
+		for (usize i = 0; i < ARRAY_LEN(std); i++) {
+			char *d = path_join(home, std[i]);
+			dir_make(d, 0755);
+			mem_free(d);
+		}
+		char *dir = str_fmt("%s/.config", home);
+		dir_make(dir, 0755);
+		mem_free(dir);
+		file_write_str(conf, "XDG_DESKTOP_DIR=\"$HOME/Desktop\"\n"
+				     "XDG_DOWNLOAD_DIR=\"$HOME/Downloads\"\n"
+				     "XDG_TEMPLATES_DIR=\"$HOME/\"\n"
+				     "XDG_PUBLICSHARE_DIR=\"$HOME/\"\n"
+				     "XDG_DOCUMENTS_DIR=\"$HOME/Documents\"\n"
+				     "XDG_MUSIC_DIR=\"$HOME/Music\"\n"
+				     "XDG_PICTURES_DIR=\"$HOME/Pictures\"\n"
+				     "XDG_VIDEOS_DIR=\"$HOME/Videos\"\n");
+	}
+	mem_free(conf);
+}
+
 /* The Wayland socket under its standard name in the runtime folder. */
 static void link_wayland(const char *socket)
 {
@@ -1005,6 +1036,7 @@ int main(int argc, char **argv)
 		home = "/";
 	if (!user || !*user)
 		user = "user";
+	user_dirs(home);
 	/* another layer than the usual one runs on its own */
 	if (!str_eq(layer, DEFAULT_LAYER))
 		isolated = true;
