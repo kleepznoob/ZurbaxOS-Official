@@ -277,6 +277,11 @@ static void build_root(const char *user, const char *home)
 	if (!dir_exists(zos))
 		fail("the layer has no .zos folder (layer/build.sh makes it)");
 	must_mount("tmpfs", zos, "tmpfs", MS_NOSUID | MS_NODEV, "mode=0755");
+	/* /var/tmp is where Flatpak and OSTree make their scratch files (O_TMPFILE):
+	 * the layer's own is read-only, so the session gets a fresh one */
+	char *vtmp = in_layer("/var/tmp");
+	must_mount("tmpfs", vtmp, "tmpfs", MS_NOSUID | MS_NODEV, "mode=1777");
+	mem_free(vtmp);
 	char *runtime = str_fmt("%s/runtime", zos);
 	dir_make(runtime, 0700);
 	mem_free(runtime);
