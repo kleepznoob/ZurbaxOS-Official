@@ -514,7 +514,7 @@ static int session_pid(void)
 	char comm[64];
 	fmt(comm, sizeof comm, "/proc/%d/comm", pid);
 	char *name = file_read_line(comm);
-	bool ours = name && str_eq(name, "layerrun");
+	bool ours = name && str_starts(name, "layerrun"); /* a renamed copy (layerrun2) counts too */
 	mem_free(name);
 	return ours ? pid : 0;
 }
