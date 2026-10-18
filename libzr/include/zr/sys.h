@@ -463,6 +463,7 @@ static inline long sys_connect(int fd, const void *addr, u32 len) { return SC(3,
 static inline long sys_bind(int fd, const void *addr, u32 len) { return SC(3, SYS_bind, fd, (long)addr, len); }
 static inline long sys_listen(int fd, int backlog) { return SC(2, SYS_listen, fd, backlog); }
 static inline long sys_accept4(int fd, void *addr, u32 *len, int flags) { return SC(4, SYS_accept4, fd, (long)addr, (long)len, flags); }
+static inline long sys_getsockname(int fd, void *addr, u32 *len) { return SC(3, SYS_getsockname, fd, (long)addr, (long)len); }
 static inline long sys_sendmsg(int fd, const struct msghdr *m, int flags) { return SC(3, SYS_sendmsg, fd, (long)m, flags); }
 static inline long sys_recvmsg(int fd, struct msghdr *m, int flags) { return SC(3, SYS_recvmsg, fd, (long)m, flags); }
 static inline long sys_sendto(int fd, const void *buf, usize n, int flags, const void *addr, u32 alen) { return SC(6, SYS_sendto, fd, (long)buf, (long)n, flags, (long)addr, alen); }

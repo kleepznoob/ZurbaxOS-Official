@@ -635,7 +635,10 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 				o.method = "GET", o.body = NULL;
 			continue;
 		}
-		/* The body. */
+		/* The body: to the sink, unless it says this one isn't for it. */
+		HttpOptions bo = o;
+		if (bo.sink && bo.sink_wanted && !bo.sink_wanted(bo.user, status, r->headers))
+			bo.sink = NULL;
 		usize cap = 0, total = 0;
 		mem_free(r->body);
 		r->body = NULL, r->body_len = 0;
@@ -660,7 +663,7 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 					break;
 				while (size) {
 					long k = conn_read(&c, buf, MIN(size, sizeof buf));
-					if (k <= 0 || !append_body(r, &cap, buf, (usize)k, o.max_body, &o)) {
+					if (k <= 0 || !append_body(r, &cap, buf, (usize)k, o.max_body, &bo)) {
 						good = false;
 						break;
 					}
@@ -683,7 +686,7 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 					good = r->body_len > 0 && !total;
 					break;
 				}
-				if (!append_body(r, &cap, buf, (usize)k, o.max_body, &o)) {
+				if (!append_body(r, &cap, buf, (usize)k, o.max_body, &bo)) {
 					good = false;
 					break;
 				}
@@ -697,7 +700,7 @@ HttpResponse *http_request(const char *url, const HttpOptions *opts)
 				str_copy(r->error, "the download was interrupted", sizeof r->error);
 			return r;
 		}
-		if (!o.sink && http_header(r, "Content-Encoding", value, sizeof value) && str_find_nocase(value, "gzip")) {
+		if (!bo.sink && http_header(r, "Content-Encoding", value, sizeof value) && str_find_nocase(value, "gzip")) {
 			usize n;
 			u8 *plain = gunzip(r->body, r->body_len, &n);
 			if (!plain) {

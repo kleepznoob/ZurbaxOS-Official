@@ -190,6 +190,10 @@ typedef struct {
 	/* when set, the body goes here as it arrives instead of into the
 	 * response (for downloads too large to hold); false stops it */
 	bool (*sink)(void *user, const u8 *data, usize n);
+	/* with sink: asked with the final response's status and headers, before
+	 * its body; false keeps that body in the response after all (a browser
+	 * streams downloads to disk but keeps pages) */
+	bool (*sink_wanted)(void *user, int status, const char *headers);
 	const char *user_agent;  /* default "Zurbax/1.0" */
 	const char *accept;      /* default any type */
 } HttpOptions;

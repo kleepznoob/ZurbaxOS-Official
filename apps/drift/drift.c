@@ -305,8 +305,95 @@ static void on_progress(void *user, usize got, usize total)
 	}
 }
 
+/* A page load whose answer may turn out to be a download: decided from the
+ * response's headers, and then written to Downloads as it arrives, under
+ * NAME.part until it's whole, so its size doesn't matter. */
+typedef struct {
+	Doc *doc;
+	char url[2048];         /* the last hop's address, for the file's name */
+	int fd;                 /* >= 0 once it's a download */
+	char *path, *part;
+} Download;
+
+static char *download_path(const char *url, const char *disposition);
+
+static void dl_progress(void *user, usize got, usize total)
+{
+	on_progress(((Download *)user)->doc, got, total);
+}
+
+static void dl_hop(void *user, const char *url, int status, const char *headers)
+{
+	Download *dl = user;
+	str_copy(dl->url, url, sizeof dl->url);
+	cookies_from(NULL, url, status, headers);
+}
+
+static char *dl_cookies(void *user, const char *url)
+{
+	UNUSED(user);
+	return cookies_for(NULL, url);
+}
+
+/* A header's value from a block of "Name: value" lines */
+static void header_in(const char *headers, const char *name, char *out, usize cap)
+{
+	out[0] = 0;
+	usize n = strlen(name);
+	for (const char *p = headers; p && *p;) {
+		const char *nl = str_chr(p, '\n');
+		if (str_eq_nocase_n(p, name, n) && p[n] == ':') {
+			const char *v = p + n + 1;
+			while (*v == ' ')
+				v++;
+			usize len = nl ? (usize)(nl - v) : strlen(v);
+			while (len && (v[len - 1] == '\r' || v[len - 1] == ' '))
+				len--;
+			str_copy(out, v, MIN(len + 1, cap));
+			return;
+		}
+		p = nl ? nl + 1 : NULL;
+	}
+}
+
+static bool is_download(const char *ctype_raw, const char *disp, bool starts_with_tag)
+{
+	char ctype[160];
+	str_copy(ctype, ctype_raw, sizeof ctype);
+	str_lower(ctype);
+	bool is_html = str_starts(ctype, "text/html") || str_find(ctype, "xhtml") || (!ctype[0] && starts_with_tag);
+	bool is_image = str_starts(ctype, "image/");
+	bool is_text = str_starts(ctype, "text/") || str_find(ctype, "json") || str_find(ctype, "javascript") || str_find(ctype, "xml");
+	return str_find_nocase(disp, "attachment") || (!is_html && !is_image && !is_text);
+}
+
+static bool dl_wanted(void *user, int status, const char *headers)
+{
+	Download *dl = user;
+	if (status != 200)
+		return false;
+	char ctype[160], disp[512];
+	header_in(headers, "Content-Type", ctype, sizeof ctype);
+	header_in(headers, "Content-Disposition", disp, sizeof disp);
+	/* no type at all: a page, as it's judged on its first byte later */
+	if (!ctype[0] && !str_find_nocase(disp, "attachment"))
+		return false;
+	if (!is_download(ctype, disp, false))
+		return false;
+	dl->path = download_path(dl->url, disp);
+	dl->part = str_fmt("%s.part", dl->path);
+	dl->fd = (int)sys_open(dl->part, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+	return dl->fd >= 0;
+}
+
+static bool dl_sink(void *user, const u8 *data, usize n)
+{
+	Download *dl = user;
+	return !atomic_load(&dl->doc->cancelled) && write_all(dl->fd, data, n);
+}
+
 static HttpResponse *web_get(const char *url, const char *accept, const char *method, const char *body, const char *ctype,
-			     const char *referer, Doc *progress_doc)
+			     const char *referer, Doc *progress_doc, Download *dl)
 {
 	HttpOptions o = { .method = method, .user_agent = USER_AGENT, .accept = accept, .hop_headers = cookies_for,
 			  .hop_response = cookies_from, .timeout_ms = 20000, .max_body = 48u << 20, .max_redirects = 10 };
@@ -324,6 +411,16 @@ static HttpResponse *web_get(const char *url, const char *accept, const char *me
 	if (progress_doc) {
 		o.progress = on_progress;
 		o.user = progress_doc;
+	}
+	if (dl) {
+		dl->doc = progress_doc;
+		dl->fd = -1;
+		o.user = dl;
+		o.progress = dl_progress;
+		o.hop_headers = dl_cookies;
+		o.hop_response = dl_hop;
+		o.sink = dl_sink;
+		o.sink_wanted = dl_wanted;
 	}
 	HttpResponse *r = http_request(url, &o);
 	sb_free(&h);
@@ -348,7 +445,7 @@ static char *fetch_text(const char *url, usize *len)
 		return copy;
 	}
 	mutex_unlock(&cache.lock);
-	HttpResponse *r = web_get(url, "text/css,*/*;q=0.1", NULL, NULL, NULL, NULL, NULL);
+	HttpResponse *r = web_get(url, "text/css,*/*;q=0.1", NULL, NULL, NULL, NULL, NULL, NULL);
 	char *text = NULL;
 	*len = 0;
 	if (r->status >= 200 && r->status < 300 && r->body) {
@@ -443,7 +540,7 @@ static void run_image(Job *j)
 		} else if (str_starts(im->url, "file://")) {
 			data = (u8 *)file_read(im->url + 7, &len);
 		} else {
-			HttpResponse *r = web_get(im->url, "image/png,image/jpeg,image/gif,image/svg+xml,image/*;q=0.5", NULL, NULL, NULL, d->url, NULL);
+			HttpResponse *r = web_get(im->url, "image/png,image/jpeg,image/gif,image/svg+xml,image/*;q=0.5", NULL, NULL, NULL, d->url, NULL, NULL);
 			if (r->status == 200 && r->body) {
 				data = r->body;
 				len = r->body_len;
@@ -582,7 +679,9 @@ static bool ext_is(const char *ext, const char *e)
 	return str_eq_nocase_n(ext, e, n) && (!ext[n] || ext[n] == '?' || ext[n] == '#');
 }
 
-static void save_download(Doc *d, const char *url, const char *disposition, const u8 *body, usize len)
+/* Where a download goes in Downloads: its name from the site, or from the
+ * address, never over a file that's there (name (2).ext). */
+static char *download_path(const char *url, const char *disposition)
 {
 	char name[256] = "";
 	const char *fnp = str_find_nocase(disposition, "filename=");
@@ -607,13 +706,14 @@ static void save_download(Doc *d, const char *url, const char *disposition, cons
 			str_copy(name, base && base[1] ? base + 1 : "download", sizeof name);
 		}
 	}
+	if (!name[0] || name[0] == '.')
+		str_copy(name, "download", sizeof name);
 	for (char *p = name; *p; p++)
 		if (*p == '/' || *p == '\\')
 			*p = '_';
 	char *dir = path_join(home_dir(), "Downloads");
 	dir_make(dir, 0755);
 	char *path = path_join(dir, name);
-	/* don't overwrite: name (2).ext */
 	for (int k = 2; file_exists(path) && k < 100; k++) {
 		mem_free(path);
 		const char *dot = str_rchr(name, '.');
@@ -624,19 +724,26 @@ static void save_download(Doc *d, const char *url, const char *disposition, cons
 			fmt(alt, sizeof alt, "%s (%d)", name, k);
 		path = path_join(dir, alt);
 	}
-	bool ok = file_write(path, body, len);
-	mutex_lock(&d->lock);
-	if (ok) {
-		str_copy(d->error, path, sizeof d->error);
-		d->state = DOC_DOWNLOADED;
-	} else {
-		str_copy(d->error, "The file couldn't be saved to Downloads.", sizeof d->error);
-		d->state = DOC_FAILED;
-	}
-	mutex_unlock(&d->lock);
 	mem_free(dir);
-	mem_free(path);
+	return path;
+}
+
+static void download_done(Doc *d, const char *path, const char *error)
+{
+	mutex_lock(&d->lock);
+	str_copy(d->error, path ? path : error, sizeof d->error);
+	d->state = path ? DOC_DOWNLOADED : DOC_FAILED;
+	mutex_unlock(&d->lock);
 	ui_wake(the_ui);
+}
+
+/* A small download that came whole in the response (a page judged by its first byte, a file:// one) */
+static void save_download(Doc *d, const char *url, const char *disposition, const u8 *body, usize len)
+{
+	char *path = download_path(url, disposition);
+	bool ok = file_write(path, body, len);
+	download_done(d, ok ? path : NULL, "The file couldn't be saved to Downloads.");
+	mem_free(path);
 }
 
 static void collect_title(Doc *d)
@@ -819,8 +926,28 @@ static void run_load(Job *j)
 				goto out;
 			}
 		} else {
+			Download dl = { 0 };
 			HttpResponse *r = web_get(url, "text/html,application/xhtml+xml,*/*;q=0.8", post ? "POST" : NULL, post,
-						  post ? (j->post_type ? j->post_type : "application/x-www-form-urlencoded") : NULL, NULL, d);
+						  post ? (j->post_type ? j->post_type : "application/x-www-form-urlencoded") : NULL, NULL, d, &dl);
+			if (dl.fd >= 0) {
+				/* it was a download, already written: it takes its name if it arrived whole */
+				bool whole = r->status == 200 && sys_fsync(dl.fd) == 0;
+				char len[32];
+				if (whole && http_header(r, "Content-Length", len, sizeof len))
+					whole = (u64)str_to_int(len, NULL) == (u64)r->body_len;
+				sys_close(dl.fd);
+				if (whole && sys_rename(dl.part, dl.path) == 0) {
+					download_done(d, dl.path, NULL);
+				} else {
+					sys_unlink(dl.part);
+					if (!atomic_load(&d->cancelled))
+						download_done(d, NULL, r->error[0] ? "The download was interrupted; try again." : "The file couldn't be saved to Downloads.");
+				}
+				mem_free(dl.path);
+				mem_free(dl.part);
+				http_response_free(r);
+				goto out;
+			}
 			if (atomic_load(&d->cancelled)) {
 				http_response_free(r);
 				goto out;

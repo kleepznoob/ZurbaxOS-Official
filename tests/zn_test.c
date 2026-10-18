@@ -307,6 +307,76 @@ static void test_roots(void)
 	mem_free(pem);
 }
 
+/* ---- Streaming downloads ------------------------------------------------------------ */
+
+/* A server on this machine answering two requests: a small page, then a file
+ * bigger than a response may hold in memory. */
+#define BIG_FILE (80u << 20)
+
+static void serve_two(void *arg)
+{
+	int ls = *(int *)arg;
+	for (int n = 0; n < 2; n++) {
+		int c = (int)sys_accept4(ls, NULL, NULL, SOCK_CLOEXEC);
+		if (c < 0)
+			return;
+		char req[2048] = { 0 };
+		sys_read(c, req, sizeof req - 1);
+		if (str_find(req, "GET /page")) {
+			const char *r = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\nConnection: close\r\n\r\nhello world";
+			write_all(c, r, strlen(r));
+		} else {
+			char head[200];
+			fmt(head, sizeof head, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %u\r\nConnection: close\r\n\r\n", BIG_FILE);
+			write_all(c, head, strlen(head));
+			static u8 chunk[1 << 16];
+			for (usize i = 0; i < sizeof chunk; i++)
+				chunk[i] = (u8)i;
+			for (u32 sent = 0; sent < BIG_FILE; sent += sizeof chunk)
+				if (!write_all(c, chunk, sizeof chunk))
+					break;
+		}
+		sys_close(c);
+	}
+}
+
+static u64 sunk;
+
+static bool count_sink(void *user, const u8 *data, usize n)
+{
+	UNUSED(user), UNUSED(data);
+	sunk += n;
+	return true;
+}
+
+/* like a browser: files to disk, pages kept */
+static bool files_only(void *user, int status, const char *headers)
+{
+	UNUSED(user);
+	return status == 200 && str_find(headers, "application/octet-stream");
+}
+
+static void test_streaming(void)
+{
+	int ls = (int)sys_socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	struct sockaddr_in a = { .sin_family = AF_INET, .sin_addr.s_addr = 0x0100007f }; /* 127.0.0.1, any port */
+	u32 alen = sizeof a;
+	CHECK(ls >= 0 && sys_bind(ls, &a, sizeof a) == 0 && sys_listen(ls, 4) == 0 && sys_getsockname(ls, &a, &alen) == 0);
+	thread_spawn(serve_two, &ls);
+	int port = ((a.sin_port & 0xff) << 8) | (a.sin_port >> 8);
+	HttpOptions o = { .sink = count_sink, .sink_wanted = files_only, .timeout_ms = 30000 };
+	char url[64];
+	fmt(url, sizeof url, "http://127.0.0.1:%d/page", port);
+	HttpResponse *r = http_request(url, &o);
+	CHECK(r->status == 200 && r->body && str_eq((char *)r->body, "hello world") && sunk == 0);
+	http_response_free(r);
+	fmt(url, sizeof url, "http://127.0.0.1:%d/file", port);
+	r = http_request(url, &o);
+	CHECK(r->status == 200 && !r->body && r->body_len == BIG_FILE && sunk == BIG_FILE);
+	http_response_free(r);
+	sys_close(ls);
+}
+
 int main(void)
 {
 	test_hashes();
@@ -315,6 +385,7 @@ int main(void)
 	test_certs();
 	test_urls();
 	test_roots();
+	test_streaming();
 	print("libzn: %d/%d checks passed\n", checks - failures, checks);
 	return failures ? 1 : 0;
 }
