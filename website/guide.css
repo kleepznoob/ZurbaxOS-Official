@@ -6,6 +6,8 @@
 	background: var(--deep) var(--wall, url("/images/hive/bit-carbon.png")) center 40% / cover no-repeat; image-rendering: pixelated;
 }
 .g-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent), var(--bg)); }
+/* the wallpaper fades into the water below */
+.g-hero::before, .g-hero::after { -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
 .g-hero .version { font: 13px "JetBrains Mono", monospace; color: var(--brand); letter-spacing: .04em; margin-bottom: 14px; text-transform: lowercase; }
 .g-title { font-size: clamp(38px, 6vw, 68px); font-weight: 800; letter-spacing: -0.03em; }
 .g-hero .intro { color: var(--text-2); font-size: clamp(17px, 2vw, 20px); max-width: 680px; margin-top: 18px; }

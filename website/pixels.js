@@ -1,4 +1,5 @@
-// zurbax.com: the pixel style on every page, as Zurbax moves. Pictures come
+// zurbax.com: the pixel style on every page, as Zurbax moves. Behind it all,
+// black water in pixels, its swells rolling by. Pictures come
 // out of the dark block by block in the ordered pattern windows open in;
 // the pointer is drawn in pixels; a bar of blocks fills as you read; buttons
 // throw pixel sparks; small headings type themselves out with a block for a
@@ -11,6 +12,67 @@
     3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
   const turn = (x, y) => (BAYER[(y & 7) * 8 + (x & 7)] + 0.5) / 64;
   const css = name => getComputedStyle(root).getPropertyValue(name).trim();
+
+  // ---- behind every page: black water in big pixels, swells rolling by, their
+  // crests catching the theme's accent in the ordered pattern of the rest
+  {
+    const c = document.createElement('canvas');
+    c.className = 'px-waves';
+    c.setAttribute('aria-hidden', 'true');
+    document.body.prepend(c);
+    const g = c.getContext('2d', { alpha: false });
+    const CELL = 6; /* a pixel of the water, in CSS pixels */
+    const rgb = v => {
+      const m = v.match(/^#([0-9a-f]{6})$/i);
+      const n = m ? parseInt(m[1], 16) : 0;
+      return [n >> 16, (n >> 8) & 255, n & 255];
+    };
+    const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+    let w = 0, h = 0, img = null, swell = null, tones = null, last = 0, colorsAt = 0;
+    const colours = () => {
+      const deep = mix(rgb(css('--deep') || '#0b0b0b'), [0, 0, 0], 0.45), accent = rgb(css('--brand') || '#e68e0d');
+      tones = [deep, mix(deep, [255, 255, 255], 0.03), mix(deep, [255, 255, 255], 0.06), mix(deep, accent, 0.3)];
+    };
+    const size = () => {
+      w = Math.ceil(innerWidth / CELL);
+      h = Math.ceil(innerHeight / CELL);
+      c.width = w;
+      c.height = h;
+      img = g.createImageData(w, h);
+      swell = new Float32Array(w);
+    };
+    const draw = now => {
+      const s = now / 1000, d = img.data;
+      if (!tones || now - colorsAt > 1000) colours(), colorsAt = now;
+      /* the swell under each column: three waves of different lengths and speeds */
+      for (let x = 0; x < w; x++)
+        swell[x] = Math.sin(x * 0.045 + s * 0.55) * 5 + Math.sin(x * 0.018 - s * 0.22) * 9 + Math.sin(x * 0.11 + s * 1.1) * 1.6;
+      for (let y = 0, i = 0; y < h; y++) {
+        const depth = 0.25 + 0.75 * (y / h); /* calmer toward the top */
+        for (let x = 0; x < w; x++, i += 4) {
+          const p = (y + swell[x] * depth) / 12; /* a row of waves every 12 pixels */
+          const f = p - Math.floor(p);
+          const k = turn(x, y);
+          const crest = Math.max(0, 1 - Math.abs(f - 0.1) * 14) * depth;
+          const face = Math.max(0, 0.6 - f) * depth;
+          const t = crest > k ? tones[3] : face * 0.6 > k ? tones[2] : face * 1.2 > k ? tones[1] : tones[0];
+          d[i] = t[0], d[i + 1] = t[1], d[i + 2] = t[2], d[i + 3] = 255;
+        }
+      }
+      g.putImageData(img, 0, 0);
+    };
+    const frame = now => {
+      if (!document.hidden && now - last > 66) { /* about 15 frames a second is plenty for water */
+        last = now;
+        draw(now);
+      }
+      requestAnimationFrame(frame);
+    };
+    size();
+    addEventListener('resize', () => { size(); draw(performance.now()); });
+    if (still) draw(0);
+    else requestAnimationFrame(frame);
+  }
 
   // ---- the pointer, in pixels: an arrow, and a hand over what can be pressed
   const ARROW = ['X..........', 'XX.........', 'XWX........', 'XWWX.......', 'XWWWX......', 'XWWWWX.....', 'XWWWWWX....', 'XWWWWWWX...',

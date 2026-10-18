@@ -95,12 +95,16 @@ section { padding: 96px 0; }
 .hero-bg {
 	position: absolute; inset: 0; z-index: -1; background: var(--deep) var(--wall, url("/images/hive/bit-carbon.png")) center 30% / cover no-repeat;
 	image-rendering: pixelated; transition: background-image .6s;
+	/* it fades into the water below */
+	-webkit-mask-image: linear-gradient(180deg, #000 60%, transparent); mask-image: linear-gradient(180deg, #000 60%, transparent);
 }
 .hero-bg::after {
 	content: ""; position: absolute; inset: 0;
 	background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent) 0%, color-mix(in srgb, var(--bg) 80%, transparent) 45%, var(--bg) 78%);
 }
 .stars { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; image-rendering: pixelated; }
+/* the black water behind every page (pixels.js) */
+.px-waves { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; image-rendering: pixelated; pointer-events: none; }
 .hero-in { position: relative; z-index: 2; text-align: center; display: flex; flex-direction: column; align-items: center; }
 .mark { margin: 14px 0 34px; line-height: 0; width: min(940px, 100%); }
 .mark-text { font-size: clamp(72px, 15vw, 196px); font-weight: 800; letter-spacing: -0.06em; line-height: .9; color: var(--text); }
@@ -149,10 +153,10 @@ section { padding: 96px 0; }
 .trio { padding: 72px 0; }
 
 /* ---- Hive ---- */
-.hive { background: var(--deep); border-block: 1px solid var(--border); }
+.hive { background: color-mix(in srgb, var(--deep) 45%, transparent); border-block: 1px solid var(--border); }
 .hive-in { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
 .hive-copy p { color: var(--text-2); font-size: 17px; margin-top: 16px; }
-.setup { background: var(--bg); }
+.setup { background: transparent; }
 .setup .hive-in { grid-template-columns: 1.25fr 1fr; }
 .setup .screen { margin: 0; border-radius: 0; box-shadow: 8px 8px 0 color-mix(in srgb, var(--brand) 70%, #000), 0 30px 90px -40px color-mix(in srgb, var(--brand) 55%, #000); }
 .keys { margin: 0; display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 18px; padding: 22px; }
