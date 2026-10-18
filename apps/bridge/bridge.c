@@ -12,7 +12,11 @@
  * kernel's ntsync, and the anti-cheat runtimes Steam installs (Easy
  * Anti-Cheat, BattlEye) are passed on for games whose makers allow Linux.
  * Every program gets a bottle of its own: a Windows folder tree, registry
- * and settings, so one can't break another.
+ * and settings, so one can't break another. The first time a program runs,
+ * Bridge asks whether it may use the person's files: allowed, its
+ * Documents, Downloads, Pictures, Music, Videos and Desktop are the real
+ * ones, and USB drives get drive letters (D: on); kept apart, it has its
+ * own. It can be changed in its options.
  *
  * Proton and the runtime are downloaded the first time (about 900 MB), each
  * checked against its published checksum.
@@ -43,6 +47,7 @@ typedef struct {
 	char exe[512];
 	char args[256];
 	bool fsr, hud, nvapi, wayland;
+	int files; /* the person's files: -1 not asked yet, 0 kept apart, 1 allowed */
 	i64 played;
 	/* where its cover came from: "steam:APPID" (portrait art), "wide:APPID"
 	 * (a store banner), "file" (the person's), "icon" or "none"; "" when
@@ -200,6 +205,7 @@ static void save_app(const App *a)
 	conf_set_bool(c, "fps", a->hud);
 	conf_set_bool(c, "nvapi", a->nvapi);
 	conf_set_bool(c, "wayland", a->wayland);
+	conf_set(c, "files", a->files < 0 ? "ask" : a->files ? "yes" : "no");
 	conf_set_int(c, "played", a->played);
 	conf_set(c, "cover", a->cover);
 	conf_save(c);
@@ -238,6 +244,8 @@ static void load_library(void)
 			a->hud = conf_get_bool(c, "fps", false);
 			a->nvapi = conf_get_bool(c, "nvapi", true);
 			a->wayland = conf_get_bool(c, "wayland", false);
+			const char *files = conf_get(c, "files", "ask");
+			a->files = str_eq(files, "yes") ? 1 : str_eq(files, "no") ? 0 : -1;
 			a->played = conf_get_int(c, "played", 0);
 			str_copy(a->cover, conf_get(c, "cover", ""), sizeof a->cover);
 			if (a->exe[0])
@@ -279,6 +287,7 @@ static int add_app(const char *exe, const char *bottle_of)
 	str_copy(a.exe, exe, sizeof a.exe);
 	name_from(exe, a.name, sizeof a.name);
 	a.nvapi = true;
+	a.files = -1;
 	if (bottle_of) {
 		/* a program an installer put in its bottle stays in that bottle */
 		str_copy(a.id, bottle_of, sizeof a.id);
@@ -562,11 +571,80 @@ static bool looks_like_installer(const char *exe)
 	return str_eq_nocase(path_ext(b), "msi") || str_find_nocase(b, "setup") || str_find_nocase(b, "install");
 }
 
+/* ---- The person's files -------------------------------------------------------------------- */
+
+static const char *const USER_FOLDERS[] = { "Documents", "Downloads", "Pictures", "Music", "Videos", "Desktop" };
+static int ask_for = -1; /* the program whose first start waits for the answer */
+
+/* A program allowed the person's files: the Windows user's folders in its
+ * bottle become links to the real ones (an empty folder of its own makes way;
+ * one with files in it stays), and each USB drive gets a letter. Kept apart,
+ * the links go and it has empty folders of its own again. */
+static void share_files(const App *a, const char *bottle)
+{
+	char *user = str_fmt("%s/pfx/drive_c/users/steamuser", bottle);
+	if (dir_exists(user)) {
+		for (usize i = 0; i < ARRAY_LEN(USER_FOLDERS); i++) {
+			char *mine = str_fmt("%s/%s", user, USER_FOLDERS[i]);
+			char *real = str_fmt("%s/%s", home_dir(), USER_FOLDERS[i]);
+			struct stat st;
+			bool link = sys_lstat(mine, &st) == 0 && S_ISLNK(st.st_mode);
+			if (a->files == 1 && !link && dir_exists(real)) {
+				sys_rmdir(mine); /* only when it's empty */
+				if (!dir_exists(mine))
+					sys_symlink(real, mine);
+			} else if (a->files != 1 && link) {
+				sys_unlink(mine);
+				dir_make(mine, 0755);
+			}
+			mem_free(mine);
+			mem_free(real);
+		}
+	}
+	mem_free(user);
+	/* drive letters for the drives in /media, D: on; the old ones go first */
+	char *dosdev = str_fmt("%s/pfx/dosdevices", bottle);
+	if (dir_exists(dosdev)) {
+		for (char l = 'd'; l <= 'y'; l++) {
+			char *p = str_fmt("%s/%c:", dosdev, l);
+			char target[512] = { 0 };
+			if (sys_readlink(p, target, sizeof target - 1) > 0 && str_starts(target, "/media/"))
+				sys_unlink(p);
+			mem_free(p);
+		}
+		DirList l = { 0 };
+		if (a->files == 1 && dir_list("/media", &l, false)) {
+			char letter = 'd';
+			vec_each(&l, e) {
+				if (letter > 'y')
+					break;
+				char *p, *target = str_fmt("/media/%s", e->name);
+				struct stat st;
+				for (p = str_fmt("%s/%c:", dosdev, letter); sys_lstat(p, &st) == 0 && letter < 'y';) {
+					mem_free(p);
+					p = str_fmt("%s/%c:", dosdev, ++letter);
+				}
+				if (sys_lstat(p, &st) < 0)
+					sys_symlink(target, p);
+				letter++;
+				mem_free(p);
+				mem_free(target);
+			}
+			dir_list_free(&l);
+		}
+	}
+	mem_free(dosdev);
+}
+
 static void play(Ui *ui, int i)
 {
-	UNUSED(ui);
 	App *a = &apps[i];
 	char proton[600], bottle[600];
+	if (a->files < 0) {
+		ask_for = i;
+		ui_dialog_open(ui, "bridge-files");
+		return;
+	}
 	if (!have_runtime() || !proton_dir(proton, sizeof proton)) {
 		str_copy(pending_run, a->exe, sizeof pending_run);
 		start_job();
@@ -574,6 +652,7 @@ static void play(Ui *ui, int i)
 	}
 	bottle_of(a, bottle, sizeof bottle);
 	dir_make(bottle, 0755);
+	share_files(a, bottle);
 	char *runtime = path_in("runtime/SteamLinuxRuntime_sniper");
 	char *entry = str_fmt("%s/_v2-entry-point", runtime);
 	char *script = str_fmt("%s/proton", proton);
@@ -602,7 +681,10 @@ static void play(Ui *ui, int i)
 	VAR("SteamAppId=0");
 	VAR("SteamGameId=bridge-%s", a->id);
 	VAR("PROTON_VERB=waitforexitandrun");
-	VAR("PRESSURE_VESSEL_FILESYSTEMS_RW=%s:%s", where, bridge_base);
+	if (a->files == 1)
+		VAR("PRESSURE_VESSEL_FILESYSTEMS_RW=%s:%s:/media", where, bridge_base);
+	else
+		VAR("PRESSURE_VESSEL_FILESYSTEMS_RW=%s:%s", where, bridge_base);
 	if (file_exists("/dev/ntsync"))
 		VAR("PROTON_USE_NTSYNC=1");
 	if (a->fsr)
@@ -1096,6 +1178,14 @@ static void details(Ui *ui, Rect r)
 	ch |= option_row(ui, &c, "Frame rate counter", "Frames per second in the corner", &a->hud);
 	ch |= option_row(ui, &c, "NVIDIA DLSS and Reflex", "For games that support them, on NVIDIA cards", &a->nvapi);
 	ch |= option_row(ui, &c, "Native Wayland (experimental)", "Skips Xwayland; some games run smoother", &a->wayland);
+	bool files = a->files == 1;
+	if (option_row(ui, &c, "Your files and USB drives", "Documents, Downloads, Pictures and the rest are your real ones", &files)) {
+		a->files = files;
+		char bottle[600];
+		bottle_of(a, bottle, sizeof bottle);
+		share_files(a, bottle);
+		ch = true;
+	}
 	if (ch)
 		save_app(a);
 	cut_top(&c, 8);
@@ -1182,6 +1272,13 @@ static void frame(Ui *ui)
 		if (proc_wait(play_pid, &st, true) == play_pid) {
 			play_pid = -1;
 			bridge_msg[0] = 0;
+			/* a bottle the first start made: its folders now */
+			for (int k = 0; k < napps; k++)
+				if (str_eq(apps[k].id, play_id)) {
+					char bottle[600];
+					bottle_of(&apps[k], bottle, sizeof bottle);
+					share_files(&apps[k], bottle);
+				}
 			after_install();
 		}
 		ui->wake_at = ui->now + 1;
@@ -1295,6 +1392,36 @@ static void frame(Ui *ui)
 	ui_scroll_end(ui, 8 + (f32)((napps + per - 1) / per) * (th + gap));
 	if (bridge_msg[0])
 		ui_text(ui, ui_font(ui, 12, 400), b.x, b.y + b.h - 4, bridge_msg, t->text_dim);
+	Rect c;
+	if (ui_dialog_begin(ui, "bridge-files", 460, 230, &c)) {
+		App *a = ask_for >= 0 && ask_for < napps ? &apps[ask_for] : NULL;
+		char title[160];
+		fmt(title, sizeof title, "Let %s use your files?", a ? a->name : "it");
+		ui_heading(ui, cut_top(&c, 28), title);
+		cut_top(&c, 8);
+		ui_text_wrapped(ui, ui_font(ui, 13, 400), cut_top(&c, 96),
+				"Windows programs run in a bottle of their own. Allowed, this one opens and saves in your Documents, "
+				"Downloads, Pictures, Music, Videos and Desktop, and sees USB drives as D:, E:... Kept apart, it has "
+				"folders of its own. You can change this in its options.",
+				t->text_dim, ALIGN_START);
+		Rect btn = cut_bottom(&c, 34);
+		int answer = -1;
+		if (ui_button_suggested(ui, cut_right(&btn, 110), "Allow"))
+			answer = 1;
+		cut_right(&btn, 8);
+		if (ui_button(ui, cut_right(&btn, 130), "Keep It Apart"))
+			answer = 0;
+		if (answer >= 0) {
+			ui_dialog_close(ui);
+			if (a) {
+				a->files = answer;
+				save_app(a);
+				play(ui, ask_for);
+			}
+			ask_for = -1;
+		}
+		ui_dialog_end(ui);
+	}
 }
 
 static const char *open_arg;
