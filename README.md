@@ -55,9 +55,10 @@ or next to Windows.
 
 ## What works and what doesn't
 
-- **Graphics:** AMD and Intel fully. NVIDIA through nouveau, the open
-  driver: GeForce RTX 30 and 40 from the first start, other NVIDIA cards
-  slower or not yet.
+- **Graphics:** AMD and Intel fully. NVIDIA's own driver (595) for GeForce
+  RTX 20, 30, 40 and 50 and GTX 16, on the images that carry it (full and
+  standard); older GeForces, and the mini image, get nouveau, the open
+  driver.
 - **Games:** Steam with Proton runs most Windows games. Games whose
   anti-cheat turns Linux away on purpose (Fortnite, Valorant, most Call of
   Duty) don't; Bridge's Cloud tab streams them from Xbox Cloud Gaming or
@@ -175,7 +176,8 @@ typing.
 **Graphics drivers.** The kernel carries AMD's, Intel's and NVIDIA's GPU
 drivers with the firmware they start with (Radeon RX 400 series and newer,
 Ryzen graphics, Steam Deck; Intel 6th generation and newer, Arc; GeForce
-RTX 30 and 40 through nouveau, with Mesa's NVK for Vulkan), so screens run
+RTX 20 and newer through NVIDIA's own driver, older GeForces through
+nouveau with Mesa's NVK for Vulkan), so screens run
 at their native resolution and refresh rate and GPUs save power; machines
 without one of these use the firmware's framebuffer.
 
@@ -321,13 +323,11 @@ on whichever one Zurbax started from.
   events.
 - **Hardware 3D in Zurbax's own apps.** The desktop and Glide are drawn in
   software, so they work on any GPU.
-- **NVIDIA's own driver.** NVIDIA graphics run on the open drivers:
-  nouveau in the kernel with NVIDIA's GSP firmware, Mesa's NVK for Vulkan
-  and zink for OpenGL on it. GeForce RTX 30 and 40 start from the first
-  boot; for RTX 20, GTX 16 and RTX 50 the system image doesn't carry the
-  firmware yet, and older GeForces get nouveau's slower OpenGL. NVIDIA's own driver
-  is a kernel module built by NVIDIA, and Ember loads only modules signed
-  with its own build key.
+- **NVIDIA's driver on every NVIDIA card.** NVIDIA's own driver (built
+  from NVIDIA's open kernel modules and signed with Ember's key, with
+  NVIDIA's libraries in `nvidia.sfs`) drives GeForce RTX 20 and newer and
+  GTX 16; NVIDIA doesn't support older GeForces in it any more, so they get
+  nouveau. It hasn't been tried on every card: tell us how yours does.
 - **Every Windows program.** Bridge runs `.exe` and `.msi` files through
   Proton (double-click one in Vault), but not all of them work, and games
   whose anti-cheat blocks Linux don't.
