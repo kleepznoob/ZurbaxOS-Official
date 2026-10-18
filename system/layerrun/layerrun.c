@@ -263,6 +263,21 @@ static void make_etc(const char *user, const char *home)
 	mem_free(idpath);
 }
 
+/* NVIDIA's libraries (nvidia.sfs: OpenGL, Vulkan, EGL, video, CUDA), laid
+ * over the layer's own when NVIDIA's driver runs the GPU (modprobe made its
+ * control device), so programs and Steam's runtime find them where Mesa's are. */
+#define NVIDIA_ROOT "/data/layers/nvidia/root"
+static bool nvidia;
+
+static void nvidia_over(void)
+{
+	if (!dir_exists(NVIDIA_ROOT) || !file_exists("/dev/nvidiactl"))
+		return;
+	char *opts = str_fmt("lowerdir=%s:%s", NVIDIA_ROOT, layer);
+	nvidia = sys_mount("overlay", layer, "overlay", MS_RDONLY, opts) == 0;
+	mem_free(opts);
+}
+
 static void build_root(const char *user, const char *home)
 {
 	if (!dir_exists(layer))
@@ -272,6 +287,7 @@ static void build_root(const char *user, const char *home)
 	enter_namespaces();
 	/* the layer becomes a mount of its own, to be the new root */
 	must_mount(layer, layer, NULL, MS_BIND | MS_REC, NULL);
+	nvidia_over();
 	char *zos = in_layer("/.zos");
 	dir_make(zos, 0755);
 	if (!dir_exists(zos))
@@ -346,6 +362,19 @@ static void copy_environ(void)
 		env[nenv++] = *e;
 		env[nenv] = NULL;
 	}
+}
+
+/* With NVIDIA's driver: DLSS and the rest of NVIDIA's API in Windows games
+ * (Proton's DXVK-NVAPI), and room for compiled shaders, so games don't
+ * stutter compiling them again. */
+static void nvidia_env(void)
+{
+	/* (a program joining the session finds them in the session's root) */
+	if (!nvidia && !file_exists("/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json"))
+		return;
+	setenv_("PROTON_ENABLE_NVAPI", "1");
+	setenv_("DXVK_ENABLE_NVAPI", "1");
+	setenv_("__GL_SHADER_DISK_CACHE_SIZE", "10737418240");
 }
 
 /* PROGRAM in the layer's PATH, unless it has a slash. */
@@ -490,6 +519,7 @@ static void session_env(const char *user, const char *home)
 	setenv_("ELECTRON_OZONE_PLATFORM_HINT", "auto");
 	setenv_("MOZ_ENABLE_WAYLAND", "1");
 	setenv_("_JAVA_AWT_WM_NONREPARENTING", "1");
+	nvidia_env();
 }
 
 /* The home folders, named the freedesktop way. Flatpak only shares
@@ -966,6 +996,7 @@ static int run_isolated(char **argv, bool x11, bool sound, const char *app, cons
 	setenv_("XDG_SESSION_TYPE", x11 ? "x11" : "wayland");
 	if (app)
 		setenv_("ZOS_APP_ID", app);
+	nvidia_env();
 	int bpid = 0;
 	if (x11) {
 		bpid = start_bus("/.zos/runtime/bus");

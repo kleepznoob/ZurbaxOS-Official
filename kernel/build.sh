@@ -81,10 +81,20 @@ ls -l "$OUT/arch/x86/boot/bzImage"
 if [ "${ZURBAX_MODULES:-1}" != 0 ] && [ -z "${ZURBAX_KOUT:-}" ]; then
 	echo ">> building the drivers"
 	make -s -C "$SRC" O="$OUT" -j"$JOBS" modules
-	if [ ! -f "$OUT/drivers.sfs" ] || [ -n "$(find "$OUT" -name '*.ko' -newer "$OUT/drivers.sfs" -print -quit)" ]; then
+	# and NVIDIA's (kernel/nvidia.sh; ZURBAX_NVIDIA=0 goes without)
+	nv=
+	if [ "${ZURBAX_NVIDIA:-1}" != 0 ]; then
+		"$ROOT/kernel/nvidia.sh" modules
+		nv=$ROOT/build/nvidia/src/kernel-open
+	fi
+	if [ ! -f "$OUT/drivers.sfs" ] || [ -n "$(find "$OUT" $nv -name '*.ko' -newer "$OUT/drivers.sfs" -print -quit)" ]; then
 		rel=$(cat "$OUT/include/config/kernel.release")
 		rm -rf "$OUT/modroot"
 		make -s -C "$SRC" O="$OUT" INSTALL_MOD_PATH="$OUT/modroot" INSTALL_MOD_STRIP=1 modules_install
+		if [ -n "$nv" ]; then
+			"$ROOT/kernel/nvidia.sh" install "$OUT/modroot"
+			depmod -b "$OUT/modroot" "$rel"
+		fi
 		rm -f "$OUT/modroot/lib/modules/$rel/build" "$OUT/modroot/lib/modules/$rel/source"
 		rm -f "$OUT/drivers.sfs.part"
 		mksquashfs "$OUT/modroot" "$OUT/drivers.sfs.part" -comp zstd -Xcompression-level 19 -b 1M -all-root -noappend -quiet

@@ -175,7 +175,7 @@ struct loop_config {
 
 #define MEDIUM "/run/zurbax/medium"
 
-static char mounted_layers[4][96];
+static char mounted_layers[12][96];
 static int nmounted_layers;
 
 static bool mount_layer(const char *image, const char *dir)
@@ -289,6 +289,24 @@ static void firmware_layer(void)
 		mem_free(devs);
 		mem_free(probe);
 	}
+}
+
+/* NVIDIA's driver (nvidia.sfs): its GPU firmware where the kernel module
+ * asks for it, nvidia/VERSION/gsp_*.bin. */
+static void nvidia_layer(void)
+{
+	char *ver = file_read_line("/data/layers/nvidia/VERSION");
+	if (ver && ver[0]) {
+		dir_make("/lib/firmware", 0755);
+		dir_make("/lib/firmware/nvidia", 0755);
+		char *link = str_fmt("/lib/firmware/nvidia/%s", str_trim(ver));
+		char *target = str_fmt("/data/layers/nvidia/firmware/nvidia/%s", str_trim(ver));
+		sys_unlink(link);
+		sys_symlink(target, link);
+		mem_free(link);
+		mem_free(target);
+	}
+	mem_free(ver);
 }
 
 static void mount_layers(void)
@@ -467,6 +485,47 @@ static void device_perms(const char *name)
  * layer (drivers.sfs) for every device there is, in the background while
  * the rest starts, and for each device that appears later (on_uevent). */
 static bool have_drivers;
+
+/* The graphics card's driver, when it isn't built in (NVIDIA's, or nouveau),
+ * before anything else: the screen starts on the card it'll stay on, rather
+ * than on the firmware's framebuffer that the driver then takes away. */
+static void gpu_drivers(void)
+{
+	if (!dir_exists("/data/layers/drivers/lib/modules"))
+		return;
+	char *argv[2 + 8 + 1] = { "modprobe", "--device" };
+	int n = 2;
+	DirList l = { 0 };
+	if (dir_list("/sys/bus/pci/devices", &l, false)) {
+		vec_each(&l, e) {
+			char path[160];
+			fmt(path, sizeof path, "/sys/bus/pci/devices/%s/class", e->name);
+			char *cls = file_read_line(path);
+			bool display = cls && str_starts(cls, "0x03");
+			mem_free(cls);
+			fmt(path, sizeof path, "/sys/bus/pci/devices/%s/driver", e->name);
+			struct stat st;
+			if (!display || sys_lstat(path, &st) == 0 || n >= 10)
+				continue;
+			fmt(path, sizeof path, "/sys/bus/pci/devices/%s/modalias", e->name);
+			char *alias = file_read_line(path);
+			if (alias && alias[0])
+				argv[n++] = alias;
+			else
+				mem_free(alias);
+		}
+		dir_list_free(&l);
+	}
+	argv[n] = NULL;
+	if (n > 2) {
+		int pid = proc_spawn("/system/bin/modprobe", argv, service_env, NULL);
+		/* up to 20 s: NVIDIA's starts the GPU's own processor first */
+		for (int i = 0; pid > 0 && i < 400 && proc_wait(pid, NULL, true) == 0; i++)
+			sleep_ms(50);
+	}
+	for (int i = 2; i < n; i++)
+		mem_free(argv[i]);
+}
 
 static void drivers_coldplug(void)
 {
@@ -685,6 +744,7 @@ int main(int argc, char **argv)
 	set_hostname();
 	mount_layers();
 	firmware_layer();
+	nvidia_layer();
 	sys_umask(022);
 
 	loop = loop_new();
@@ -698,6 +758,7 @@ int main(int argc, char **argv)
 	if (ctl >= 0)
 		loop_add_fd(loop, ctl, EPOLLIN, on_control, NULL);
 	watch_devices();
+	gpu_drivers();
 	coldplug();
 	drivers_coldplug();
 

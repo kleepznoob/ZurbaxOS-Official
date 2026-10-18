@@ -99,7 +99,7 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: media-prep system-efi iso iso-standard iso-mini downloads downloads-files apps firmware all test clean devroot devroot-links image run
+.PHONY: media-prep system-efi iso iso-standard iso-mini downloads downloads-files apps firmware nvidia all test clean devroot devroot-links image run
 .SECONDARY:
 # Helpers that run inside the Linux layer (layer/helpers/), on its C library
 # and libraries rather than Zurbax's runtime: built against the build
@@ -137,10 +137,16 @@ test: $(TESTS) devroot
 # whole OS: firmware loads it directly, with no boot loader in between.
 EFI_FILE := $(OUT)/kernel/arch/x86/boot/bzImage
 # The Linux layer (layer/build.sh makes it), the apps (make apps), the
-# firmware of every device (make firmware) and the drivers that aren't built
-# in (kernel/build.sh makes drivers.sfs) go on the install media when they
-# have been built.
-LAYER ?= $(wildcard $(OUT)/layer/steam.sfs $(OUT)/preload/apps*.sfs $(OUT)/firmware.sfs $(OUT)/kernel/drivers.sfs)
+# firmware of every device (make firmware), the drivers that aren't built
+# in (kernel/build.sh makes drivers.sfs) and NVIDIA's libraries and GPU
+# firmware (make nvidia) go on the install media when they have been built.
+LAYER ?= $(wildcard $(OUT)/layer/steam.sfs $(OUT)/preload/apps*.sfs $(OUT)/firmware.sfs $(OUT)/kernel/drivers.sfs $(OUT)/nvidia.sfs)
+
+# NVIDIA's driver: its kernel modules go into drivers.sfs with the rest
+# (kernel/build.sh), its libraries and firmware into nvidia.sfs.
+nvidia: $(OUT)/nvidia.sfs
+$(OUT)/nvidia.sfs: kernel/nvidia.sh
+	@kernel/nvidia.sh layer
 
 # Every file of linux-firmware in one compressed image: zinit points the
 # kernel's firmware loader at it (the system image keeps only what starts

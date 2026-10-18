@@ -20,7 +20,9 @@
  * patterns, the modules a module needs load before it (and its soft
  * dependencies around it), and what's built in or already loaded is left
  * alone. Old framebuffer drivers never load for a device: the GPUs' own
- * drivers have the screen.
+ * drivers have the screen. NVIDIA's own driver (kernel/nvidia.sh) takes the
+ * GeForce RTX 20 and newer when its layer (nvidia.sfs, with its libraries
+ * and firmware) is there; nouveau takes the rest, and those too when it isn't.
  *
  * What --coldplug and --device load is noted in /run/zurbax/drivers.log,
  * and in the kernel's log at the info level (quiet on the screen).
@@ -328,6 +330,102 @@ static bool unwanted(const Mod *m)
 }
 
 static bool load(const char *want, const char *params, bool for_device, int depth);
+static bool load_mod(const char *name, Mod *m, const char *params, int depth);
+
+/* ---- NVIDIA -------------------------------------------------------------------------------- */
+
+#define NVIDIA_LAYER "/data/layers/nvidia/VERSION"
+
+/* "pci:v000010DEd00002882sv...bc03sc00i00": a display controller from NVIDIA
+ * with a GSP (Turing and newer, device 0x1e00 on), which NVIDIA's open
+ * kernel modules drive; older ones are nouveau's alone. */
+static bool nvidia_gpu(const char *alias)
+{
+	if (!str_starts(alias, "pci:v000010DEd") || !str_find(alias, "bc03"))
+		return false;
+	u32 dev = 0;
+	for (const char *p = alias + 14; p < alias + 22; p++) {
+		char c = *p;
+		int d = c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+		if (d < 0)
+			return false;
+		dev = dev << 4 | (u32)d;
+	}
+	return dev >= 0x1e00;
+}
+
+/* NVIDIA's devices aren't made by the kernel itself (nvidia-modprobe makes
+ * them on other systems): the control device, one per GPU, modesetting's,
+ * and unified memory's, for anyone at the computer, as elsewhere. */
+static void nvidia_node(const char *name, u32 major, u32 minor)
+{
+	char path[64];
+	fmt(path, sizeof path, "/dev/%s", name);
+	sys_unlink(path);
+	if (syscall4(SYS_mknodat, AT_FDCWD, (long)path, S_IFCHR | 0666, (long)((major << 8) | (minor & 0xff) | ((minor & ~0xffu) << 12))) == 0)
+		sys_chmod(path, 0666);
+}
+
+static u32 char_major(const char *driver)
+{
+	char *devs = file_read("/proc/devices", NULL);
+	u32 major = 0;
+	for (char *line = devs; line && *line && !major;) {
+		char *nl = (char *)str_chr(line, '\n');
+		if (nl)
+			*nl = 0;
+		while (*line == ' ')
+			line++;
+		const char *sp = str_chr(line, ' ');
+		if (sp && str_eq(sp + 1, driver))
+			major = (u32)str_to_int(line, NULL);
+		line = nl ? nl + 1 : NULL;
+	}
+	mem_free(devs);
+	return major;
+}
+
+static void nvidia_nodes(void)
+{
+	if (show)
+		return;
+	nvidia_node("nvidiactl", 195, 255);
+	nvidia_node("nvidia-modeset", 195, 254);
+	DirList l = { 0 };
+	int gpus = 0;
+	if (dir_list("/proc/driver/nvidia/gpus", &l, false)) {
+		gpus = (int)l.len;
+		dir_list_free(&l);
+	}
+	for (int i = 0; i < gpus; i++) {
+		char name[16];
+		fmt(name, sizeof name, "nvidia%d", i);
+		nvidia_node(name, 195, (u32)i);
+	}
+	u32 uvm = char_major("nvidia-uvm");
+	if (uvm) {
+		nvidia_node("nvidia-uvm", uvm, 0);
+		nvidia_node("nvidia-uvm-tools", uvm, 1);
+	}
+}
+
+/* NVIDIA's driver for a GPU: the core, then its display side (which starts
+ * the GPU and puts it in /dev/dri) and unified memory (CUDA's). */
+static bool load_nvidia(const char *alias, int depth)
+{
+	Mod *m = map_get(&mods, "nvidia");
+	if (!m || !file_exists(NVIDIA_LAYER))
+		return false;
+	bool was = m->state == 2 || is_loaded("nvidia");
+	if (!load_mod("nvidia", m, "", depth))
+		return false;
+	load("nvidia_drm", "", false, depth + 1);
+	load("nvidia_uvm", "", false, depth + 1);
+	nvidia_nodes();
+	if (!was && !show)
+		note("nvidia for %s\n", alias);
+	return true;
+}
 
 static void load_list(const char *names)
 {
@@ -392,6 +490,12 @@ static bool load(const char *want, const char *params, bool for_device, int dept
 	char *found[32];
 	usize n = matching(want, found, ARRAY_LEN(found));
 	bool any = false;
+	/* an NVIDIA GPU: NVIDIA's driver if it can, nouveau if it can't */
+	bool nvidia = false;
+	if (for_device && nvidia_gpu(want)) {
+		nvidia = load_nvidia(want, depth);
+		any = nvidia;
+	}
 	for (usize i = 0; i < n; i++) {
 		if (map_has(&builtin, found[i])) {
 			any = true;
@@ -399,6 +503,8 @@ static bool load(const char *want, const char *params, bool for_device, int dept
 		}
 		Mod *fm = map_get(&mods, found[i]);
 		if (!fm || (for_device && unwanted(fm)))
+			continue;
+		if (for_device && (str_eq(found[i], "nvidia") || (nvidia && str_eq(found[i], "nouveau"))))
 			continue;
 		bool was = fm->state == 2 || is_loaded(found[i]);
 		if (load_mod(found[i], fm, params, depth)) {
