@@ -80,6 +80,11 @@
       "permanent": false
     },
     {
+      "source": "/download/2.2/zurbax-standard.iso",
+      "destination": "https://archive.org/download/zurbax-2.2-standard/zurbax-standard.iso",
+      "permanent": false
+    },
+    {
       "source": "/download/2.2/:file",
       "destination": "https://archive.org/download/zurbax-2.2/:file",
       "permanent": false

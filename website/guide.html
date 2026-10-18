@@ -100,8 +100,9 @@
 
     <section id="download" class="g-sec">
       <h2>Download</h2>
-      <p>One image for every computer: the system, GNOME, Steam and Proton, eight apps, and the drivers for every graphics card, Wi-Fi chip and controller. About 7 GB; it installs without the internet.</p>
+      <p>One image for every computer: the system, GNOME, Steam and Proton, eight apps, and the drivers for nearly every graphics card, Wi-Fi chip and controller. About 7 GB; it installs without the internet.</p>
       <p><a class="btn" href="/download/2.2/zurbax.iso">Download Zurbax 2.2 <span class="arrow" aria-hidden="true">→</span></a></p>
+      <p class="g-small">For a 4 GB stick, <a href="/download/2.2/zurbax-standard.iso">zurbax-standard.iso</a> is 3.5 GB: the same, without the second and third groups of ready apps, which you can get from Harbor later.</p>
       <p class="g-small">Each file's SHA-256 checksum is in <a href="/download/2.2/SHA256SUMS">SHA256SUMS</a>, if you'd like to check that the download arrived whole.</p>
     </section>
 
@@ -280,7 +281,7 @@
       <h2>Try it on an iPad or Mac</h2>
       <p>No PC at hand? UTM runs Zurbax in a window on an iPad, an iPhone or a Mac, by pretending to be a PC. It's free: <em>UTM SE</em> on the App Store for iPad and iPhone, or <a href="https://mac.getutm.app" target="_blank" rel="noopener">UTM</a> for the Mac.</p>
       <ol class="g-steps">
-        <li><b>1</b><div><h3>Download the small image</h3><p>For a virtual machine, the small image is all you need: <a href="/download/2.2/zurbax-mini.iso">zurbax-mini.iso</a>, 82 MB. It has the whole desktop and every Zurbax app, without the PC drivers and Steam. In Safari it goes to Files, in Downloads.</p></div></li>
+        <li><b>1</b><div><h3>Download the small image</h3><p>For a virtual machine, the small image is all you need: <a href="/download/2.2/zurbax-mini.iso">zurbax-mini.iso</a>, 140 MB. It has the whole desktop and every Zurbax app, without the PC drivers and Steam. In Safari it goes to Files, in Downloads.</p></div></li>
         <li><b>2</b><div><h3>Make the machine</h3><p>In UTM, press <em>+</em>, then <em>Emulate</em>, then <em>Other</em>. For the boot device choose <em>CD/DVD Image</em>, press <em>Browse</em> and pick zurbax-mini.iso.</p></div></li>
         <li><b>3</b><div><h3>Hardware</h3><p>Architecture <em>x86_64</em>, system <em>Standard PC (Q35)</em>, memory <em>2048 MB</em> (or 3072 if your device has 6 GB or more), <em>2</em> CPU cores. Storage: 8 GB is plenty. Skip the shared folder, name it Zurbax and save.</p></div></li>
         <li><b>4</b><div><h3>Check one setting</h3><p>Before the first start, edit the machine. Under <em>QEMU</em>, check that <em>UEFI Boot</em> is on. The CPU can stay on UTM's default.</p></div></li>
@@ -294,7 +295,7 @@
       <details class="g-q"><summary>Is Zurbax free?</summary><p>Yes. No accounts, no ads, no tracking.</p></details>
       <details class="g-q"><summary>Is it Linux?</summary><p>It runs on the Linux kernel, which is how it supports so much hardware. Everything above the kernel, from the desktop to the apps, is Zurbax's own. Linux apps from Flathub and Windows games through Proton run on it too.</p></details>
       <details class="g-q"><summary>Can I keep Windows?</summary><p>Yes. Choose <em>Install alongside Windows</em> and both stay on the computer. Pick one in the boot menu each time it starts.</p></details>
-      <details class="g-q"><summary>Do I need an NVIDIA, AMD or Intel version?</summary><p>No. The one image has the drivers for every graphics card.</p></details>
+      <details class="g-q"><summary>Do I need an NVIDIA, AMD or Intel version?</summary><p>No. The one image has the drivers for all of them. AMD and Intel graphics work fully. NVIDIA works through nouveau, the open driver: GeForce RTX 30 and 40 from the first start, while other NVIDIA cards may run slower or not yet.</p></details>
       <details class="g-q"><summary>Can I try it without a PC?</summary><p>Yes, in UTM on an iPad, iPhone or Mac: see <a href="#utm">Try it on an iPad or Mac</a>.</p></details>
       <details class="g-q"><summary>Does it work on a Mac?</summary><p>On Macs with Intel chips, yes: hold Option at start-up to choose the stick. Macs with Apple chips (M1 and later) aren't supported.</p></details>
     </section>
@@ -313,7 +314,7 @@
   <div class="wrap foot-in">
     <div class="foot-brand">
       <a class="brand" href="/"><img src="/images/logo.svg" alt="" width="22" height="22"><span>zurbax</span></a>
-      <p>Written line by line. © 2026</p>
+      <p>Built on Linux, made in C. © 2026</p>
     </div>
     <nav class="foot-cols" aria-label="More">
       <div><h4>Explore</h4><a href="/#hive">Hive</a><a href="/#themes">Themes</a><a href="/#pixels">Pixels</a><a href="/#games">Games</a></div>

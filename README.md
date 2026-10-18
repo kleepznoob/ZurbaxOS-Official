@@ -1,62 +1,71 @@
-# Zurbax 2.2
+# Zurbax
 
-A desktop operating system written from scratch in C. The Linux kernel is
-the only outside code.
+Zurbax is a desktop operating system for PCs, built on Linux.
 
-**Zurbax 2.2 is the release of Hive and the pixel style:** a tiling desktop
-of liquid glass that it now starts on, two themes (Carbon and Midnight) with
-pixel-art wallpapers that move, windows that build up and fall apart block
-by block, and a setup and installer in the look of zurbax.com, with the name
-built in big pixels. It keeps what came before: 2.1's Ember kernel, a driver
-for every PC and Bridge for Windows programs; 2.0's controllers, Glide, Wi-Fi,
-Mail, Flathub's apps in Harbor and a full GNOME desktop built from GNOME's
-own sources as a second desktop. (Inside the source, programs, paths and
-settings carry the name in lower case, `zurbax`.)
+The kernel is Linux. Zurbax's build of it is called Ember: Linux 6.18 from
+the long-term branch, with a few patches of its own. Everything you see on
+top of it is Zurbax's own code, written in C: the desktop and window
+system, the graphics and the font, the toolkit, every app, the init
+system, the network and sound, the installer and the updates. None of that
+part uses glibc, GTK, Qt or an X server.
 
-There's no glibc, no X server or libwayland, no GTK or Qt, no GRUB and no
-distribution underneath. Zurbax has its own pieces for everything:
-- the C runtime,
-- graphics engine and font,
-- display server and desktop,
-- toolkit,
-- init system,
-- network stack with TLS,
-- sound server and decoders,
-- installer and disk tools,
-- every app.
+Programs from the wider Linux world run too, in what Zurbax calls the
+Linux layer: a separate image with glibc, Mesa, Xwayland and the rest of a
+standard Linux userland. Steam and Proton, Flathub's apps (Firefox,
+LibreOffice and thousands more) and a full GNOME desktop run there, side by
+side with Zurbax's own apps. Windows programs run through Proton with
+Bridge.
 
-The desktop has a top bar (the app in front with its menu, the date and
-time, and the status icons) and a taskbar along the bottom: Start, a search
-box, a button for each pinned or running app with live window previews,
-and the tray. The launcher fills the screen with every app. Windows are
-flat, with minimize, maximize and close on the right of their header bars,
-one accent colour (Iris, a blue-violet, out of the box) and light or dark
-style. The focus is on games and on making the desktop your own.
+![Zurbax 2.2 with Vault and Forge side by side](docs/screenshots/tiling.jpg)
 
-![The Zurbax desktop](docs/screenshots/desktop.jpg)
+Zurbax 2.2 starts on **Hive**, a tiling desktop of liquid glass: windows
+share the screen side by side, and everything is a keystroke away. It
+comes in two themes, Carbon (black and orange) and Midnight (deep blue),
+each with a pixel-art wallpaper that moves. If you'd rather drag windows
+around, the Classic desktop with a taskbar is one click away in Settings.
+
+(Inside the source, programs, paths and settings carry the name in lower
+case, `zurbax`.)
 
 ## Download
 
-**[Zurbax 2.0 on the Releases page](https://github.com/kleepznoob/I-REALLY-WANNA-IMPRESS-ME-PARENTS-BY-MAKING-MONEY/releases/latest)**
+From **[zurbax.com](https://www.zurbax.com)**, which keeps the files on the
+[Internet Archive](https://archive.org/details/zurbax-2.2):
 
-- `zurbax.iso`: for a DVD, or for a USB stick written with balenaEtcher, Rufus
-  or `dd`. It's a hybrid image, so the same file works for both.
-- `zurbax.img`: a plain USB stick image.
-- `SHA256SUMS`: checksums to verify the download.
+| Image | Size | What's on it |
+|---|---|---|
+| [`zurbax.iso`](https://www.zurbax.com/download/2.2/zurbax.iso) | 7.1 GB | Everything: the system, every driver and firmware file, Steam and Proton, GNOME and the ready apps. Installs without the internet. |
+| [`zurbax-standard.iso`](https://www.zurbax.com/download/2.2/zurbax-standard.iso) | 3.5 GB | The same without the second and third groups of ready apps (they're a click away in Harbor). Fits a 4 GB stick. |
+| [`zurbax-mini.iso`](https://www.zurbax.com/download/2.2/zurbax-mini.iso) | 140 MB | The system alone. The installer downloads the rest. |
 
-Boot it in UEFI mode (on ASUS machines, press F8 or Esc for the boot menu).
-You can try Zurbax from the stick first, and install it from there when you
-want to.
+[`SHA256SUMS`](https://www.zurbax.com/download/2.2/SHA256SUMS) has the
+checksums. The images are hybrids: write one to a USB stick with
+balenaEtcher, Rufus, Ventoy or `dd`, or burn it to a DVD. Start the PC from
+it in UEFI mode (on ASUS PCs, press Esc or F8 for the boot menu), try
+Zurbax from the stick, and install it from there if you like it, on its own
+or next to Windows.
 
 ## Screenshots
 
 | | |
 |---|---|
-| ![Launcher](docs/screenshots/launcher.jpg) **Launcher**: every app, with search | ![Lock screen](docs/screenshots/lock.jpg) **Lock screen**: the date over a large clock |
-| ![Dashboard](docs/screenshots/dashboard.jpg) **Dashboard**: weather, today's events, recent files and screen time | ![Settings](docs/screenshots/settings.jpg) **Settings**: light or dark style, accent colours and wallpapers |
-| ![Arcade](docs/screenshots/arcade.jpg) **Arcade**: Glide in 3D, plus Blocks, Snake, 2048, Mines and Breakout | ![Steam](docs/screenshots/steam.jpg) **Steam**: checks the Linux layer and GPU, then starts Big Picture |
-| ![Harbor](docs/screenshots/harbor.jpg) **Harbor**: the app store, with Flathub's apps | ![Music](docs/screenshots/music.jpg) **Music**: albums, songs and artists |
-| ![Vault](docs/screenshots/vault.jpg) **Vault**: files | |
+| ![The Hive desktop](docs/screenshots/desktop.jpg) **Hive**: the Carbon theme, and its sunset that moves | ![Setup](docs/screenshots/setup.jpg) **Setup**: try Zurbax from the stick, or install it |
+| ![Settings](docs/screenshots/settings.jpg) **Settings**: the desktop, its theme and wallpaper | ![Launcher](docs/screenshots/launcher.jpg) **Launcher**: every app, a few keys away |
+| ![Bridge](docs/screenshots/bridge.jpg) **Bridge**: Windows programs through Proton, and cloud games in the Midnight theme | ![Lock screen](docs/screenshots/lock.jpg) **Lock screen**: the date over a large clock |
+
+## What works and what doesn't
+
+- **Graphics:** AMD and Intel fully. NVIDIA through nouveau, the open
+  driver: GeForce RTX 30 and 40 from the first start, other NVIDIA cards
+  slower or not yet.
+- **Games:** Steam with Proton runs most Windows games. Games whose
+  anti-cheat turns Linux away on purpose (Fortnite, Valorant, most Call of
+  Duty) don't; Bridge's Cloud tab streams them from Xbox Cloud Gaming or
+  GeForce NOW instead.
+- **Wi-Fi:** WPA2-Personal and open networks. WPA3-only and enterprise
+  networks don't work yet.
+- **Drift**, Zurbax's own browser, doesn't run JavaScript. Firefox from
+  Flathub is there for the sites that need it.
 
 ## What it does
 
@@ -67,7 +76,7 @@ and early console are silent, and its log level lets nothing through. The
 kernel has the whole system inside it, and the firmware starts it
 directly, with no boot loader in between.
 
-**Desktop.** The top bar shows the app in front (click it for New Window,
+**Classic desktop.** Picked in Settings → Appearance. The top bar shows the app in front (click it for New Window,
 Minimize, Maximize, Show Desktop and Quit), the date and time (the
 calendar and your notifications) and the status icons (quick settings:
 Wi-Fi networks, dark style, night light, Do Not Disturb, sound,
@@ -90,8 +99,8 @@ the wallpaper, the date over a large clock, waiting notifications, and you
 with a password field. Plus notification sounds and screenshots (Print
 Screen).
 
-**Hive.** A second desktop to pick in Settings → Appearance: a tiling one
-made of liquid glass. Windows share the screen side by side (each new one
+**Hive.** The desktop Zurbax starts on: a tiling one made of liquid
+glass. Windows share the screen side by side (each new one
 splits the window in focus), with airy gaps between; every window is a
 rounded pane with a rim of light, and the one in focus wears a ring of the
 theme's two accents and a soft glow that passes from window to window
@@ -114,7 +123,7 @@ Photos) are frosted glass the wallpaper shows through, as are the
 shell's bars and panels; "Transparency effects" in Settings turns it off.
 
 Game mode, an FPS counter and keyboard layouts (US, UK, Romanian, German,
-French, Spanish) are built in. Wallpapers: Silk (the default: folds of
+French, Spanish) are built in. The Classic desktop's wallpapers: Silk (its default: folds of
 warm coral and amber light drifting across deep aubergine, the same
 picture in GNOME), Horizon (soft hills under a sky going from ink to iris
 to the first gold of the day) and Daybreak, its pale morning, Golden Rain,
@@ -163,11 +172,12 @@ updates itself, builds its runtime container inside layerrun's namespace,
 and shows Big Picture full screen on Zurbax's display, taking clicks and
 typing.
 
-**Graphics drivers.** The kernel carries AMD's and Intel's GPU drivers with
-their firmware (Radeon RX 400 series and newer, Ryzen graphics, Steam Deck;
-Intel 6th generation and newer, Arc), so screens run at their native
-resolution and refresh rate and GPUs save power; machines without one of
-these use the firmware's framebuffer.
+**Graphics drivers.** The kernel carries AMD's, Intel's and NVIDIA's GPU
+drivers with the firmware they start with (Radeon RX 400 series and newer,
+Ryzen graphics, Steam Deck; Intel 6th generation and newer, Arc; GeForce
+RTX 30 and 40 through nouveau, with Mesa's NVK for Vulkan), so screens run
+at their native resolution and refresh rate and GPUs save power; machines
+without one of these use the firmware's framebuffer.
 
 **Every driver.** Ember, Zurbax's kernel, builds in what starting needs
 (disks, screens, keyboards, touchpads, Ethernet and Wi-Fi), and every other
@@ -198,7 +208,7 @@ boot menu. It takes about a minute.
 | Mail | Email for Gmail, Outlook, iCloud, Yahoo or any IMAP account: HTML mail, attachments, search, drafts, undo |
 | Dashboard | Your day at a glance: weather, calendar, recent files, screen time |
 | Camera | Photos from the webcam, with looks and a timer |
-| Help | A searchable guide to Zurbax, with what's new in 2.0 |
+| Help | A searchable guide to Zurbax, with what's new |
 | Arcade | Glide, a 3D flying game, plus Blocks, Snake, 2048, Mines and Breakout, with best scores; keyboard, mouse or controller |
 | Music | Albums, songs and artists from your Music folder (FLAC, Ogg Vorbis, WAV) |
 | Weather | Live forecasts with an hourly strip, the week and details |
@@ -313,8 +323,11 @@ on whichever one Zurbax started from.
   software, so they work on any GPU.
 - **NVIDIA's own driver.** NVIDIA graphics run on the open drivers:
   nouveau in the kernel with NVIDIA's GSP firmware, Mesa's NVK for Vulkan
-  (Steam and Proton games, GeForce RTX 20 series and newer) and zink for
-  OpenGL on it; older GeForces get nouveau's OpenGL. NVIDIA's own driver
+  and zink for OpenGL on it. GeForce RTX 30 and 40 start from the first
+  boot; for RTX 20, GTX 16 and RTX 50 the system image doesn't carry the
+  firmware yet, and older GeForces get nouveau's slower OpenGL. NVIDIA's own driver
   is a kernel module built by NVIDIA, and Ember loads only modules signed
   with its own build key.
-- **Windows programs outside Steam.** `.exe` files don't run on their own.
+- **Every Windows program.** Bridge runs `.exe` and `.msi` files through
+  Proton (double-click one in Vault), but not all of them work, and games
+  whose anti-cheat blocks Linux don't.

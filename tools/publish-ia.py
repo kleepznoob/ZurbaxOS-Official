@@ -89,8 +89,8 @@ def put(item, path, first):
             "x-archive-meta-mediatype": "software",
             "x-archive-meta-collection": "opensource_media",
             "x-archive-meta-title": TITLE,
-            "x-archive-meta-description": TITLE + ", a desktop operating system made from scratch on the Linux kernel: "
-                                          "Steam with Proton, Windows programs, Flathub and drivers for every PC. zurbax.com",
+            "x-archive-meta-description": TITLE + ", a desktop operating system built on Linux, with its own desktop and "
+                                          "apps: Steam with Proton, Windows programs, Flathub and drivers for nearly every PC. zurbax.com",
             "x-archive-meta-subject": "operating system;linux;gaming",
             "x-archive-meta-licenseurl": "https://zurbax.com",
         })
@@ -137,8 +137,8 @@ def main():
     if len(sys.argv) < 3:
         sys.exit(__doc__)
     item = sys.argv[1]
-    # "zurbax-2.1" is titled "Zurbax 2.1"
-    TITLE = "Zurbax " + item.split("-", 1)[1] if "-" in item else item
+    # "zurbax-2.1" is titled "Zurbax 2.1", "zurbax-2.2-standard" "Zurbax 2.2 standard"
+    TITLE = "Zurbax " + item.split("-", 1)[1].replace("-", " ") if "-" in item else item
     for i, path in enumerate(sys.argv[2:]):
         print(">> %s" % path, flush=True)
         put(item, path, i == 0)
