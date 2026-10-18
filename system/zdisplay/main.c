@@ -157,6 +157,8 @@ int main(int argc, char **argv)
 		headless_control_init(control);
 	if (S.out->fd >= 0)
 		loop_add_fd(S.loop, S.out->fd, EPOLLIN, on_output_fd, NULL);
+	if (!S.headless)
+		brightness_start();
 	system_status_poll();
 	loop_timer(S.loop, 2000, 2000, on_status_timer, NULL);
 	loop_timer(S.loop, 125, 125, on_anim_timer, NULL);

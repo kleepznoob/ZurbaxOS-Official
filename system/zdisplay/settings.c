@@ -173,6 +173,32 @@ static bool find_device(const char *dir, const char *prefix, char *out, usize ca
 	return found;
 }
 
+/* The screen's backlights, the one to show first: the GPU's own (amdgpu_bl1,
+ * intel_backlight: "raw"), then the maker's ("platform": NVIDIA's on laptops
+ * whose screen is on the NVIDIA card), then the firmware's (ACPI). A laptop
+ * with two graphics cards can have more than one, and only one of them
+ * really dims the screen, so brightness goes to all of them. */
+static int backlights(char out[][256], int max)
+{
+	static const char *const order[] = { "raw", "platform", "firmware" };
+	int n = 0;
+	DirList l = { 0 };
+	if (!dir_list("/sys/class/backlight", &l, false))
+		return 0;
+	for (usize o = 0; o < ARRAY_LEN(order); o++)
+		vec_each(&l, e) {
+			char path[320];
+			fmt(path, sizeof path, "/sys/class/backlight/%s/type", e->name);
+			char *type = file_read_line(path);
+			bool match = type ? str_eq(str_trim(type), order[o]) : o == ARRAY_LEN(order) - 1;
+			mem_free(type);
+			if (match && n < max)
+				fmt(out[n++], sizeof out[0], "/sys/class/backlight/%s", e->name);
+		}
+	dir_list_free(&l);
+	return n;
+}
+
 void system_status_poll(void)
 {
 	char dev[256], path[320];
@@ -190,7 +216,9 @@ void system_status_poll(void)
 	}
 	/* Backlight */
 	S.brightness = -1;
-	if (find_device("/sys/class/backlight", NULL, dev, sizeof dev)) {
+	char bl[4][256];
+	if (backlights(bl, 4) > 0) {
+		str_copy(dev, bl[0], sizeof dev);
 		fmt(path, sizeof path, "%s/brightness", dev);
 		i64 b = file_read_int(path, -1);
 		fmt(path, sizeof path, "%s/max_brightness", dev);
@@ -230,22 +258,37 @@ void set_volume(int v)
 		  (f32)S.volume / 100);
 }
 
+static void write_brightness(int v)
+{
+	char bl[4][256];
+	int n = backlights(bl, 4);
+	for (int i = 0; i < n; i++) {
+		char path[320], buf[32];
+		fmt(path, sizeof path, "%s/max_brightness", bl[i]);
+		i64 m = file_read_int(path, 0);
+		if (m <= 0)
+			continue;
+		fmt(buf, sizeof buf, "%lld", (long long)MAX(1, m * v / 100));
+		fmt(path, sizeof path, "%s/brightness", bl[i]);
+		file_write_str(path, buf);
+	}
+	if (n)
+		S.brightness = v;
+}
+
 void set_brightness(int v)
 {
-	char dev[256], path[320];
-	if (!find_device("/sys/class/backlight", NULL, dev, sizeof dev))
-		return;
-	fmt(path, sizeof path, "%s/max_brightness", dev);
-	i64 m = file_read_int(path, 0);
-	if (m <= 0)
-		return;
 	v = CLAMP(v, 1, 100);
-	char buf[32];
-	fmt(buf, sizeof buf, "%lld", (long long)(m * v / 100));
-	fmt(path, sizeof path, "%s/brightness", dev);
-	file_write_str(path, buf);
-	S.brightness = v;
-	shell_osd("display-brightness", (f32)v / 100);
+	write_brightness(v);
+	if (S.brightness == v)
+		shell_osd("display-brightness", (f32)v / 100);
+}
+
+/* At start the screen is as bright as it goes: firmware often leaves the
+ * backlight dim, and it's quick to turn down. */
+void brightness_start(void)
+{
+	write_brightness(100);
 }
 
 /* Changes the account on behalf of Settings, which runs without the right to

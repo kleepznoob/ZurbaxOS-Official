@@ -493,6 +493,7 @@ void system_status_poll(void);
 void game_mode_update(void);
 void set_volume(int v);
 void set_brightness(int v);
+void brightness_start(void);
 int account_update(const MsgAccount *m, char *msg, usize cap);
 
 /* screentime.c */
