@@ -1,15 +1,20 @@
 /*
- * winusb — makes a USB stick that installs Windows, from a Windows ISO.
+ * flash — puts a system's install image on a USB stick, as balenaEtcher
+ * does: Zurbax's, Linux distributions', Windows'.
  *
- *   sudo winusb WINDOWS.iso          shows the USB drives (and offers the
+ *   sudo flash IMAGE                 shows the USB drives (and offers the
  *                                    only one, when there is one)
- *   sudo winusb WINDOWS.iso sdb      erases sdb and puts Windows on it
+ *   sudo flash IMAGE sdb             erases sdb and puts IMAGE on it
  *
- * The stick gets one FAT32 partition with the ISO's files, which is what a
- * PC's UEFI firmware boots (EFI/BOOT/BOOTX64.EFI, signed by Microsoft, so
- * Secure Boot can stay on). Writing the ISO byte for byte doesn't work for
- * Windows: its ISOs are made for DVDs only. Only USB drives are offered, so
- * the computer's own disk can't be erased by a typo.
+ * Images made to start from a stick too (Zurbax's and most Linux ISOs carry
+ * a partition table for that, and .img files are whole disks) are written
+ * byte for byte, then read back and compared. Windows ISOs are made for
+ * DVDs only, so for them the stick gets one FAT32 partition with the ISO's
+ * files instead, which is what a PC's UEFI firmware boots (EFI/BOOT/
+ * BOOTX64.EFI, signed by Microsoft, so Secure Boot can stay on).
+ *
+ * Only USB drives are offered, so the computer's own disk can't be erased
+ * by a typo, and nothing is touched before the image has been looked at.
  */
 #include "zr.h"
 #include "zd.h"
@@ -17,6 +22,7 @@
 #define BLKRRPART 0x125F
 #define BLKSSZGET 0x1268
 #define BLKGETSIZE64 0x80081272
+#define BLKFLSBUF 0x1261
 #define LOOP_CTL_GET_FREE 0x4C82
 #define LOOP_CONFIGURE 0x4C0A
 #define LO_FLAGS_READ_ONLY 1
@@ -35,7 +41,7 @@ struct loop_config {
 	u64 reserved[8];
 };
 
-#define WORK "/run/winusb"
+#define WORK "/run/flash"
 #define ISO_DIR WORK "/iso"
 #define USB_DIR WORK "/usb"
 #define FAT_MAX (4ull << 30) /* FAT32 keeps files under 4 GiB */
@@ -60,7 +66,7 @@ static void fail(const char *f, ...)
 	va_start(ap, f);
 	fmt_v(msg, sizeof msg, f, ap);
 	va_end(ap);
-	eprint("\nwinusb: %s\n", msg);
+	eprint("\nflash: %s\n", msg);
 	cleanup();
 	exit(1);
 }
@@ -89,11 +95,11 @@ static char *sys_line(const char *dev, const char *file)
 	return s ? s : str_dup("");
 }
 
-#ifdef WINUSB_TEST
-/* tools/winusb-test.sh has a loop device stand in for a stick */
+#ifdef FLASH_TEST
+/* a loop device standing in for a stick, for testing by hand */
 static bool test_disk(const char *name)
 {
-	const char *t = env_get("WINUSB_TEST_DISK");
+	const char *t = env_get("FLASH_TEST_DISK");
 	return t && str_eq(name, t);
 }
 #else
@@ -445,9 +451,99 @@ static void mount_usb(const char *disk)
 	usb_mounted = true;
 }
 
+/* ---- Byte for byte ------------------------------------------------------------------ */
+
+/* Whether an image starts from a stick as it is: a partition table at its
+ * start (MBR or GPT), as hybrid ISOs and disk images have. */
+static bool bootable_as_is(const char *path)
+{
+	u8 head[1024] = { 0 };
+	int fd = (int)sys_open(path, O_RDONLY | O_CLOEXEC, 0);
+	if (fd < 0)
+		return false;
+	long n = sys_read(fd, head, sizeof head);
+	sys_close(fd);
+	return n == (long)sizeof head && ((head[510] == 0x55 && head[511] == 0xaa) || memcmp(head + 512, "EFI PART", 8) == 0);
+}
+
+static void raw_progress(const char *what, u64 done, u64 all)
+{
+	u32 pct = all ? (u32)(done * 100 / all) : 100;
+	if (pct == shown)
+		return;
+	shown = pct;
+	char a[32], b[32];
+	size_text(done, a, sizeof a);
+	size_text(all, b, sizeof b);
+	print("\r  %s: %3u%%  (%s of %s)   ", what, pct, a, b);
+}
+
+static void write_raw(const char *image, const char *disk, u64 size)
+{
+	char dev[48];
+	fmt(dev, sizeof dev, "/dev/%s", disk);
+	int in = (int)sys_open(image, O_RDONLY | O_CLOEXEC, 0);
+	int out = (int)sys_open(dev, O_RDWR | O_EXCL | O_CLOEXEC, 0);
+	if (in < 0)
+		fail("can't read %s", image);
+	if (out < 0)
+		fail("can't open %s (%s); unplug it, plug it back in and try again", dev, err_str(out));
+	/* old partition tables at the end (a GPT's copy) would confuse firmware */
+	u64 bytes = 0;
+	if (sys_ioctl(out, BLKGETSIZE64, &bytes) == 0 && bytes > size + (1u << 20)) {
+		u8 *zero = mem_zalloc(1 << 20);
+		sys_pwrite(out, zero, 1 << 20, (i64)(bytes - (1 << 20)));
+		mem_free(zero);
+	}
+	buf = mem_alloc(BUF_SIZE);
+	u8 *back = mem_alloc(BUF_SIZE);
+	u64 done = 0;
+	shown = 1000;
+	while (done < size) {
+		long n = sys_pread(in, buf, (usize)MIN((u64)BUF_SIZE, size - done), (i64)done);
+		if (n == -EINTR)
+			continue;
+		if (n <= 0)
+			fail("can't read %s (%s); the download may be damaged", image, n < 0 ? err_str(n) : "it ended early");
+		u64 at = done;
+		for (long w = 0; w < n;) {
+			long r = sys_pwrite(out, buf + w, (usize)(n - w), (i64)(at + (u64)w));
+			if (r == -EINTR)
+				continue;
+			if (r <= 0)
+				fail("writing to the stick failed; is it unplugged or write-protected?");
+			w += r;
+		}
+		done += (u64)n;
+		raw_progress("Writing", done, size);
+	}
+	print("\n  Finishing (the stick may take a minute to catch up)...\n");
+	if (sys_fsync(out) < 0)
+		fail("writing to the stick failed");
+	/* read it back from the stick itself, not from what the system remembers */
+	sys_ioctl(out, BLKFLSBUF, NULL);
+	shown = 1000;
+	for (done = 0; done < size;) {
+		usize want = (usize)MIN((u64)BUF_SIZE, size - done);
+		long a = sys_pread(in, buf, want, (i64)done), b = sys_pread(out, back, want, (i64)done);
+		if (a <= 0 || b != a)
+			fail("the stick couldn't be read back; it may be failing");
+		if (memcmp(buf, back, (usize)a) != 0)
+			fail("what's on the stick differs from the image; the stick may be failing, so try another");
+		done += (u64)a;
+		raw_progress("Checking", done, size);
+	}
+	print("\n");
+	/* the kernel reads the image's partition table */
+	sys_ioctl(out, BLKRRPART, NULL);
+	sys_close(in);
+	sys_close(out);
+	mem_free(back);
+}
+
 int main(int argc, char **argv)
 {
-	const char *iso = NULL, *target = NULL;
+	const char *iso = NULL, *target = NULL; /* the image, whatever kind */
 	bool yes = false;
 	for (int i = 1; i < argc; i++) {
 		if (str_eq(argv[i], "-y") || str_eq(argv[i], "--yes"))
@@ -458,7 +554,7 @@ int main(int argc, char **argv)
 			target = argv[i];
 	}
 	if (!iso) {
-		eprint("usage: sudo winusb WINDOWS.iso [DRIVE]\n");
+		eprint("usage: sudo flash IMAGE.iso [DRIVE]\n");
 		return 2;
 	}
 	if (!file_exists(iso))
@@ -475,7 +571,7 @@ int main(int argc, char **argv)
 		if (str_eq(drives[i].name, target))
 			d = &drives[i];
 	if (target && !d) {
-		eprint("winusb: %s isn't a USB drive. ", target);
+		eprint("flash: %s isn't a USB drive. ", target);
 		if (!nd)
 			fail("No USB drive is plugged in.");
 		eprint("The USB drives are:\n");
@@ -497,16 +593,39 @@ int main(int argc, char **argv)
 		d = &drives[0];
 	}
 	if (file_on_disk(iso, d->name))
-		fail("the ISO is on that USB drive itself; copy it to Downloads first, since the drive gets erased");
+		fail("the image is on that USB drive itself; copy it to Downloads first, since the drive gets erased");
+	char dsz[32], sz[32];
+	size_text(d->bytes, dsz, sizeof dsz);
 
-	/* Look at the ISO before touching the stick. */
+	/* Zurbax's, Linux distributions' and disk images: as they are. */
+	struct stat ist;
+	if (sys_stat(iso, &ist) == 0 && bootable_as_is(iso)) {
+		u64 size = (u64)ist.st_size;
+		if (size > d->bytes) {
+			size_text(size, sz, sizeof sz);
+			fail("the image is %s and the stick is smaller than that", sz);
+		}
+		print("\nEverything on %s (%s, %s) will be erased.\n", d->name, d->label, dsz);
+		if (!yes) {
+			print("Type yes and press Enter to continue: ");
+			if (!ask_yes())
+				fail("stopped; nothing was changed");
+		}
+		unmount_disk(d->name);
+		write_raw(iso, d->name, size);
+		print("\nDone! The stick is ready and checked.\n"
+		      "Restart, and as the logo shows press the boot menu key (F8 or Esc on ASUS,\n"
+		      "F12 on most others), then pick the USB stick (the \"UEFI:\" entry).\n");
+		return 0;
+	}
+
+	/* Windows: look at the ISO before touching the stick. */
 	print("Opening %s...\n", iso);
 	mount_iso(iso);
 	Tally t = { 0 };
 	tally(ISO_DIR, "", &t);
-	char sz[32];
 	if (!file_exists(ISO_DIR "/sources") && !file_exists(ISO_DIR "/SOURCES"))
-		fail("that ISO doesn't look like Windows (it has no sources folder)");
+		fail("this image can't start from a USB stick: it's made for DVDs only, and it isn't Windows");
 	if (t.biggest >= FAT_MAX) {
 		size_text(t.biggest, sz, sizeof sz);
 		fail("%s is %s, too big for a FAT32 stick (the limit is 4 GB). Use a smaller Windows ISO.", t.biggest_name + 1, sz);
@@ -516,8 +635,6 @@ int main(int argc, char **argv)
 		fail("Windows needs %s and the stick is smaller than that", sz);
 	}
 
-	char dsz[32];
-	size_text(d->bytes, dsz, sizeof dsz);
 	print("\nEverything on %s (%s, %s) will be erased.\n", d->name, d->label, dsz);
 	if (!yes) {
 		print("Type yes and press Enter to continue: ");

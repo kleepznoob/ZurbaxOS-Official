@@ -1,11 +1,13 @@
 #!/bin/sh
-# winusb end to end, in a virtual machine with Zurbax's kernel: a
+# flash end to end, in a virtual machine with Zurbax's kernel: a
 # Windows-shaped ISO (UDF, like Microsoft's) goes onto a virtual 8 GB USB
-# stick that was formatted and mounted before. Then, on this side: the
-# partition table, fsck, every file against the ISO's, and the machine's
-# other disk (not USB, refused) unchanged.
+# stick that was formatted and mounted before, and Zurbax's mini image (a
+# hybrid ISO) byte for byte onto a second one. Then, on this side: the
+# partition table, fsck and every file against the ISO's for the first, the
+# bytes for the second, that the machine's other disk (not USB) was refused,
+# and that UEFI firmware boots both sticks.
 #
-#   tools/winusb-test.sh        (after make kernel; needs qemu, pycdlib,
+#   tools/flash-test.sh         (after make iso-mini; needs qemu, pycdlib,
 #                                mtools and dosfstools)
 set -eu
 cd "$(dirname "$0")/.."
@@ -13,12 +15,12 @@ KERNEL=build/kernel/arch/x86/boot/bzImage
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-make -s build/bin/winusb build/lib/libzr.a
+make -s build/bin/flash build/lib/libzr.a
 # the virtual machine's first program, built like any other
-cc=$(make -n -B build/obj/system/winusb/winusb.o | grep ' -c system/winusb/winusb.c')
-eval "$(echo "$cc" | sed "s| -MMD -MP||; s| -c system/winusb/winusb.c| -c tools/winusb-test-init.c|; s| -o [^ ]*$| -o $T/init.o|")"
-ld=$(make -n -B build/bin/winusb | grep -- '-o build/bin/winusb')
-eval "$(echo "$ld" | sed "s|-o build/bin/winusb build/obj/system/winusb/winusb.o|-o $T/init $T/init.o|")"
+cc=$(make -n -B build/obj/system/flash/flash.o | grep ' -c system/flash/flash.c')
+eval "$(echo "$cc" | sed "s| -MMD -MP||; s| -c system/flash/flash.c| -c tools/flash-test-init.c|; s| -o [^ ]*$| -o $T/init.o|")"
+ld=$(make -n -B build/bin/flash | grep -- '-o build/bin/flash')
+eval "$(echo "$ld" | sed "s|-o build/bin/flash build/obj/system/flash/flash.o|-o $T/init $T/init.o|")"
 
 mkdir -p "$T/tree" "$T/root"
 # Zurbax's kernel stands in for Windows' boot program: both are UEFI programs
@@ -43,8 +45,9 @@ for i, (p, data) in enumerate(files.items()):
     iso.add_fp(io.BytesIO(data), len(data), f'/F{i}.;1', udf_path='/' + p)
 iso.write(out)
 PY
-cp build/bin/winusb "$T/root/winusb"
-cp "$T/init" "$T/root/winusb-test-init"
+cp build/bin/flash "$T/root/flash"
+cp build/zurbax-mini.iso "$T/root/hybrid.iso"
+cp "$T/init" "$T/root/flash-test-init"
 (cd "$T/root" && ls | cpio -o -H newc --quiet) >"$T/initrd"
 
 # the stick, as it came: an old FAT partition with a file on it
@@ -59,19 +62,24 @@ f.write(mbr)
 PY
 mkfs.vfat --offset 2048 -n OLDSTUFF "$T/stick.img" $((4 * 1024 * 1024)) >/dev/null 2>&1
 echo hi >"$T/old.txt"; mcopy -i "$T/stick.img@@1M" "$T/old.txt" ::old.txt
+truncate -s 1G "$T/stick2.img"
 # the machine's own disk
 head -c 64M /dev/urandom >"$T/disk.img"; cp "$T/disk.img" "$T/disk.orig"
 
-timeout 900 qemu-system-x86_64 -machine q35 -m 2048 -smp 2 -accel tcg,thread=multi -cpu max \
-	-kernel "$KERNEL" -initrd "$T/initrd" -append "rdinit=/winusb-test-init console=ttyS0 loglevel=3" \
+timeout 900 qemu-system-x86_64 -machine q35 -m 2560 -smp 2 -accel tcg,thread=multi -cpu max \
+	-kernel "$KERNEL" -initrd "$T/initrd" -append "rdinit=/flash-test-init console=ttyS0 loglevel=3" \
 	-drive file="$T/disk.img",if=virtio,format=raw \
 	-device qemu-xhci -drive if=none,id=stick,format=raw,file="$T/stick.img" -device usb-storage,drive=stick,removable=on \
+	-drive if=none,id=stick2,format=raw,file="$T/stick2.img" -device usb-storage,drive=stick2,removable=on \
 	-display none -serial file:"$T/serial.log" -no-reboot -nic none
-tr -d '\r' <"$T/serial.log" | grep -E '^(winusb|  |Opening|Everything|Erasing|USB|Done)' | sed 's/.*\(Copying Windows: 100%\)/  \1/' | grep -v 'Copying Windows: *[0-9]\{1,2\}%' || true
+tr -d '\r' <"$T/serial.log" | grep -E '^(flash|  |Opening|Everything|Erasing|USB|Done)' | sed 's/.*\(Copying Windows: 100%\)/  \1/' | grep -v 'Copying Windows: *[0-9]\{1,2\}%' || true
 
 fail() { echo "FAIL: $*"; exit 1; }
-grep -q 'winusb exited with 256' "$T/serial.log" || fail "winusb didn't refuse the virtio disk"
-grep -q 'winusb exited with 0' "$T/serial.log" || fail "winusb didn't finish"
+grep -q 'flash exited with 256' "$T/serial.log" || fail "flash didn't refuse the virtio disk"
+[ "$(grep -c 'flash exited with 0' "$T/serial.log")" = 2 ] || fail "flash didn't finish both sticks"
+grep -q 'Checking: 100%' "$T/serial.log" || fail "the hybrid image wasn't checked"
+cmp -n "$(stat -c %s build/zurbax-mini.iso)" build/zurbax-mini.iso "$T/stick2.img" || fail "the second stick isn't the image byte for byte"
+echo "hybrid: written byte for byte and read back"
 cmp -s "$T/disk.img" "$T/disk.orig" || fail "the machine's own disk changed"
 python3 -I - "$T/stick.img" <<'PY'
 import struct, sys
@@ -98,4 +106,10 @@ timeout 120 qemu-system-x86_64 -machine q35 -m 1024 -accel tcg,thread=multi -cpu
 	-device qemu-xhci -drive if=none,id=stick,format=raw,file="$T/stick.img" -device usb-storage,drive=stick,removable=on \
 	-display none -serial file:"$T/boot.log" -nic none || true
 tr -d '\r' <"$T/boot.log" | grep -o 'BdsDxe: starting .*USB.*' | head -1 | grep . || fail "the firmware didn't boot the stick"
-echo "winusb: all ok"
+cp /usr/share/OVMF/OVMF_VARS_4M.fd "$T/vars.fd"
+timeout 120 qemu-system-x86_64 -machine q35 -m 1024 -accel tcg,thread=multi -cpu max \
+	-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd -drive if=pflash,format=raw,file="$T/vars.fd" \
+	-device qemu-xhci -drive if=none,id=stick,format=raw,file="$T/stick2.img" -device usb-storage,drive=stick,removable=on \
+	-display none -serial file:"$T/boot2.log" -nic none || true
+tr -d '\r' <"$T/boot2.log" | grep -o 'BdsDxe: starting .*USB.*' | head -1 | grep . || fail "the firmware didn't boot the second stick"
+echo "flash: all ok"
