@@ -6,9 +6,10 @@
  * GPU drivers and more, none of which Zurbax uses itself. They come as the
  * Linux layer (layer/build.sh, installed in /data/layers/steam), and
  * layerrun starts Steam inside it with a full-screen Xwayland on zdisplay.
- * This window checks that everything is in place, says what's missing, and
- * starts Steam in Big Picture (made for controllers and the TV) or on the
- * desktop.
+ * Opening it starts Steam straight away, as on any other computer; only when
+ * something it needs is missing does a window say what, and start Steam in
+ * Big Picture (made for controllers and the TV) or on the desktop once it's
+ * there.
  */
 #include "zui.h"
 
@@ -148,13 +149,15 @@ static void run_checks(Ui *ui)
 	bool gpu = driver[0] && !str_eq(driver, "simpledrm");
 	c = add("Graphics driver", gpu, false);
 	if (gpu)
-		fmt(c->detail, sizeof c->detail, "%s", str_eq(driver, "amdgpu") ? "AMD (amdgpu)" : str_eq(driver, "i915") || str_eq(driver, "xe") ? "Intel" : driver);
+		fmt(c->detail, sizeof c->detail, "%s", str_eq(driver, "amdgpu") ? "AMD (amdgpu)" : str_eq(driver, "i915") || str_eq(driver, "xe") ? "Intel"
+						     : str_eq(driver, "nvidia") ? "NVIDIA's own driver" : driver);
 	else
 		str_copy(c->detail, "Only the firmware's framebuffer: games would have no 3D acceleration", sizeof c->detail);
 
 	bool vulkan = layer && in_layer("/usr/share/vulkan/icd.d");
 	c = add("Vulkan", vulkan, true);
-	str_copy(c->detail, vulkan ? "Mesa's drivers, for Proton's DirectX translation" : "Mesa's Vulkan drivers come with the Linux layer",
+	str_copy(c->detail, vulkan ? (file_exists("/dev/nvidiactl") ? "NVIDIA's and Mesa's drivers, for Proton's DirectX translation" : "Mesa's drivers, for Proton's DirectX translation")
+				   : "Mesa's Vulkan drivers come with the Linux layer",
 		 sizeof c->detail);
 	if (vulkan && in_layer("/usr/bin/zos-gpucheck")) {
 		if (!probe.asked)
@@ -251,8 +254,27 @@ static void frame(Ui *ui)
 	}
 }
 
+/* What Steam can't start without: the layer, the client in it, and user
+ * namespaces for its runtime. */
+static bool can_start(void)
+{
+	char *ns = file_read_line("/proc/sys/user/max_user_namespaces");
+	bool userns = ns && str_to_int(ns, NULL) > 0;
+	mem_free(ns);
+	return userns && in_layer("/lib64/ld-linux-x86-64.so.2") && (in_layer("/usr/bin/steam") || in_layer("/usr/games/steam"));
+}
+
 int main(void)
 {
+	if (can_start()) {
+		char *layerrun = zurbax_path("bin/layerrun");
+		char *argv[] = { layerrun, "--x11", "--app", "steam", "steam", NULL };
+		SpawnOpts o = { .stdin_fd = -1, .stdout_fd = -1, .stderr_fd = -1, .new_session = true };
+		int pid = proc_spawn(layerrun, argv, environ, &o);
+		mem_free(layerrun);
+		if (pid > 0)
+			return 0;
+	}
 	UiAppDesc d = { .id = "steam", .title = "Steam", .width = 600, .height = 620, .min_width = 520, .min_height = 580, .frame = frame };
 	return ui_run(&d);
 }
