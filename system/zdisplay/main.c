@@ -81,6 +81,8 @@ static void on_status_timer(Loop *loop, void *data)
 	UNUSED(loop), UNUSED(data);
 	system_status_poll();
 	shell_services_tick();
+	if (!S.headless)
+		drives_poll();
 }
 
 static bool needs_frame(void)

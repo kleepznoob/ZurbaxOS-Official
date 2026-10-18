@@ -445,6 +445,10 @@ void glass_panel_style(Ui *ui, Rect r, f32 radius, f32 alpha, bool dark);
 void glass_card_style(Ui *ui, Rect r, f32 radius, f32 alpha, bool dark);
 void glass_backdrop(Canvas *dst, Rect d, Rect shape, f32 radius, f32 opacity); /* under a window's glass */
 Notice *shell_notify(const char *app, const char *icon, const char *title, const char *body); /* NULL when held back */
+
+/* drives.c: USB drives and memory cards under /media */
+void drives_poll(void);
+void drives_eject(const char *path);
 void shell_osd(const char *icon, f32 value);
 void shell_lock(void);
 void shell_launch(const char *app_id, const char *arg);

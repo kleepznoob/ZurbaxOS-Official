@@ -266,7 +266,10 @@ static void handle_message(Client *c, const u8 *buf, usize len, int *fds, int nf
 	case MSG_LAUNCH:
 		if (len >= sizeof(MsgLaunch)) {
 			const MsgLaunch *m = (const MsgLaunch *)buf;
-			shell_launch(m->app_id, m->arg);
+			if (str_eq(m->app_id, "zurbax:eject"))
+				drives_eject(m->arg);
+			else
+				shell_launch(m->app_id, m->arg);
 		}
 		break;
 	case MSG_SETTINGS_CHANGED: {

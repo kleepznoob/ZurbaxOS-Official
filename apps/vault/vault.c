@@ -718,7 +718,7 @@ static void sidebar(Ui *ui, Rect r)
 	if (ui_sidebar_item(ui, cut_top(&s, 32), "drive", "This Computer", str_eq(vt.dir, "/")))
 		go("/", true);
 	ui_pop_id(ui);
-	/* Removable drives the system mounted under /media. */
+	/* USB drives and memory cards the desktop mounted under /media, each with an eject button */
 	DirList media = { 0 };
 	if (dir_list("/media", &media, false)) {
 		int k = 0;
@@ -726,8 +726,16 @@ static void sidebar(Ui *ui, Rect r)
 			char p[512];
 			fmt(p, sizeof p, "/media/%s", e->name);
 			ui_push_id(ui, 70 + k++);
-			if (ui_sidebar_item(ui, cut_top(&s, 32), "usb", e->name, str_eq(vt.dir, p)))
+			Rect row = cut_top(&s, 32);
+			Rect eject = cut_right(&row, 30);
+			if (ui_sidebar_item(ui, row, "usb", e->name, str_eq(vt.dir, p)))
 				go(p, true);
+			if (ui_icon_button(ui, center_in(eject, 26, 26), "go-up", "Eject")) {
+				/* out of it first, so Vault isn't what keeps it busy */
+				if (str_starts(vt.dir, p) && (vt.dir[strlen(p)] == 0 || vt.dir[strlen(p)] == '/'))
+					go(home_dir(), true);
+				ui_launch(ui, "zurbax:eject", p);
+			}
 			ui_pop_id(ui);
 		}
 		dir_list_free(&media);
