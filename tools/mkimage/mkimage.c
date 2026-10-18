@@ -66,7 +66,12 @@ static void add_tree(const char *src, const char *dst, bool (*skip)(const char *
 		if (e->name[0] == '.' || (skip && skip(e->name)))
 			continue;
 		char *s = path_join(src, e->name), *d = path_join(dst, e->name);
-		if (S_ISDIR(e->mode)) {
+		/* a link within the tree stays a link (firmware files many GPUs share) */
+		struct stat ls;
+		char target[256] = { 0 };
+		if (sys_lstat(s, &ls) == 0 && S_ISLNK(ls.st_mode) && sys_readlink(s, target, sizeof target - 1) > 0 && target[0] != '/') {
+			check(cpio_symlink(&cw, d, target), d);
+		} else if (S_ISDIR(e->mode)) {
 			check(cpio_dir(&cw, d, 0755), d);
 			add_tree(s, d, skip);
 		} else {

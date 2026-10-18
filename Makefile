@@ -7,6 +7,8 @@
 #                   and build/zurbax.img (a plain USB stick image)
 #   make iso        just build/zurbax.iso, for every computer (over 6 GB with
 #                   the layer, the apps and the firmware built)
+#   make iso-standard  build/zurbax-standard.iso, under 4 GB: the full one without
+#                   the second and third groups of ready apps
 #   make iso-mini   build/zurbax-mini.iso, which downloads the rest as it installs
 #   make run        boot build/zurbax.img in QEMU with UEFI firmware
 #
@@ -97,7 +99,7 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 	@echo "  LD    $@"
 	@$(CC) $(LDFLAGS) -o $@ $< $(LINK_LIBS) $(LDLIBS)
 
-.PHONY: media-prep system-efi iso iso-mini downloads downloads-files apps firmware all test clean devroot devroot-links image run
+.PHONY: media-prep system-efi iso iso-standard iso-mini downloads downloads-files apps firmware all test clean devroot devroot-links image run
 .SECONDARY:
 all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(if $(STORE),$(OUT)/repo/index)
 
@@ -158,6 +160,13 @@ image: system-efi
 	@$(OUT)/tools/mkimage iso $(OUT)/zurbax.iso $(EFI_FILE) $(LAYER)
 iso: system-efi
 	@$(OUT)/tools/mkimage iso $(OUT)/zurbax.iso $(EFI_FILE) $(LAYER)
+
+# The standard image, under 4 GB: all of the above but the second and third
+# groups of ready apps (a click away in Harbor). Every driver and firmware
+# file is still there, Steam and the first group (Firefox, LibreOffice...) too.
+LAYER_STANDARD := $(filter-out $(OUT)/preload/apps2.sfs $(OUT)/preload/apps3.sfs,$(LAYER))
+iso-standard: system-efi
+	@$(OUT)/tools/mkimage iso $(OUT)/zurbax-standard.iso $(EFI_FILE) $(LAYER_STANDARD)
 
 # The apps that come ready to use (tools/preload-apps.sh needs flatpak).
 apps: $(OUT)/preload/apps.sfs

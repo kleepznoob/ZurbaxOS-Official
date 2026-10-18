@@ -1,11 +1,14 @@
 # Firmware the GPU drivers built into the Zurbax kernel load (AMD amdgpu, Intel
-# i915 and xe), fetched by tools/fetch-firmware.py into the system image.
+# i915 and xe, NVIDIA nouveau), fetched by tools/fetch-firmware.py into the
+# system image.
 #
 # Made from the kernel's own list (build/kernel/modules.builtin.modinfo,
 # Linux 6.18) by kernel/gpu-firmware.sh, leaving out GPUs from before 2016,
 # datacenter accelerators, and the optional GuC/HuC files of Intel's 6th-10th
 # generation, which i915 doesn't load by default. Without these files amdgpu
-# can't start at all and the screen stays on the firmware's framebuffer.
+# can't start at all and the screen stays on the firmware's framebuffer. For
+# NVIDIA, the GSP firmware of GeForce RTX 30 and 40 (Ampere GA10x, Ada AD10x):
+# without it nouveau leaves those GPUs off. They share one file, kept once.
 amdgpu/navi12_gpu_info.bin
 amdgpu/raven2_gpu_info.bin
 amdgpu/picasso_gpu_info.bin
@@ -507,3 +510,43 @@ xe/ptl_huc.bin
 xe/lnl_guc_70.bin
 xe/bmg_guc_70.bin
 xe/ptl_guc_70.bin
+nvidia/ga107/gsp/gsp-570.144.bin
+nvidia/ga107/gsp/bootloader-570.144.bin
+nvidia/ga107/gsp/booter_unload-570.144.bin
+nvidia/ga107/gsp/booter_load-570.144.bin
+nvidia/ga106/gsp/gsp-570.144.bin
+nvidia/ga106/gsp/bootloader-570.144.bin
+nvidia/ga106/gsp/booter_unload-570.144.bin
+nvidia/ga106/gsp/booter_load-570.144.bin
+nvidia/ga104/gsp/gsp-570.144.bin
+nvidia/ga104/gsp/bootloader-570.144.bin
+nvidia/ga104/gsp/booter_unload-570.144.bin
+nvidia/ga104/gsp/booter_load-570.144.bin
+nvidia/ga103/gsp/gsp-570.144.bin
+nvidia/ga103/gsp/bootloader-570.144.bin
+nvidia/ga103/gsp/booter_unload-570.144.bin
+nvidia/ga103/gsp/booter_load-570.144.bin
+nvidia/ga102/gsp/gsp-570.144.bin
+nvidia/ga102/gsp/bootloader-570.144.bin
+nvidia/ga102/gsp/booter_unload-570.144.bin
+nvidia/ga102/gsp/booter_load-570.144.bin
+nvidia/ad107/gsp/gsp-570.144.bin
+nvidia/ad107/gsp/bootloader-570.144.bin
+nvidia/ad107/gsp/booter_unload-570.144.bin
+nvidia/ad107/gsp/booter_load-570.144.bin
+nvidia/ad106/gsp/gsp-570.144.bin
+nvidia/ad106/gsp/bootloader-570.144.bin
+nvidia/ad106/gsp/booter_unload-570.144.bin
+nvidia/ad106/gsp/booter_load-570.144.bin
+nvidia/ad104/gsp/gsp-570.144.bin
+nvidia/ad104/gsp/bootloader-570.144.bin
+nvidia/ad104/gsp/booter_unload-570.144.bin
+nvidia/ad104/gsp/booter_load-570.144.bin
+nvidia/ad103/gsp/gsp-570.144.bin
+nvidia/ad103/gsp/bootloader-570.144.bin
+nvidia/ad103/gsp/booter_unload-570.144.bin
+nvidia/ad103/gsp/booter_load-570.144.bin
+nvidia/ad102/gsp/gsp-570.144.bin
+nvidia/ad102/gsp/bootloader-570.144.bin
+nvidia/ad102/gsp/booter_unload-570.144.bin
+nvidia/ad102/gsp/booter_load-570.144.bin

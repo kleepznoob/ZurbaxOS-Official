@@ -9,7 +9,7 @@ start-up; it comes from the linux-firmware project (redistributable,
 unmodified). This takes the newest linux-firmware release from kernel.org's
 download servers, reads its index (WHENCE) for the files and links, and
 keeps the files for the Wi-Fi chips common in laptops from the last few
-years and for the AMD and Intel GPUs in kernel/gpu-firmware.txt. They are
+years and for the AMD, Intel and NVIDIA GPUs in kernel/gpu-firmware.txt. They are
 compressed with xz (the kernel unpacks them as it loads them, so they take
 less memory). The wireless regulatory database comes the same way.
 
@@ -107,6 +107,26 @@ def resolve(name, files):
     return best and (best[1], best[2])
 
 
+def gpu_file(name, files):
+    """The release file a GPU firmware name ends up at, through linked files and
+    linked folders (nvidia/ad107 -> ad102, whose gsp-*.bin -> ../../ga102/...)."""
+    for _ in range(8):
+        if files.get(name) == name:
+            return name
+        if name in files:
+            name = files[name]
+            continue
+        parts = name.split("/")
+        for i in range(len(parts) - 1, 0, -1):
+            head = "/".join(parts[:i])
+            if files.get(head, head) != head:
+                name = "/".join([files[head]] + parts[i:])
+                break
+        else:
+            return None
+    return None
+
+
 def gpu_wanted():
     """The GPU drivers' files (kernel/gpu-firmware.txt)."""
     listing = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "kernel", "gpu-firmware.txt")
@@ -138,8 +158,9 @@ def plan(files, out):
     # GPU drivers list every file they might want; linux-firmware lacks a few
     missing = 0
     for name in gpu_wanted():
-        if name in files:
-            want.setdefault(files[name], []).append(os.path.join(out, name + ".xz"))
+        path = gpu_file(name, files)
+        if path:
+            want.setdefault(path, []).append(os.path.join(out, name + ".xz"))
         else:
             missing += 1
     if missing:
@@ -162,8 +183,15 @@ def firmware(out):
                 want = plan(index(tar.extractfile(m).read()), out)
             elif want is not None and path in want:
                 data = tar.extractfile(m).read()
-                for dest in want.pop(path):
-                    save(data, dest)
+                first, *others = want.pop(path)
+                save(data, first)
+                kept += 1
+                # names that share the file are links to it, not copies
+                for dest in others:
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    if os.path.lexists(dest):
+                        os.remove(dest)
+                    os.symlink(os.path.relpath(first, os.path.dirname(dest)), dest)
                     kept += 1
     if want is None:
         sys.exit(f"{release} has no WHENCE")
@@ -241,7 +269,7 @@ def main():
     reg = regdb(out)
     with open(marker, "w") as f:
         f.write(f"{release} {reg}\n")
-    total = sum(os.path.getsize(os.path.join(d, n)) for d, _, ns in os.walk(out) for n in ns)
+    total = sum(os.lstat(os.path.join(d, n)).st_size for d, _, ns in os.walk(out) for n in ns)
     print(f">> firmware: {kept} files, {total // 1024} KiB in {out}")
 
 
