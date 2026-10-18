@@ -454,6 +454,7 @@ void shell_lock(void);
 void shell_launch(const char *app_id, const char *arg);
 void shell_launch_new(const char *app_id);
 const AppInfo *shell_app(const char *id);
+const AppInfo *shell_browser(void);
 Rect shell_dock_icon_rect(const char *app_id);
 int shell_dock_items(char ids[][48], int max);
 /* The taskbar along the bottom, laid out for the current settings. */

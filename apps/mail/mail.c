@@ -2275,7 +2275,7 @@ static void follow_link(Ui *ui, Node *link)
 		return;
 	}
 	if (str_eq_nocase_n(href, "http://", 7) || str_eq_nocase_n(href, "https://", 8))
-		ui_launch(ui, "drift", href);
+		ui_launch(ui, "", href); /* the web browser */
 }
 
 static void save_attachment(Ui *ui, int i)

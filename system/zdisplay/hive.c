@@ -777,7 +777,7 @@ bool hive_key(u32 code, u32 state, u32 mods, const char *text)
 		power_open = true;
 		shell_mark_dirty();
 		return true;
-	case KEY_B: shell_launch_new("drift"); return true;
+	case KEY_B: shell_launch_new(shell_browser() ? shell_browser()->id : "drift"); return true;
 	case KEY_F: shell_launch_new("vault"); return true;
 	case KEY_T: shell_launch_new("pulse"); return true;
 	case KEY_N: shell_launch_new("writer"); return true;

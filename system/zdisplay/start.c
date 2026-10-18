@@ -721,10 +721,13 @@ static void search_pane(Ui *ui, f32 k)
 		if (c.h > rh * 2) {
 			char title[160], enc[256], url[320];
 			fmt(title, sizeof title, "“%s” on the web", q);
-			if (result(ui, cut_top(&c, rh), "metro-globe", NULL, color_hex("#2d89ef"), title, "Search with Drift", k) || (go && first)) {
+			const AppInfo *web = shell_browser();
+			char how[96];
+			fmt(how, sizeof how, "Search with %s", web ? web->name : "Drift");
+			if (result(ui, cut_top(&c, rh), "metro-globe", NULL, color_hex("#2d89ef"), title, how, k) || (go && first)) {
 				url_encode(q, enc, sizeof enc);
 				fmt(url, sizeof url, "https://duckduckgo.com/?q=%s", enc);
-				shell_launch("drift", url);
+				shell_launch(web ? web->id : "drift", url);
 				close_start();
 				return;
 			}

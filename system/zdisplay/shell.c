@@ -310,11 +310,19 @@ const AppInfo *shell_app(const char *id)
 	return NULL;
 }
 
+/* The web browser: Firefox, which comes ready to use, while it's installed;
+ * Drift, Zurbax's own, without it. */
+const AppInfo *shell_browser(void)
+{
+	const AppInfo *a = shell_app("org.mozilla.firefox");
+	return a ? a : shell_app("drift");
+}
+
 /* Which app opens a file: by its extension, from the apps' "opens" lists. */
 static const AppInfo *app_for_file(const char *path)
 {
 	if (str_starts(path, "http://") || str_starts(path, "https://"))
-		return shell_app("drift");
+		return shell_browser();
 	if (str_starts(path, "mailto:"))
 		return shell_app("mail");
 	if (dir_exists(path))
