@@ -598,7 +598,8 @@ int main(int argc, char **argv)
 	StrBuf params = { 0 };
 	for (int k = i + 1; k < argc; k++)
 		sb_fmt(&params, "%s%s", k > i + 1 ? " " : "", argv[k]);
-	bool ok = load(argv[i], params.data ? params.data : "", false, 0);
+	/* (shown for a device's modalias, it's what --device would load) */
+	bool ok = load(argv[i], params.data ? params.data : "", show && str_chr(argv[i], ':') != NULL, 0);
 	if (!ok && !quiet)
 		eprint("modprobe: %s: no such driver\n", argv[i]);
 	return ok ? 0 : 1;

@@ -175,6 +175,23 @@ static void picture(const char *id)
 	}
 }
 
+/* Behind a window: a change there can't be seen, and drawing it again would
+ * have the compositor redraw the window over it for nothing (the tiled
+ * windows of Hive cover nearly all of the wallpaper). */
+static bool hidden(Rect box)
+{
+	for (int i = 0; i < S.nwin; i++) {
+		const Window *w = S.windows[i];
+		if (w->minimized || w->closing || w->appear < 1 || (w->flags & WIN_POPUP))
+			continue;
+		Rect v = window_visual_rect(w);
+		Rect p = { v.x * S.scale, v.y * S.scale, v.w * S.scale, v.h * S.scale };
+		if (box.x >= p.x && box.y >= p.y && box.x + box.w <= p.x + p.w && box.y + box.h <= p.y + p.h)
+			return true;
+	}
+	return false;
+}
+
 void wallanim_tick(void)
 {
 	int th = active();
@@ -191,10 +208,9 @@ void wallanim_tick(void)
 		Sprite *a = &last[i], *b = &cur[i];
 		if (a->on == b->on && (!a->on || (a->hash == b->hash && same_box(a->box, b->box))))
 			continue;
-		if (a->on && b->on)
-			damage_physical(rect_union(a->box, b->box));
-		else
-			damage_physical(a->on ? a->box : b->box);
+		Rect box = a->on && b->on ? rect_union(a->box, b->box) : a->on ? a->box : b->box;
+		if (!hidden(box))
+			damage_physical(box);
 	}
 	memcpy(last, cur, sizeof cur);
 }
