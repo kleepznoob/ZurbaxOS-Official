@@ -504,7 +504,8 @@ static bool load(const char *want, const char *params, bool for_device, int dept
 		Mod *fm = map_get(&mods, found[i]);
 		if (!fm || (for_device && unwanted(fm)))
 			continue;
-		if (for_device && (str_eq(found[i], "nvidia") || (nvidia && str_eq(found[i], "nouveau"))))
+		/* (NVIDIA's display module matches the same cards: it comes with the core, above) */
+		if (for_device && (str_starts(fm->path, "extra/nvidia/") || (nvidia && str_eq(found[i], "nouveau"))))
 			continue;
 		bool was = fm->state == 2 || is_loaded(found[i]);
 		if (load_mod(found[i], fm, params, depth)) {
