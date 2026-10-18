@@ -145,8 +145,12 @@ static int make_cpio(const char *out, char **hooks, int nhooks)
 		check(cpio_dir(&cw, "lib/firmware", 0755), "lib/firmware");
 		add_tree("build/firmware", "lib/firmware", NULL);
 	}
-	if (dir_exists("build/repo"))
+	/* Harbor's own apps. The folder comes first: the kernel drops files
+	 * whose folder the archive hasn't made yet. */
+	if (dir_exists("build/repo")) {
+		check(cpio_dir(&cw, "system/share/harbor-repo", 0755), "system/share/harbor-repo");
 		add_tree("build/repo", "system/share/harbor-repo", NULL);
+	}
 
 	check(cpio_end(&cw), "archive trailer");
 	u64 size = cw.written;
