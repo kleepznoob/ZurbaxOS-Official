@@ -285,6 +285,17 @@ static void build_root(const char *user, const char *home)
 	char *runtime = str_fmt("%s/runtime", zos);
 	dir_make(runtime, 0700);
 	mem_free(runtime);
+	/* Zurbax's own system, read-only, for its helpers that run in here (Vault's unpacker) */
+	const char *system = env_get("ZURBAX_ROOT");
+	if (!system || !*system)
+		system = "/system";
+	if (dir_exists(system)) {
+		char *sys = str_fmt("%s/system", zos);
+		dir_make(sys, 0755);
+		if (sys_mount(system, sys, NULL, MS_BIND | MS_REC, NULL) == 0)
+			sys_mount(NULL, sys, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
+		mem_free(sys);
+	}
 	mem_free(zos);
 	make_etc(user, home);
 	static const char *const through[] = { "/dev", "/proc", "/sys", "/tmp", "/run", "/data" };

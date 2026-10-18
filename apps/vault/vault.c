@@ -3,7 +3,8 @@
  *
  * Browse folders as a grid (with picture thumbnails) or a detailed list,
  * open files in the right app, and copy, move, rename and delete them.
- * Deleted files go to the Trash first and can be restored from there.
+ * Deleted files go to the Trash first and can be restored from there, and
+ * archives (zip, 7z, rar, tar and the rest) unpack with a double-click.
  */
 #include "zui.h"
 
@@ -35,7 +36,8 @@ typedef struct {
 	int drop_item;
 	char drop_place[1024];
 	/* dialogs */
-	StrBuf rename_text, newfolder_text;
+	StrBuf rename_text, newfolder_text, password_text;
+	bool password_wrong;    /* the last password given didn't open the archive */
 	int rename_index;
 	int props_index;
 	char error[200];
@@ -362,8 +364,16 @@ static bool dragging_own(Ui *ui, int i)
 	return own;
 }
 
+static bool is_archive(const char *name, bool *disc);
+static void unpack_item(Ui *ui, int i);
+
 static void open_item(Ui *ui, int i)
 {
+	bool disc;
+	if (!vt.items[i].dir && is_archive(vt.items[i].name, &disc) && !disc) {
+		unpack_item(ui, i);
+		return;
+	}
 	char *p = item_path(i);
 	if (vt.items[i].dir)
 		go(p, true);
@@ -735,18 +745,187 @@ static void sidebar(Ui *ui, Rect r)
 	}
 }
 
+/* ---- Unpacking ------------------------------------------------------------------------ */
+
+/* Archives open by unpacking, next to themselves, through the Linux layer's
+ * libarchive and Zurbax's helper for it (layer/helpers/unarchive.c). Disc
+ * images only through Extract: opening one means something else. */
+static bool is_archive(const char *name, bool *disc)
+{
+	static const char *const exts[] = { "zip", "7z", "rar", "tar", "tgz", "txz", "tzst", "gz", "xz", "zst", "lzma",
+					    "lz4", "cab", "cpio", "xar", "lha", "lzh", "iso" };
+	const char *e = path_ext(name);
+	*disc = str_eq_nocase(e, "iso");
+	for (usize i = 0; i < ARRAY_LEN(exts); i++)
+		if (str_eq_nocase(e, exts[i]))
+			return true;
+	return false;
+}
+
+static struct {
+	char archive[1024], dir[1024], name[256], password[256];
+	bool with_password, stopping;
+	int pid;
+	i64 done, total;        /* bytes of the archive read, from the helper */
+	char result[400];       /* "done PATH", or what went wrong */
+	int code;               /* the helper's exit status, -1 if it didn't finish */
+	int busy, finished;     /* atomics */
+	Ui *ui;
+} up;
+
+static void unpack_line(const char *line)
+{
+	if (str_starts(line, "progress ")) {
+		const char *rest;
+		up.done = str_to_int(line + 9, &rest);
+		up.total = str_to_int(rest, NULL);
+	} else if (*line) {
+		str_copy(up.result, line, sizeof up.result);
+	}
+}
+
+static void unpack_thread(void *arg)
+{
+	UNUSED(arg);
+	char *layerrun = zurbax_path("bin/layerrun");
+	char *argv[8];
+	int n = 0;
+	argv[n++] = layerrun;
+	argv[n++] = "--isolated";
+	argv[n++] = "/.zos/system/libexec/unarchive";
+	if (up.with_password)
+		argv[n++] = "-p";
+	argv[n++] = up.archive;
+	argv[n++] = up.dir;
+	argv[n] = NULL;
+	int out[2] = { -1, -1 }, in[2] = { -1, -1 }, status = -1;
+	up.result[0] = 0;
+	if (sys_pipe2(out, O_CLOEXEC) == 0 && (!up.with_password || sys_pipe2(in, O_CLOEXEC) == 0)) {
+		/* a session of its own, so Stop reaches the helper inside the layer too */
+		SpawnOpts o = { .stdin_fd = in[0], .stdout_fd = out[1], .stderr_fd = out[1], .new_session = true };
+		int pid = proc_spawn(layerrun, argv, NULL, &o);
+		up.pid = pid;
+		sys_close(out[1]);
+		if (in[0] >= 0) {
+			sys_close(in[0]);
+			write_all(in[1], up.password, strlen(up.password));
+			write_all(in[1], "\n", 1);
+			sys_close(in[1]);
+		}
+		memset(up.password, 0, sizeof up.password);
+		char buf[1024], line[512];
+		usize len = 0;
+		for (;;) {
+			long got = sys_read(out[0], buf, sizeof buf);
+			if (got == -EINTR)
+				continue;
+			if (got <= 0)
+				break;
+			for (long i = 0; i < got; i++) {
+				if (buf[i] == '\n') {
+					line[len] = 0;
+					unpack_line(line);
+					len = 0;
+				} else if (len + 1 < sizeof line) {
+					line[len++] = buf[i];
+				}
+			}
+			ui_wake(up.ui);
+		}
+		line[len] = 0;
+		unpack_line(line);
+		sys_close(out[0]);
+		if (pid > 0)
+			proc_wait(pid, &status, false);
+	}
+	mem_free(layerrun);
+	up.code = (status & 0x7f) == 0 ? (status >> 8) & 0xff : -1;
+	atomic_store(&up.finished, 1);
+	ui_wake(up.ui);
+}
+
+static void start_unpack(Ui *ui, const char *archive, const char *password)
+{
+	if (atomic_load(&up.busy)) {
+		show_error(ui, "Another archive is being unpacked; wait for it to finish.");
+		return;
+	}
+	char *lib = str_fmt("%s/layers/steam/usr/lib/libarchive.so.13", zurbax_data());
+	bool layer = file_exists(lib);
+	mem_free(lib);
+	if (!layer) {
+		show_error(ui, "Unpacking needs the Linux layer, which comes with Zurbax once it's installed.");
+		return;
+	}
+	if (archive != up.archive)
+		str_copy(up.archive, archive, sizeof up.archive);
+	char *dir = path_dir(up.archive);
+	str_copy(up.dir, dir, sizeof up.dir);
+	mem_free(dir);
+	str_copy(up.name, path_base(up.archive), sizeof up.name);
+	up.with_password = password != NULL;
+	str_copy(up.password, password ? password : "", sizeof up.password);
+	struct stat st;
+	up.total = sys_stat(up.archive, &st) == 0 ? (i64)st.st_size : 0;
+	up.done = 0;
+	up.pid = 0;
+	up.stopping = false;
+	up.ui = ui;
+	atomic_store(&up.busy, 1);
+	if (thread_spawn(unpack_thread, NULL) < 0) {
+		atomic_store(&up.busy, 0);
+		show_error(ui, "The archive couldn't be unpacked.");
+	}
+}
+
+static void unpack_item(Ui *ui, int i)
+{
+	char *p = item_path(i);
+	start_unpack(ui, p, NULL);
+	mem_free(p);
+}
+
+/* What came of an unpacking: the new folder or file chosen, a password
+ * asked for, or what went wrong. */
+static void unpack_poll(Ui *ui)
+{
+	if (!atomic_load(&up.finished))
+		return;
+	atomic_store(&up.finished, 0);
+	atomic_store(&up.busy, 0);
+	reload();
+	if (up.code == 0 && str_starts(up.result, "done ")) {
+		const char *made = up.result + 5;
+		char *parent = path_dir(made);
+		if (str_eq(parent, vt.dir))
+			for (int i = 0; i < vt.nitems; i++)
+				vt.items[i].selected = str_eq(vt.items[i].name, path_base(made));
+		mem_free(parent);
+	} else if (up.code == 3) {
+		vt.password_wrong = up.with_password;
+		sb_clear(&vt.password_text);
+		ui_dialog_open(ui, "unpack-password");
+	} else if (!up.stopping) {
+		show_error(ui, up.result[0] && up.code > 0 ? up.result : "The archive couldn't be unpacked.");
+	}
+}
+
 static void context_menu(Ui *ui)
 {
 	Rect c;
 	int n = selection_count();
 	bool trash = in_trash();
-	f32 h = n == 0 ? 120 : trash ? 120 : 260;
-	if (!ui_popover_begin(ui, "context", rect(ui->mx, ui->my, 1, 1), 230, h, &c))
-		return;
 	int first = -1;
 	for (int i = 0; i < vt.nitems && first < 0; i++)
 		if (vt.items[i].selected)
 			first = i;
+	bool disc, archive = n == 1 && !trash && !vt.items[first].dir && is_archive(vt.items[first].name, &disc);
+	/* install images: onto a USB stick, with flash in Forge (it asks for the password and the stick) */
+	bool image = n == 1 && !trash && !vt.items[first].dir &&
+		     (str_eq_nocase(path_ext(vt.items[first].name), "iso") || str_eq_nocase(path_ext(vt.items[first].name), "img"));
+	f32 h = n == 0 ? 120 : trash ? 120 : 260 + (archive ? 34 : 0) + (image ? 34 : 0);
+	if (!ui_popover_begin(ui, "context", rect(ui->mx, ui->my, 1, 1), 230, h, &c))
+		return;
 	if (n == 0) {
 		if (ui_menu_item(ui, cut_top(&c, 34), "folder", "New Folder", "Shift+Ctrl+N")) {
 			ui_popover_close(ui);
@@ -777,6 +956,22 @@ static void context_menu(Ui *ui)
 			ui_popover_close(ui);
 			if (first >= 0)
 				open_item(ui, first);
+		}
+		if (archive && ui_menu_item(ui, cut_top(&c, 34), "mail-archive", "Extract", NULL)) {
+			ui_popover_close(ui);
+			unpack_item(ui, first);
+		}
+		if (image && ui_menu_item(ui, cut_top(&c, 34), "usb", "Make Bootable USB…", NULL)) {
+			ui_popover_close(ui);
+			char *p = item_path(first);
+			if (str_chr(p, '"')) {
+				show_error(ui, "Rename the file without quotation marks first.");
+			} else {
+				char *cmd = str_fmt("run:sudo flash \"%s\"", p);
+				ui_launch(ui, "forge", cmd);
+				mem_free(cmd);
+			}
+			mem_free(p);
 		}
 		if (ui_menu_item(ui, cut_top(&c, 34), "edit-cut", "Cut", "Ctrl+X")) {
 			clip_selected(ui, true);
@@ -854,6 +1049,27 @@ static void dialogs(Ui *ui)
 			mem_free(p);
 			reload();
 			ui_dialog_close(ui);
+		}
+		ui_dialog_end(ui);
+	}
+	if (ui_dialog_begin(ui, "unpack-password", 420, 200, &c)) {
+		ui_heading(ui, cut_top(&c, 28), vt.password_wrong ? "That password didn't work" : "This archive has a password");
+		ui_push_clip(ui, cut_top(&c, 22));
+		ui_text(ui, ui_font(ui, 13, 400), c.x, c.y - 6, up.name, t->text_dim);
+		ui_pop_clip(ui);
+		cut_top(&c, 6);
+		int ev = ui_entry(ui, cut_top(&c, 34), "password-entry", &vt.password_text, "Password", ENTRY_PASSWORD | ENTRY_AUTOFOCUS);
+		Rect b = cut_bottom(&c, 34);
+		bool go_ = ui_button_suggested(ui, cut_right(&b, 100), "Unpack") || (ev & ENTRY_SUBMIT);
+		cut_right(&b, 8);
+		if (ui_button(ui, cut_right(&b, 90), "Cancel")) {
+			sb_clear(&vt.password_text);
+			ui_dialog_close(ui);
+		}
+		if (go_ && vt.password_text.len) {
+			ui_dialog_close(ui);
+			start_unpack(ui, up.archive, sb_str(&vt.password_text));
+			sb_clear(&vt.password_text);
 		}
 		ui_dialog_end(ui);
 	}
@@ -971,8 +1187,9 @@ static void frame(Ui *ui)
 		if ((u64)file_mtime(vt.dir) != vt.dir_mtime)
 			reload();
 	}
-	ui->wake_at = ui->now + 1.05;
+	ui->wake_at = ui->now + (atomic_load(&up.busy) ? 0.25 : 1.05);
 	paste_arrived(ui);
+	unpack_poll(ui);
 	vt.drop_item = -1;
 	vt.drop_place[0] = 0;
 	keys(ui);
@@ -1042,6 +1259,22 @@ static void frame(Ui *ui)
 	int n = selection_count();
 	if (ui->now < vt.error_until) {
 		ui_text(ui, ui_font(ui, 12, 600), status.x + 14, status.y + 18, vt.error, t->danger);
+	} else if (atomic_load(&up.busy)) {
+		i64 done = up.done, total = up.total;
+		int pct = total > 0 ? (int)(MIN(done, total) * 100 / total) : 0;
+		fmt(txt, sizeof txt, up.stopping ? "Stopping…" : "Unpacking %s… %d%%", up.name, pct);
+		Rect stop = cut_right(&status, 70);
+		Rect bar = cut_right(&status, 170);
+		ui_push_clip(ui, status);
+		ui_text(ui, ui_font(ui, 12, 500), status.x + 14, status.y + 18, txt, t->text_dim);
+		ui_pop_clip(ui);
+		Rect track = rect(bar.x + 6, bar.y + 11, bar.w - 12, 6);
+		ui_round(ui, track, 3, t->hover);
+		ui_round(ui, rect(track.x, track.y, track.w * (f32)pct / 100.0f, track.h), 3, t->accent);
+		if (!up.stopping && up.pid > 0 && ui_button_flat(ui, center_in(stop, 60, 22), "Stop")) {
+			up.stopping = true;
+			sys_kill(-up.pid, SIGTERM);
+		}
 	} else if (n) {
 		i64 total = 0;
 		for (int i = 0; i < vt.nitems; i++)
@@ -1104,7 +1337,6 @@ static const char *start_dir;
 
 static void init(Ui *ui)
 {
-	UNUSED(ui);
 	vt.grid = true;
 	vt.rename_index = vt.props_index = -1;
 	vt.hpos = -1;
@@ -1114,6 +1346,15 @@ static void init(Ui *ui)
 		char *p = str_fmt("%s/%s", home_dir(), std[i]);
 		dir_make(p, 0755);
 		mem_free(p);
+	}
+	/* started on an archive (opened from the desktop or a download): its folder, unpacking it */
+	bool disc;
+	if (start_dir && !dir_exists(start_dir) && file_exists(start_dir) && is_archive(start_dir, &disc)) {
+		char *dir = path_dir(start_dir);
+		go(dir, true);
+		mem_free(dir);
+		start_unpack(ui, start_dir, NULL);
+		return;
 	}
 	go(start_dir && dir_exists(start_dir) ? start_dir : home_dir(), true);
 }

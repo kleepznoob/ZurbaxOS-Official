@@ -6,6 +6,10 @@
  * lines join without gaps, keeps 5000 lines of history, and supports
  * selection, copy and paste, zoom, and mouse reporting for full-screen
  * programs.
+ *
+ *     forge [FOLDER]         a terminal in FOLDER
+ *     forge run:COMMAND      a terminal that runs COMMAND first (Vault's
+ *                            "Make Bootable USB" opens one on its command)
  */
 #include "zui.h"
 #include "term.h"
@@ -29,6 +33,7 @@ typedef struct {
 	f32 cell_w, cell_h;
 	Ui *ui;
 	char start_dir[1024];
+	char run[2048];         /* typed into the first tab as it opens */
 } Forge;
 
 static Forge fg;
@@ -748,6 +753,12 @@ static void open_tab(void)
 		return;
 	fg.tabs[fg.ntabs] = s;
 	fg.current = fg.ntabs++;
+	if (fg.run[0]) {
+		/* the shell reads it when it's ready, as if typed */
+		write_pty(s, fg.run, strlen(fg.run));
+		write_pty(s, "\r", 1);
+		fg.run[0] = 0;
+	}
 }
 
 static void close_tab(int i)
@@ -930,7 +941,9 @@ static void init(Ui *ui)
 
 int main(int argc, char **argv)
 {
-	if (argc > 1)
+	if (argc > 1 && str_starts(argv[1], "run:"))
+		str_copy(fg.run, argv[1] + 4, sizeof fg.run);
+	else if (argc > 1)
 		str_copy(fg.start_dir, argv[1], sizeof fg.start_dir);
 	sig_ignore(SIGPIPE);
 	UiAppDesc d = { .id = "forge", .title = "Forge", .width = 860, .height = 540, .min_width = 420, .min_height = 260,

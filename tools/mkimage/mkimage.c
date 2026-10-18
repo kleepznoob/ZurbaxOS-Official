@@ -151,6 +151,11 @@ static int make_cpio(const char *out, char **hooks, int nhooks)
 		check(cpio_dir(&cw, "system/share/harbor-repo", 0755), "system/share/harbor-repo");
 		add_tree("build/repo", "system/share/harbor-repo", NULL);
 	}
+	/* helpers for the Linux layer (layer/helpers/), which it sees at /.zos/system */
+	if (dir_exists("build/libexec")) {
+		check(cpio_dir(&cw, "system/libexec", 0755), "system/libexec");
+		add_tree("build/libexec", "system/libexec", NULL);
+	}
 
 	check(cpio_end(&cw), "archive trailer");
 	u64 size = cw.written;

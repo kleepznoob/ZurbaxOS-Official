@@ -101,7 +101,17 @@ $(OUT)/tests/%: $(OUT)/obj/tests/%.o $(LINK_LIBS)
 
 .PHONY: media-prep system-efi iso iso-standard iso-mini downloads downloads-files apps firmware all test clean devroot devroot-links image run
 .SECONDARY:
-all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(if $(STORE),$(OUT)/repo/index)
+# Helpers that run inside the Linux layer (layer/helpers/), on its C library
+# and libraries rather than Zurbax's runtime: built against the build
+# machine's glibc, which is older than the layer's, so they run there.
+HOSTCC ?= cc
+HELPERS := $(patsubst layer/helpers/%.c,$(OUT)/libexec/%,$(wildcard layer/helpers/*.c))
+$(OUT)/libexec/%: layer/helpers/%.c
+	@mkdir -p $(dir $@)
+	@echo "  CC    $@"
+	@$(HOSTCC) -O2 -Wall -Wextra -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -Wl,-z,relro,-z,now -o $@ $< -ldl
+
+all: $(foreach l,$(LIBNAMES),$(OUT)/lib/lib$(l).a) $(ALL_PROGRAMS) $(HELPERS) $(if $(STORE),$(OUT)/repo/index)
 
 # A development root that mirrors /system, so programs find their data files.
 DEVROOT := $(OUT)/root/system
@@ -112,6 +122,7 @@ devroot-links:
 	@ln -sfn $(CURDIR)/data/icons $(DEVROOT)/share/icons
 	@for f in $(CURDIR)/data/*; do case $$f in */icons) ;; *) ln -sfn $$f $(DEVROOT)/share/$$(basename $$f);; esac; done
 	@for p in $(SYSTEM); do ln -sfn $(CURDIR)/$(OUT)/bin/$$p $(DEVROOT)/bin/$$p; done
+	@ln -sfn $(CURDIR)/$(OUT)/libexec $(DEVROOT)/libexec
 	@for a in $(APPS); do \
 		mkdir -p $(DEVROOT)/apps/$$a; \
 		ln -sfn $(CURDIR)/$(OUT)/apps/$$a/$$a $(DEVROOT)/apps/$$a/$$a; \
