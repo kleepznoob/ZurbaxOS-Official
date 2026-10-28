@@ -7,7 +7,7 @@ the long-term branch, with a few patches of its own. Everything you see on
 top of it is Zurbax's own code, written in C: the desktop and window
 system, the graphics and the font, the toolkit, every app, the init
 system, the network and sound, the installer and the updates. None of that
-part uses glibc, GTK, Qt or an X server.
+part uses glibc, GTK, Qt or on a X server.
 
 Programs from the wider Linux world run too, in what Zurbax calls the
 Linux layer: a separate image with glibc, Mesa, Xwayland and the rest of a
